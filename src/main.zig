@@ -3,6 +3,7 @@ const fs = std.fs;
 const io = std.io;
 const print = std.debug.print;
 const Lexer = @import("./lexer.zig");
+const Parser = @import("./parser.zig");
 
 pub fn main() !void {
     const alloc = std.heap.page_allocator;
@@ -50,9 +51,13 @@ fn run(src: []const u8) !void {
     var lexer = Lexer.init(src, std.heap.page_allocator);
     defer lexer.deinit();
 
-    var tokens = try lexer.scan();
+    const tokens = try lexer.scan();
+    var parser = Parser.init(tokens, std.heap.page_allocator);
+
+    const ast = try parser.parse();
 
     try jsonPrint(tokens, "./tokens.json");
+    try jsonPrint(ast, "./ast.json");
 }
 
 pub fn jsonPrint(value: anytype, file_path: []const u8) !void {

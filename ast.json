@@ -1,0 +1,28 @@
+[
+    {
+        "Expr": {
+            "Variable": {
+                "name": {
+                    "type": {
+                        "IDENTIFIER": "fdslkj"
+                    },
+                    "lexeme": "fdslkj",
+                    "line": 1
+                }
+            }
+        }
+    },
+    {
+        "Expr": {
+            "Variable": {
+                "name": {
+                    "type": {
+                        "IDENTIFIER": "sdflkj"
+                    },
+                    "lexeme": "sdflkj",
+                    "line": 1
+                }
+            }
+        }
+    }
+]
