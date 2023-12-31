@@ -28,6 +28,9 @@ pub const Types = enum {
     GREATER_EQUAL,
     LESS,
     LESS_EQUAL,
+    COLON,
+    COLON_COLON,
+    COLON_EQUAL,
 
     // Literals.
     IDENTIFIER,
@@ -36,10 +39,8 @@ pub const Types = enum {
 
     // Keywords.
     AND,
-    CLASS,
     ELSE,
     FALSE,
-    FUN,
     FOR,
     IF,
     NIL,
@@ -48,10 +49,7 @@ pub const Types = enum {
     RETURN,
     BREAK,
     CONTINUE,
-    SUPER,
-    THIS,
     TRUE,
-    VAR,
     WHILE,
     EOF,
 };
@@ -79,6 +77,9 @@ pub const Type = union(Types) {
     GREATER_EQUAL,
     LESS,
     LESS_EQUAL,
+    COLON,
+    COLON_COLON,
+    COLON_EQUAL,
 
     // Literals.
     IDENTIFIER: []const u8,
@@ -87,10 +88,8 @@ pub const Type = union(Types) {
 
     // Keywords.
     AND,
-    CLASS,
     ELSE,
     FALSE,
-    FUN,
     FOR,
     IF,
     NIL,
@@ -99,36 +98,23 @@ pub const Type = union(Types) {
     RETURN,
     BREAK,
     CONTINUE,
-    SUPER,
-    THIS,
     TRUE,
-    VAR,
     WHILE,
     EOF,
-
-    // pub fn is(self: @This(), b: Tokens) bool {
-    //     return @as(Tokens, self) == b;
-    // }
 };
 
 const keywords = std.ComptimeStringMap(Type, .{
     .{ "and", .AND },
-    .{ "class", .CLASS },
     .{ "else", .ELSE },
     .{ "false", .FALSE },
     .{ "for", .FOR },
     .{ "break", .BREAK },
     .{ "continue", .CONTINUE },
-    .{ "fun", .FUN },
     .{ "if", .IF },
-    .{ "nil", .NIL },
     .{ "or", .OR },
     .{ "print", .PRINT },
     .{ "return", .RETURN },
-    .{ "super", .SUPER },
-    .{ "this", .THIS },
     .{ "true", .TRUE },
-    .{ "var", .VAR },
     .{ "while", .WHILE },
 });
 

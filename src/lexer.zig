@@ -8,14 +8,15 @@ const isDigit = std.ascii.isDigit;
 
 const Self = @This();
 
-// const ErrorReporter = @import("./error-reporter.zig").ErrorReporter;
-// const Err = ErrorReporter(LexerError);
-// const LexerError = error{
-//     UnexpectedCharacter,
-// };
+const ErrorReporter = @import("./error-reporter.zig").ErrorReporter;
+const Err = ErrorReporter(LexerError);
+const LexerError = error{
+    UnexpectedCharacter,
+    UnterminatedCommentBlock,
+    UnterminatedString,
+};
 
-//@todo remove this and use error reporter
-had_error: bool = false,
+last_error: ?LexerError = null,
 
 src: []const u8,
 
@@ -64,6 +65,8 @@ fn scanToken(self: *Self) !void {
         '-' => .MINUS,
         '+' => .PLUS,
         ';' => .SEMICOLON,
+        '*' => .STAR,
+        ':' => if (self.match(':')) .COLON_COLON else if (self.match('=')) .COLON_EQUAL else .COLON,
         '/' => blk: {
             if (self.match('/')) {
                 while (self.peek() != '\n' and !self.isAtEnd()) {
@@ -77,7 +80,6 @@ fn scanToken(self: *Self) !void {
                 break :blk .SLASH;
             }
         },
-        '*' => .STAR,
         '!' => if (self.match('=')) .BANG_EQUAL else .BANG,
         '=' => if (self.match('=')) .EQUAL_EQUAL else .EQUAL,
         '<' => if (self.match('=')) .LESS_EQUAL else .LESS,
@@ -91,8 +93,7 @@ fn scanToken(self: *Self) !void {
         '0'...'9' => try self.readNumber(),
         'a'...'z', 'A'...'Z', '_' => self.readIdentifier(),
         else => blk: {
-            self.had_error = true;
-            report(self.line, self.src[self.start..self.current], "Unexpected character");
+            self.err(LexerError.UnexpectedCharacter);
             break :blk null;
         },
     };
@@ -157,8 +158,8 @@ fn readCommentBlock(self: *Self) void {
             _ = self.advance();
         }
     }
-    report(self.line, "", "Unterminated comment block");
-    self.had_error = true;
+
+    self.err(LexerError.UnterminatedCommentBlock);
 }
 
 fn readString(self: *Self) ?Token.Type {
@@ -170,7 +171,7 @@ fn readString(self: *Self) ?Token.Type {
     }
 
     if (self.isAtEnd()) {
-        report(self.line, self.src[self.start..self.current], "Unterminated string");
+        self.err(LexerError.UnterminatedString);
         return null;
     }
 
@@ -230,25 +231,30 @@ fn expectTokenSequenceFromTokens(comptime expected: []const Token.Types, tokens:
     };
 }
 
+fn err(self: *Self, comptime lexer_error: LexerError) void {
+    Err.print(self.line, self.src[self.start..self.current], @errorName(lexer_error));
+    self.last_error = lexer_error;
+}
+
 const expect = std.testing.expect;
 
 test "can scan simple code" {
     try expectTokenSequence(
-        &.{ .VAR, .IDENTIFIER, .EQUAL, .STRING, .SEMICOLON, .EOF },
-        "var ok = \"test\";",
+        &.{ .IDENTIFIER, .EQUAL, .STRING, .SEMICOLON, .EOF },
+        "ok = \"test\";",
     );
 }
 
 test "can skip single line comments" {
     try expectTokenSequence(
-        &.{ .VAR, .IDENTIFIER, .EQUAL, .STRING, .SEMICOLON, .EOF },
-        "// Hey I'm Commenty McCommentFace \n var ok =\"test\";",
+        &.{ .IDENTIFIER, .EQUAL, .STRING, .SEMICOLON, .EOF },
+        "// Hey I'm Commenty McCommentFace \n ok =\"test\";",
     );
 }
 
 test "can skip nested multi line comments" {
     try expectTokenSequence(
-        &.{ .VAR, .IDENTIFIER, .EQUAL, .STRING, .SEMICOLON, .EOF },
-        "/* Hey I'm Commenty /* nested comment */ McCommentFace */ \n var ok =\"test\";",
+        &.{ .IDENTIFIER, .EQUAL, .STRING, .SEMICOLON, .EOF },
+        "/* Hey I'm Commenty /* nested comment */ McCommentFace */ \n ok =\"test\";",
     );
 }
