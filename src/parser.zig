@@ -1,5 +1,6 @@
 const std = @import("std");
 const Token = @import("./token.zig");
+const Stmt = @import("./ast/stmt.zig");
 
 const Self = @This();
 
@@ -8,6 +9,8 @@ const Err = ErrorReporter(ParserError);
 const ParserError = error{};
 
 allocator: std.mem.Allocator,
+
+// stmts: *Arra
 
 pub fn init(tokens: []Token, allocator: std.mem.Allocator) Self {
     return Self{
