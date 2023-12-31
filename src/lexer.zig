@@ -38,9 +38,9 @@ pub fn deinit(self: *Self) void {
 }
 
 pub fn scan(self: *Self) ![]Token {
-    while (!self.isAtEnd()) {
+    while (!self.is_at_end()) {
         self.start = self.current;
-        try self.scanToken();
+        try self.scan_token();
     }
 
     try self.tokens.append(Token{
@@ -52,7 +52,7 @@ pub fn scan(self: *Self) ![]Token {
     return self.tokens.items;
 }
 
-fn scanToken(self: *Self) !void {
+fn scan_token(self: *Self) !void {
     const char: u8 = self.advance();
 
     const maybe_token: ?Token.Type = switch (char) {
@@ -69,12 +69,12 @@ fn scanToken(self: *Self) !void {
         ':' => if (self.match(':')) .COLON_COLON else if (self.match('=')) .COLON_EQUAL else .COLON,
         '/' => blk: {
             if (self.match('/')) {
-                while (self.peek() != '\n' and !self.isAtEnd()) {
+                while (self.peek() != '\n' and !self.is_at_end()) {
                     _ = self.advance();
                 }
                 break :blk null;
             } else if (self.match('*')) {
-                self.readCommentBlock();
+                self.read_comment_block();
                 break :blk null;
             } else {
                 break :blk .SLASH;
@@ -89,8 +89,8 @@ fn scanToken(self: *Self) !void {
             self.line += 1;
             break :blk null;
         },
-        '"' => self.readString(),
-        '0'...'9' => try self.readNumber(),
+        '"' => self.read_string(),
+        '0'...'9' => try self.read_number(),
         'a'...'z', 'A'...'Z', '_' => self.readIdentifier(),
         else => blk: {
             self.err(LexerError.UnexpectedCharacter);
@@ -99,11 +99,11 @@ fn scanToken(self: *Self) !void {
     };
 
     if (maybe_token) |token| {
-        try self.addToken(token);
+        try self.add_token(token);
     }
 }
 
-fn addToken(self: *Self, token_type: Token.Type) !void {
+fn add_token(self: *Self, token_type: Token.Type) !void {
     var text = self.src[self.start..self.current];
 
     try self.tokens.append(.{
@@ -114,8 +114,7 @@ fn addToken(self: *Self, token_type: Token.Type) !void {
 }
 
 fn match(self: *Self, expected: u8) bool {
-    if (self.isAtEnd()) return false;
-    if (self.src[self.current] != expected) return false;
+    if (self.is_at_end() or self.src[self.current] != expected) return false;
 
     self.current += 1;
     return true;
@@ -127,7 +126,7 @@ fn advance(self: *Self) u8 {
 }
 
 fn peek(self: *Self) u8 {
-    if (self.isAtEnd()) return 0;
+    if (self.is_at_end()) return 0;
     return self.src[self.current];
 }
 
@@ -136,14 +135,14 @@ fn peekNext(self: *Self) u8 {
     return self.src[self.current + 1];
 }
 
-fn readCommentBlock(self: *Self) void {
-    while (!self.isAtEnd()) {
+fn read_comment_block(self: *Self) void {
+    while (!self.is_at_end()) {
         // nested comment block
         if (self.peek() == '/' and self.peekNext() == '*') {
             _ = self.advance();
             _ = self.advance();
 
-            self.readCommentBlock();
+            self.read_comment_block();
         } else if (self.peek() == '*' and self.peekNext() == '/') {
             _ = self.advance();
             _ = self.advance();
@@ -162,15 +161,15 @@ fn readCommentBlock(self: *Self) void {
     self.err(LexerError.UnterminatedCommentBlock);
 }
 
-fn readString(self: *Self) ?Token.Type {
-    while (self.peek() != '"' and !self.isAtEnd()) {
+fn read_string(self: *Self) ?Token.Type {
+    while (self.peek() != '"' and !self.is_at_end()) {
         if (self.peek() == '\n') {
             self.line += 1;
         }
         _ = self.advance();
     }
 
-    if (self.isAtEnd()) {
+    if (self.is_at_end()) {
         self.err(LexerError.UnterminatedString);
         return null;
     }
@@ -184,7 +183,7 @@ fn readString(self: *Self) ?Token.Type {
     };
 }
 
-fn readNumber(self: *Self) !Token.Type {
+fn read_number(self: *Self) !Token.Type {
     while (isDigit(self.peek())) _ = self.advance();
 
     // Look for a fractional part
@@ -210,18 +209,18 @@ fn readIdentifier(self: *Self) Token.Type {
     };
 }
 
-fn isAtEnd(self: *Self) bool {
+fn is_at_end(self: *Self) bool {
     return self.current >= self.src.len;
 }
 
-fn expectTokenSequence(comptime expected: []const Token.Types, comptime src: []const u8) !void {
+fn expect_token_sequence(comptime expected: []const Token.Types, comptime src: []const u8) !void {
     var lexer = init(src, std.testing.allocator);
     var tokens = try lexer.scan();
     defer lexer.deinit();
-    return expectTokenSequenceFromTokens(expected, tokens);
+    return expect_token_sequence_from_tokens(expected, tokens);
 }
 
-fn expectTokenSequenceFromTokens(comptime expected: []const Token.Types, tokens: []Token) !void {
+fn expect_token_sequence_from_tokens(comptime expected: []const Token.Types, tokens: []Token) !void {
     if (expected.len != tokens.len) return error.TestUnexpectedResult;
 
     return for (expected, tokens) |expected_token, actual_token| {
@@ -239,21 +238,21 @@ fn err(self: *Self, comptime lexer_error: LexerError) void {
 const expect = std.testing.expect;
 
 test "can scan simple code" {
-    try expectTokenSequence(
+    try expect_token_sequence(
         &.{ .IDENTIFIER, .EQUAL, .STRING, .SEMICOLON, .EOF },
         "ok = \"test\";",
     );
 }
 
 test "can skip single line comments" {
-    try expectTokenSequence(
+    try expect_token_sequence(
         &.{ .IDENTIFIER, .EQUAL, .STRING, .SEMICOLON, .EOF },
         "// Hey I'm Commenty McCommentFace \n ok =\"test\";",
     );
 }
 
 test "can skip nested multi line comments" {
-    try expectTokenSequence(
+    try expect_token_sequence(
         &.{ .IDENTIFIER, .EQUAL, .STRING, .SEMICOLON, .EOF },
         "/* Hey I'm Commenty /* nested comment */ McCommentFace */ \n ok =\"test\";",
     );

@@ -52,11 +52,7 @@ fn run(src: []const u8) !void {
 
     var tokens = try lexer.scan();
 
-    // if (lexer.last_error) |last_error| {
-    //     print("{}", .{@errorName(last_error)});
-    // }
-
-    try jsonPrint(tokens, "./out.json");
+    try jsonPrint(tokens, "./tokens.json");
 }
 
 pub fn jsonPrint(value: anytype, file_path: []const u8) !void {
