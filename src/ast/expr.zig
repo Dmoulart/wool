@@ -31,7 +31,7 @@ pub const Expr = union(enum) {
 
     pub const Lambda = struct {
         args: []*const Token,
-        body: []*Stmt,
+        body: []*const Stmt,
     };
 
     pub const Grouping = struct {

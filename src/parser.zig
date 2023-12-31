@@ -12,6 +12,7 @@ const ParserError = error{
     OutOfMemory,
     MissingExpression,
     MissingSemiColonAfterValue,
+    MissingClosingParen,
 };
 
 allocator: std.mem.Allocator,
@@ -62,7 +63,124 @@ fn expression_stmt(self: *Self) ParserError!?*Stmt {
 }
 
 fn expression(self: *Self) ParserError!*Expr {
-    return try self.primary();
+    return try self.or_expr();
+}
+
+fn or_expr(self: *Self) ParserError!*Expr {
+    var expr = try self.and_expr();
+
+    while (self.match(&.{.OR})) {
+        const op = self.previous();
+        const right = try self.and_expr();
+
+        expr = try self.create_expr(
+            .{
+                .Logical = .{
+                    .left = expr,
+                    .op = op,
+                    .right = right,
+                },
+            },
+        );
+    }
+
+    return expr;
+}
+
+fn and_expr(self: *Self) ParserError!*Expr {
+    var expr = try self.primary();
+
+    while (self.match(&.{.AND})) {
+        const op = self.previous();
+        const right = try self.and_expr();
+
+        expr = try self.create_expr(
+            .{
+                .Logical = .{
+                    .left = expr,
+                    .op = op,
+                    .right = right,
+                },
+            },
+        );
+    }
+
+    return expr;
+}
+
+fn equality(self: *Self) ParserError!*Expr {
+    var expr = try self.comparison();
+
+    while (self.match(&.{ .BANG_EQUAL, .EQUAL_EQUAL })) {
+        expr = try self.create_expr(.{
+            .Binary = .{
+                .left = expr,
+                .op = self.previous().*,
+                .right = (try self.comparison()),
+            },
+        });
+    }
+
+    return expr;
+}
+
+fn comparison(self: *Self) ParserError!*Expr {
+    var expr = try self.term();
+
+    while (self.match(&.{ .GREATER, .GREATER_EQUAL, .LESS, .LESS_EQUAL })) {
+        expr = try self.create_expr(.{
+            .Binary = .{
+                .left = expr,
+                .op = self.previous().*,
+                .right = (try self.term()),
+            },
+        });
+    }
+    return expr;
+}
+
+fn term(self: *Self) ParserError!*Expr {
+    var expr = try self.factor();
+
+    while (self.match(&.{ .MINUS, .PLUS })) {
+        expr = try self.create_expr(.{
+            .Binary = .{
+                .left = expr,
+                .op = self.previous().*,
+                .right = (try self.term()),
+            },
+        });
+    }
+
+    return expr;
+}
+
+fn factor(self: *Self) ParserError!*Expr {
+    var expr = try self.unary();
+
+    while (self.match(&.{ .SLASH, .STAR })) {
+        expr = try self.create_expr(.{
+            .Binary = .{
+                .left = expr,
+                .op = self.previous().*,
+                .right = (try self.term()),
+            },
+        });
+    }
+    return expr;
+}
+
+fn unary(self: *Self) ParserError!*Expr {
+    if (self.match(&.{ .BANG, .MINUS })) {
+        return try self.create_expr(.{
+            .Unary = .{
+                .op = self.previous().*,
+                .right = (try self.term()),
+            },
+        });
+    }
+
+    return try self.call();
 }
 
 fn primary(self: *Self) ParserError!*Expr {
@@ -74,6 +192,55 @@ fn primary(self: *Self) ParserError!*Expr {
                 },
             },
         );
+    }
+
+    if (self.match(&.{.FALSE})) {
+        return try self.create_expr(.{
+            .Literal = .{
+                .value = .{ .Boolean = false },
+            },
+        });
+    }
+
+    if (self.match(&.{.TRUE})) {
+        return try self.create_expr(.{
+            .Literal = .{
+                .value = .{ .Boolean = true },
+            },
+        });
+    }
+
+    if (self.match(&.{.NUMBER})) {
+        return try self.create_expr(.{
+            .Literal = .{
+                .value = .{ .Float = self.previous().type.NUMBER },
+            },
+        });
+    }
+
+    if (self.match(&.{.STRING})) {
+        return try self.create_expr(.{
+            .Literal = .{
+                .value = .{
+                    .String = self.previous().type.STRING,
+                },
+            },
+        });
+    }
+
+    if (self.match(&.{.LEFT_PAREN})) {
+        var expr = try self.expression();
+        _ = try self.consume(
+            .RIGHT_PAREN,
+            ParserError.MissingClosingParen,
+            "Expect ) after expression",
+        );
+
+        return try self.create_expr(.{
+            .Grouping = .{
+                .expr = expr,
+            },
+        });
     }
 
     return Err.raise(
