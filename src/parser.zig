@@ -17,6 +17,9 @@ const ParserError = error{
     MissingVariableName,
     MissingSemiColonAfterVarDeclaration,
     MissingSemiColonAfterReturnValue,
+    MissingArrowInFunctionExpression,
+    TooMuchArguments,
+    MissingParameterName,
 };
 
 allocator: std.mem.Allocator,
@@ -93,6 +96,52 @@ fn expression_stmt(self: *Self) ParserError!?*Stmt {
 }
 
 fn expression(self: *Self) ParserError!*Expr {
+    return try self.function();
+}
+
+fn function(self: *Self) ParserError!*Expr {
+    if (self.peek().type == .COMMA or self.peek().type == .MINUS_ARROW) {
+        var args = std.ArrayList(*Token).init(self.allocator);
+
+        errdefer args.deinit();
+
+        while (self.match(&.{.COMMA})) {
+            // @todo: do while would have been great in this case
+            if (args.items.len >= 255) {
+                return Err.raise(
+                    self.peek(),
+                    ParserError.TooMuchArguments,
+                    "Functions cannot have more than 255 arguments",
+                );
+            }
+
+            const identifier = try self.consume(
+                .IDENTIFIER,
+                ParserError.MissingParameterName,
+                "Expect parameter name.",
+            );
+
+            args.append(identifier) catch return ParserError.OutOfMemory;
+        }
+
+        _ = try self.consume(
+            .MINUS_ARROW,
+            ParserError.MissingArrowInFunctionExpression,
+            "Expect -> before declaring function body.",
+        );
+
+        const body = try self.expression_stmt();
+
+        return try self.create_expr(
+            .{
+                .Function = .{
+                    .args = args.toOwnedSlice() catch return ParserError.OutOfMemory,
+                    .body = body,
+                },
+            },
+        );
+    }
+
     return try self.const_init();
 }
 

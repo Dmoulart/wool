@@ -62,10 +62,10 @@ fn scan_token(self: *Self) !void {
         '}' => .RIGHT_BRACE,
         ',' => .COMMA,
         '.' => .DOT,
-        '-' => .MINUS,
         '+' => .PLUS,
         ';' => .SEMICOLON,
         '*' => .STAR,
+        '-' => if (self.match('>')) .MINUS_ARROW else .MINUS,
         ':' => if (self.match(':')) .COLON_COLON else if (self.match('=')) .COLON_EQUAL else .COLON,
         '/' => blk: {
             if (self.match('/')) {

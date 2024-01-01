@@ -31,6 +31,7 @@ pub const Types = enum {
     COLON,
     COLON_COLON,
     COLON_EQUAL,
+    MINUS_ARROW,
 
     // Literals.
     IDENTIFIER,
@@ -80,6 +81,7 @@ pub const Type = union(Types) {
     COLON,
     COLON_COLON,
     COLON_EQUAL,
+    MINUS_ARROW,
 
     // Literals.
     IDENTIFIER: []const u8,
