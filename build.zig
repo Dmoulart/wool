@@ -27,9 +27,9 @@ pub fn build(b: *std.Build) void {
     exe.addIncludePath(.{
         .path = "binaryen/src",
     });
-    // exe.addObjectFile(.{
-    //     .path = "binaryen/lib/libbinaryen.a",
-    // });
+    exe.addObjectFile(.{
+        .path = "/Users/dorianmoulart/Documents/code/projects/wool/binaryen/lib/libbinaryen.a",
+    });
     exe.linkLibCpp();
 
     // This declares intent for the executable to be installed into the

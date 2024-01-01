@@ -10,7 +10,10 @@ pub const c = @cImport({
 });
 
 pub fn main() !void {
-    print("{any}", .{c});
+    // var module = c.BinaryenModuleCreate();
+    // var ret = c.BinaryenModulePrint(module);
+    // print("{any}", .{ret});
+
     const alloc = std.heap.page_allocator;
     const args = try std.process.argsAlloc(alloc);
     defer std.process.argsFree(alloc, args);
