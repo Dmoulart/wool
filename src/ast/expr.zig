@@ -33,7 +33,7 @@ pub const Expr = union(enum) {
     };
 
     pub const Function = struct {
-        args: []*const Token,
+        args: ?[]*const Token,
         body: ?*const Stmt,
     };
 

@@ -91,7 +91,7 @@ fn scan_token(self: *Self) !void {
         },
         '"' => self.read_string(),
         '0'...'9' => try self.read_number(),
-        'a'...'z', 'A'...'Z', '_' => self.readIdentifier(),
+        'a'...'z', 'A'...'Z', '_' => self.read_identifier(),
         else => blk: {
             self.err(LexerError.UnexpectedCharacter);
             break :blk null;
@@ -199,7 +199,7 @@ fn read_number(self: *Self) !Token.Type {
     };
 }
 
-fn readIdentifier(self: *Self) Token.Type {
+fn read_identifier(self: *Self) Token.Type {
     while (isAlphanumeric(self.peek())) _ = self.advance();
 
     const text = self.src[self.start..self.current];

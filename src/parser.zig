@@ -100,14 +100,25 @@ fn expression(self: *Self) ParserError!*Expr {
 }
 
 fn function(self: *Self) ParserError!*Expr {
-    if (self.peek().type == .COMMA or self.peek().type == .MINUS_ARROW) {
-        var args = std.ArrayList(*Token).init(self.allocator);
+    const args_declaration = self.peek().type == .IDENTIFIER and self.check_next(1, .COMMA);
 
-        errdefer args.deinit();
+    var args: ?std.ArrayList(*Token) = null;
+
+    if (args_declaration) {
+        args = std.ArrayList(*Token).init(self.allocator);
+        errdefer args.?.deinit();
+
+        const first_identifier = try self.consume(
+            .IDENTIFIER,
+            ParserError.MissingParameterName,
+            "Expect parameter name.",
+        );
+
+        args.?.append(first_identifier) catch return ParserError.OutOfMemory;
 
         while (self.match(&.{.COMMA})) {
             // @todo: do while would have been great in this case
-            if (args.items.len >= 255) {
+            if (args.?.items.len >= 255) {
                 return Err.raise(
                     self.peek(),
                     ParserError.TooMuchArguments,
@@ -121,9 +132,11 @@ fn function(self: *Self) ParserError!*Expr {
                 "Expect parameter name.",
             );
 
-            args.append(identifier) catch return ParserError.OutOfMemory;
+            args.?.append(identifier) catch return ParserError.OutOfMemory;
         }
+    }
 
+    if (self.peek().type == .MINUS_ARROW) {
         _ = try self.consume(
             .MINUS_ARROW,
             ParserError.MissingArrowInFunctionExpression,
@@ -135,10 +148,21 @@ fn function(self: *Self) ParserError!*Expr {
         return try self.create_expr(
             .{
                 .Function = .{
-                    .args = args.toOwnedSlice() catch return ParserError.OutOfMemory,
+                    .args = if (args) |*non_empty_args|
+                        non_empty_args.toOwnedSlice() catch return ParserError.OutOfMemory
+                    else
+                        null,
                     .body = body,
                 },
             },
+        );
+    }
+    // if args were declared but no ->
+    else if (args_declaration) {
+        _ = try self.consume(
+            .MINUS_ARROW,
+            ParserError.MissingArrowInFunctionExpression,
+            "Expect -> before declaring function body.",
         );
     }
 
@@ -443,6 +467,22 @@ fn check(self: *Self, token_type: Token.Types) bool {
     }
 
     return token_type == @as(Token.Types, self.peek().type);
+}
+
+fn check_next(self: *Self, step: u32, comptime token_type: Token.Types) bool {
+    if (self.is_at_end()) return false;
+
+    var curr_step: u32 = 0;
+
+    var current_token: *Token = &self.tokens[self.current];
+
+    while (curr_step <= step) : (curr_step += 1) {
+        current_token = &self.tokens[self.current + curr_step];
+
+        if (current_token.type == .EOF) return false;
+    }
+
+    return current_token.type == token_type;
 }
 
 fn advance(self: *Self) *Token {
