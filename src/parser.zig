@@ -13,6 +13,9 @@ const ParserError = error{
     MissingExpression,
     MissingSemiColonAfterValue,
     MissingClosingParen,
+    InvalidAssignmentTarget,
+    MissingVariableName,
+    MissingSemiColonAfterVarDeclaration,
 };
 
 allocator: std.mem.Allocator,
@@ -50,6 +53,59 @@ fn declaration(self: *Self) ParserError!?*Stmt {
     return try self.expression_stmt();
 }
 
+fn var_initialization(self: *Self) ParserError!*Stmt {
+    const name = try self.consume(
+        .IDENTIFIER,
+        ParserError.MissingVariableName,
+        "Expect variable name.",
+    );
+    var initializer: ?Expr = null;
+
+    if (self.match(&.{.EQUAL})) {
+        initializer = try self.expression();
+    }
+
+    _ = try self.consume(
+        .SEMICOLON,
+        ParserError.MissingSemiColonAfterVarDeclaration,
+        "Expect ';' after variable declaration.",
+    );
+
+    return try self.createStatement(
+        .{
+            .Var = .{
+                .name = name,
+                .initializer = initializer,
+            },
+        },
+    );
+    // const stmt = try self.expression_stmt();
+
+    // if (self.match(&.{.COLON_EQUAL})) {
+    //     const equals = self.previous();
+    //     const value = try self.expression();
+
+    //     return switch (stmt.*) {
+    //         .Variable => |*var_expr| {
+    //             var name = var_expr.name;
+    //             return try self.create_stmt(.{
+    //                 .Assign = .{
+    //                     .name = name,
+    //                     .value = value,
+    //                 },
+    //             });
+    //         },
+    //         else => Err.raise(
+    //             equals,
+    //             ParserError.InvalidAssignmentTarget,
+    //             "Invalid assignment target.",
+    //         ),
+    //     };
+    // }
+
+    // return stmt;
+}
+
 fn expression_stmt(self: *Self) ParserError!?*Stmt {
     const expr = try self.expression();
 
@@ -63,7 +119,35 @@ fn expression_stmt(self: *Self) ParserError!?*Stmt {
 }
 
 fn expression(self: *Self) ParserError!*Expr {
-    return try self.or_expr();
+    return try self.assignment();
+}
+
+fn assignment(self: *Self) ParserError!*Expr {
+    const expr = try self.or_expr();
+
+    if (self.match(&.{.EQUAL})) {
+        const equals = self.previous();
+        const value = try self.assignment();
+
+        return switch (expr.*) {
+            .Variable => |*var_expr| {
+                var name = var_expr.name;
+                return try self.create_expr(.{
+                    .Assign = .{
+                        .name = name,
+                        .value = value,
+                    },
+                });
+            },
+            else => Err.raise(
+                equals,
+                ParserError.InvalidAssignmentTarget,
+                "Invalid assignment target.",
+            ),
+        };
+    }
+
+    return expr;
 }
 
 fn or_expr(self: *Self) ParserError!*Expr {
@@ -88,7 +172,7 @@ fn or_expr(self: *Self) ParserError!*Expr {
 }
 
 fn and_expr(self: *Self) ParserError!*Expr {
-    var expr = try self.primary();
+    var expr = try self.equality();
 
     while (self.match(&.{.AND})) {
         const op = self.previous();
@@ -115,7 +199,7 @@ fn equality(self: *Self) ParserError!*Expr {
         expr = try self.create_expr(.{
             .Binary = .{
                 .left = expr,
-                .op = self.previous().*,
+                .op = self.previous(),
                 .right = (try self.comparison()),
             },
         });
@@ -131,7 +215,7 @@ fn comparison(self: *Self) ParserError!*Expr {
         expr = try self.create_expr(.{
             .Binary = .{
                 .left = expr,
-                .op = self.previous().*,
+                .op = self.previous(),
                 .right = (try self.term()),
             },
         });
@@ -146,7 +230,7 @@ fn term(self: *Self) ParserError!*Expr {
         expr = try self.create_expr(.{
             .Binary = .{
                 .left = expr,
-                .op = self.previous().*,
+                .op = self.previous(),
                 .right = (try self.term()),
             },
         });
@@ -162,7 +246,7 @@ fn factor(self: *Self) ParserError!*Expr {
         expr = try self.create_expr(.{
             .Binary = .{
                 .left = expr,
-                .op = self.previous().*,
+                .op = self.previous(),
                 .right = (try self.term()),
             },
         });
@@ -174,13 +258,14 @@ fn unary(self: *Self) ParserError!*Expr {
     if (self.match(&.{ .BANG, .MINUS })) {
         return try self.create_expr(.{
             .Unary = .{
-                .op = self.previous().*,
+                .op = self.previous(),
                 .right = (try self.term()),
             },
         });
     }
 
-    return try self.call();
+    // return try self.call();
+    return try self.primary();
 }
 
 fn primary(self: *Self) ParserError!*Expr {
