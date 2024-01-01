@@ -2,18 +2,12 @@ const std = @import("std");
 const fs = std.fs;
 const io = std.io;
 const print = std.debug.print;
+
 const Lexer = @import("./lexer.zig");
 const Parser = @import("./parser.zig");
-
-pub const c = @cImport({
-    @cInclude("binaryen-c.h");
-});
+const Compiler = @import("./compiler.zig");
 
 pub fn main() !void {
-    // var module = c.BinaryenModuleCreate();
-    // var ret = c.BinaryenModulePrint(module);
-    // print("{any}", .{ret});
-
     const alloc = std.heap.page_allocator;
     const args = try std.process.argsAlloc(alloc);
     defer std.process.argsFree(alloc, args);
@@ -60,12 +54,16 @@ fn run(src: []const u8) !void {
     defer lexer.deinit();
 
     const tokens = try lexer.scan();
+
     var parser = Parser.init(tokens, std.heap.page_allocator);
+    defer parser.deinit();
 
     const ast = try parser.parse();
 
     try jsonPrint(tokens, "./tokens.json");
     try jsonPrint(ast, "./ast.json");
+
+    Compiler.compile();
 }
 
 pub fn jsonPrint(value: anytype, file_path: []const u8) !void {
