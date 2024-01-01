@@ -147,6 +147,20 @@ fn function(self: *Self) ParserError!*Expr {
             "Expect -> before declaring function body.",
         );
 
+        const maybe_last_expr = self.last_expr();
+
+        var name: ?*const Token = null;
+
+        if (maybe_last_expr) |last_expression| {
+            name = switch (last_expression.*) {
+                .ConstInit => |*const_intialization| const_intialization.name,
+                .VarInit => |var_initialization| var_initialization.name,
+                .Assign => |assignation| assignation.name,
+                .Variable => |variable| variable.name,
+                else => null,
+            };
+        }
+
         const body = try self.expression_stmt();
 
         return try self.create_expr(
@@ -157,6 +171,7 @@ fn function(self: *Self) ParserError!*Expr {
                     else
                         null,
                     .body = body,
+                    .name = name,
                 },
             },
         );
@@ -514,4 +529,8 @@ fn peek(self: *Self) *Token {
 
 fn previous(self: *Self) *Token {
     return &self.tokens[self.current - 1];
+}
+
+fn last_expr(self: *Self) ?*const Expr {
+    return if (self.exprs.getLastOrNull()) |*expr| expr else null;
 }

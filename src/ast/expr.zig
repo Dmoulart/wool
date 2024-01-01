@@ -35,6 +35,7 @@ pub const Expr = union(enum) {
     pub const Function = struct {
         args: ?[]*const Token,
         body: ?*const Stmt,
+        name: ?*const Token,
     };
 
     // pub const Lambda = struct {

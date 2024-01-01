@@ -97,22 +97,48 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
             self.current_env = env;
 
             var params: ?c.BinaryenType = null;
+
             if (func.args) |args| {
                 var binaryen_args = try self.allocator.alloc(c.BinaryenType, @intCast(args.len));
+
                 for (args, 0..) |arg, i| {
                     binaryen_args[i] = c.BinaryenTypeInt32();
                     try env.set(arg, i);
                 }
-                params = c.BinaryenTypeCreate(@ptrCast(binaryen_args), @intCast(args.len));
+
+                params = c.BinaryenTypeCreate(
+                    @ptrCast(binaryen_args),
+                    @intCast(args.len),
+                );
             }
+
             var result = c.BinaryenTypeInt32();
+
             const body = switch (func.body.?.*) {
                 .Expr => |*func_expr| try self.expression(func_expr),
                 else => unreachable,
             };
-            _ = c.BinaryenAddFunction(self.module, "test", params orelse 0, result, null, 0, body);
 
-            _ = c.BinaryenAddFunctionExport(self.module, "test", "test");
+            const name = if (func.name) |name| name.lexeme else "anonymous_func";
+            // horror museum @todo clean this crap up
+            const c_name: [*:0]const u8 = @ptrCast(self.allocator.dupeZ(u8, name) catch unreachable);
+
+            std.debug.print("name len {}", .{name.len});
+            _ = c.BinaryenAddFunction(
+                self.module,
+                c_name,
+                params orelse 0,
+                result,
+                null,
+                0,
+                body,
+            );
+
+            _ = c.BinaryenAddFunctionExport(
+                self.module,
+                c_name,
+                c_name,
+            );
 
             return body;
         },
