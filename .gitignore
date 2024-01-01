@@ -1,2 +1,8 @@
 zig-cache 
 zig-out
+# Wasm output
+out.wat
+out.wasm
+# Debug
+ast.json
+tokens.json

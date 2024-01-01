@@ -1,11 +1,16 @@
+const std = @import("std");
+
+const Token = @import("./token.zig");
+const Stmt = @import("./ast/stmt.zig").Stmt;
+const Expr = @import("./ast/expr.zig").Expr;
+
 pub const c = @cImport({
     @cInclude("binaryen-c.h");
 });
 
-pub fn compile() void {
-    // var module = c.BinaryenModuleCreate();
-    // var ret = c.BinaryenModulePrint(module);
-    // print("{any}", .{ret});
+pub fn compile(ast: []*Stmt) !void {
+    _ = ast;
+
     var module = c.BinaryenModuleCreate();
 
     // Create a function type for  i32 (i32, i32)
@@ -23,11 +28,28 @@ pub fn compile() void {
     // Note: no basic blocks here, we are an AST. The function body is just an
     // expression node.
     var adder =
-        c.BinaryenAddFunction(module, "adder", params, results, null, 0, add);
+        c.BinaryenAddFunction(module, "_start", params, results, null, 0, add);
     _ = adder;
 
+    _ = c.BinaryenAddFunctionExport(module, "_start", "_start");
+
     // Print it out
-    c.BinaryenModulePrint(module);
+    // c.BinaryenModulePrint(module);
+    var buf: [10_000]u8 = undefined;
+    const code_from_c = c.BinaryenModuleAllocateAndWriteText(module);
+    std.debug.print("text {s}", .{code_from_c});
+    var code = try std.fmt.bufPrintZ(&buf, "{s}", .{code_from_c});
+
+    const file_path = "./out.wat";
+    var out = std.ArrayList(u8).init(std.heap.page_allocator);
+    defer out.deinit();
+    const file = try std.fs.cwd().createFile(
+        file_path,
+        .{ .read = true },
+    );
+    defer file.close();
+
+    _ = try file.writeAll(code);
 
     // Clean up the module, which owns all the objects we created above
     c.BinaryenModuleDispose(module);

@@ -63,7 +63,7 @@ fn run(src: []const u8) !void {
     try jsonPrint(tokens, "./tokens.json");
     try jsonPrint(ast, "./ast.json");
 
-    Compiler.compile();
+    try Compiler.compile(ast);
 }
 
 pub fn jsonPrint(value: anytype, file_path: []const u8) !void {
