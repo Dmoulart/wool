@@ -60,10 +60,12 @@ fn run(src: []const u8) !void {
 
     const ast = try parser.parse();
 
+    var compiler = Compiler.init(std.heap.page_allocator, ast);
+
+    try compiler.compile();
+
     try jsonPrint(tokens, "./tokens.json");
     try jsonPrint(ast, "./ast.json");
-
-    try Compiler.compile(ast);
 }
 
 pub fn jsonPrint(value: anytype, file_path: []const u8) !void {

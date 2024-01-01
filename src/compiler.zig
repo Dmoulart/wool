@@ -8,10 +8,23 @@ pub const c = @cImport({
     @cInclude("binaryen-c.h");
 });
 
-pub fn compile(ast: []*Stmt) !void {
-    _ = ast;
+allocator: std.mem.Allocator,
 
+ast: []*Stmt,
+
+pub fn init(allocator: std.mem.Allocator, ast: []*Stmt) @This() {
+    return .{
+        .allocator = allocator,
+        .ast = ast,
+    };
+}
+
+pub fn compile(self: *@This()) !void {
     var module = c.BinaryenModuleCreate();
+
+    for (self.ast) |stmt| {
+        try self.codegen(stmt);
+    }
 
     // Create a function type for  i32 (i32, i32)
     var ii = [2]c.BinaryenType{ c.BinaryenTypeInt32(), c.BinaryenTypeInt32() };
@@ -32,13 +45,68 @@ pub fn compile(ast: []*Stmt) !void {
     _ = adder;
 
     _ = c.BinaryenAddFunctionExport(module, "_start", "_start");
+
     try write(module);
     // c.BinaryenModulePrint(module);
 }
 
+fn codegen(self: *@This(), stmt: *Stmt) !void {
+    switch (stmt.*) {
+        .Expr => |expr| {
+            switch (expr) {
+                .ConstInit => |const_init| {
+                    const maybe_func = switch (const_init.initializer.*) {
+                        .Function => |func| func,
+                        else => null,
+                    };
+
+                    if (maybe_func) |func| {
+                        var params: ?c.BinaryenType = null;
+                        if (func.args) |args| {
+                            var binaryen_args = try self.allocator.alloc(c.BinaryenType, @intCast(args.len));
+                            for (args, 0..) |_, i| {
+                                binaryen_args[i] = c.BinaryenTypeInt32();
+                            }
+                            params = c.BinaryenTypeCreate(@ptrCast(&binaryen_args), @intCast(args.len));
+                        }
+                        var result = c.BinaryenTypeInt32();
+                        _ = result;
+                    }
+                },
+                else => unreachable,
+            }
+        },
+        else => unreachable,
+    }
+}
+
+fn expression(self: *@This(), expr: *Expr) !void {
+    switch (expr) {
+        .ConstInit => |const_init| {
+            const maybe_func = switch (const_init.initializer.*) {
+                .Function => |func| func,
+                else => null,
+            };
+
+            if (maybe_func) |func| {
+                var params: ?c.BinaryenType = null;
+                if (func.args) |args| {
+                    var binaryen_args = try self.allocator.alloc(c.BinaryenType, @intCast(args.len));
+                    for (args, 0..) |_, i| {
+                        binaryen_args[i] = c.BinaryenTypeInt32();
+                    }
+                    params = c.BinaryenTypeCreate(@ptrCast(&binaryen_args), @intCast(args.len));
+                }
+                var result = c.BinaryenTypeInt32();
+                _ = result;
+            }
+        },
+        else => unreachable,
+    }
+}
+
 fn write(module: c.BinaryenModuleRef) !void {
     // Print it out
-
     var buf: [10_000]u8 = undefined;
 
     const code_from_c = c.BinaryenModuleAllocateAndWriteText(module);
