@@ -11,6 +11,7 @@ pub const Expr = union(enum) {
     Logical: Logical,
     Unary: Unary,
     Variable: Variable,
+    VarInit: VarInit,
 
     pub const Assign = struct {
         name: *const Token,
@@ -63,5 +64,10 @@ pub const Expr = union(enum) {
 
     pub const Variable = struct {
         name: *const Token,
+    };
+
+    pub const VarInit = struct {
+        name: *const Token,
+        initializer: *const Expr,
     };
 };

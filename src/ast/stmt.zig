@@ -8,7 +8,7 @@ pub const Stmt = union(enum) {
     If: If,
     Print: Expr,
     Return: Return,
-    Var: Var,
+    // Var: Var,
     While: While,
     Break: Break,
     Continue: Continue,
@@ -29,10 +29,10 @@ pub const Stmt = union(enum) {
         else_branch: ?*const Stmt,
     };
 
-    pub const Var = struct {
-        name: *const Token,
-        initializer: ?*const Expr,
-    };
+    // pub const Var = struct {
+    //     name: *const Token,
+    //     initializer: ?*const Expr,
+    // };
 
     pub const Return = struct {
         keyword: *const Token,

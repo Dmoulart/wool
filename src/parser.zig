@@ -53,59 +53,6 @@ fn declaration(self: *Self) ParserError!?*Stmt {
     return try self.expression_stmt();
 }
 
-fn var_initialization(self: *Self) ParserError!*Stmt {
-    const name = try self.consume(
-        .IDENTIFIER,
-        ParserError.MissingVariableName,
-        "Expect variable name.",
-    );
-    var initializer: ?Expr = null;
-
-    if (self.match(&.{.EQUAL})) {
-        initializer = try self.expression();
-    }
-
-    _ = try self.consume(
-        .SEMICOLON,
-        ParserError.MissingSemiColonAfterVarDeclaration,
-        "Expect ';' after variable declaration.",
-    );
-
-    return try self.createStatement(
-        .{
-            .Var = .{
-                .name = name,
-                .initializer = initializer,
-            },
-        },
-    );
-    // const stmt = try self.expression_stmt();
-
-    // if (self.match(&.{.COLON_EQUAL})) {
-    //     const equals = self.previous();
-    //     const value = try self.expression();
-
-    //     return switch (stmt.*) {
-    //         .Variable => |*var_expr| {
-    //             var name = var_expr.name;
-    //             return try self.create_stmt(.{
-    //                 .Assign = .{
-    //                     .name = name,
-    //                     .value = value,
-    //                 },
-    //             });
-    //         },
-    //         else => Err.raise(
-    //             equals,
-    //             ParserError.InvalidAssignmentTarget,
-    //             "Invalid assignment target.",
-    //         ),
-    //     };
-    // }
-
-    // return stmt;
-}
-
 fn expression_stmt(self: *Self) ParserError!?*Stmt {
     const expr = try self.expression();
 
@@ -119,7 +66,35 @@ fn expression_stmt(self: *Self) ParserError!?*Stmt {
 }
 
 fn expression(self: *Self) ParserError!*Expr {
-    return try self.assignment();
+    return try self.var_init();
+}
+
+fn var_init(self: *Self) ParserError!*Expr {
+    var expr = try self.assignment();
+
+    if (self.match(&.{.COLON_EQUAL})) {
+        const equals = self.previous();
+        const value = try self.expression();
+
+        return switch (expr.*) {
+            .Variable => |*var_expr| {
+                var name = var_expr.name;
+                return try self.create_expr(.{
+                    .VarInit = .{
+                        .name = name,
+                        .initializer = value,
+                    },
+                });
+            },
+            else => Err.raise(
+                equals,
+                ParserError.InvalidAssignmentTarget,
+                "Invalid assignment target.",
+            ),
+        };
+    }
+
+    return expr;
 }
 
 fn assignment(self: *Self) ParserError!*Expr {
