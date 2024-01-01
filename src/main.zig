@@ -5,7 +5,12 @@ const print = std.debug.print;
 const Lexer = @import("./lexer.zig");
 const Parser = @import("./parser.zig");
 
+pub const c = @cImport({
+    @cInclude("binaryen-c.h");
+});
+
 pub fn main() !void {
+    print("{any}", .{c});
     const alloc = std.heap.page_allocator;
     const args = try std.process.argsAlloc(alloc);
     defer std.process.argsFree(alloc, args);
