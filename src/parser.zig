@@ -16,6 +16,7 @@ const ParserError = error{
     InvalidAssignmentTarget,
     MissingVariableName,
     MissingSemiColonAfterVarDeclaration,
+    MissingSemiColonAfterReturnValue,
 };
 
 allocator: std.mem.Allocator,
@@ -50,7 +51,33 @@ pub fn parse(self: *Self) ParserError![]Stmt {
 }
 
 fn declaration(self: *Self) ParserError!?*Stmt {
+    if (self.match(&.{.RETURN})) {
+        return try self.return_stmt();
+    }
+
     return try self.expression_stmt();
+}
+
+fn return_stmt(self: *Self) ParserError!*Stmt {
+    const keyword = self.previous();
+
+    var value: ?*Expr = if (!self.check(.SEMICOLON))
+        try self.expression()
+    else
+        null;
+
+    _ = try self.consume(
+        .SEMICOLON,
+        ParserError.MissingSemiColonAfterReturnValue,
+        "Expect ';' after return value.",
+    );
+
+    return try self.create_stmt(.{
+        .Return = .{
+            .keyword = keyword,
+            .value = value,
+        },
+    });
 }
 
 fn expression_stmt(self: *Self) ParserError!?*Stmt {
