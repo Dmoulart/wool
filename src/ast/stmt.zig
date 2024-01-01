@@ -4,7 +4,7 @@ const Expr = @import("expr.zig").Expr;
 pub const Stmt = union(enum) {
     Block: Block,
     Expr: Expr,
-    Function: Function,
+    // Function: Function,
     If: If,
     Print: Expr,
     Return: Return,
@@ -17,11 +17,10 @@ pub const Stmt = union(enum) {
         stmts: []*const Stmt,
     };
 
-    pub const Function = struct {
-        name: ?*const Token,
-        args: []*const Token,
-        body: []*const Stmt,
-    };
+    // pub const Function = struct {
+    //     args: []*const Token,
+    //     body: []*const Stmt,
+    // };
 
     pub const If = struct {
         condition: *const Expr, // @todo : what is pointer what is not pointer ????

@@ -5,13 +5,15 @@ pub const Expr = union(enum) {
     Assign: Assign,
     Binary: Binary,
     Call: Call,
-    Lambda: Lambda,
+    Function: Function,
+    // Lambda: Lambda,
     Grouping: Grouping,
     Literal: Literal,
     Logical: Logical,
     Unary: Unary,
     Variable: Variable,
-    VarInit: VarInit,
+    ConstInit: ConstInit, // statement or expression ?
+    VarInit: VarInit, // statement or expression ?
 
     pub const Assign = struct {
         name: *const Token,
@@ -30,10 +32,15 @@ pub const Expr = union(enum) {
         args: []*const Expr,
     };
 
-    pub const Lambda = struct {
+    pub const Function = struct {
         args: []*const Token,
         body: []*const Stmt,
     };
+
+    // pub const Lambda = struct {
+    //     args: []*const Token,
+    //     body: []*const Stmt,
+    // };
 
     pub const Grouping = struct {
         expr: *const Expr,
@@ -64,6 +71,11 @@ pub const Expr = union(enum) {
 
     pub const Variable = struct {
         name: *const Token,
+    };
+
+    pub const ConstInit = struct {
+        name: *const Token,
+        initializer: *const Expr,
     };
 
     pub const VarInit = struct {

@@ -93,7 +93,35 @@ fn expression_stmt(self: *Self) ParserError!?*Stmt {
 }
 
 fn expression(self: *Self) ParserError!*Expr {
-    return try self.var_init();
+    return try self.const_init();
+}
+
+fn const_init(self: *Self) ParserError!*Expr {
+    var expr = try self.var_init();
+
+    if (self.match(&.{.COLON_COLON})) {
+        const equals = self.previous();
+        const value = try self.expression();
+
+        return switch (expr.*) {
+            .Variable => |*var_expr| {
+                var name = var_expr.name;
+                return try self.create_expr(.{
+                    .ConstInit = .{
+                        .name = name,
+                        .initializer = value,
+                    },
+                });
+            },
+            else => Err.raise(
+                equals,
+                ParserError.InvalidAssignmentTarget,
+                "Invalid assignment target.",
+            ),
+        };
+    }
+
+    return expr;
 }
 
 fn var_init(self: *Self) ParserError!*Expr {
