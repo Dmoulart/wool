@@ -32,21 +32,26 @@ pub fn compile(ast: []*Stmt) !void {
     _ = adder;
 
     _ = c.BinaryenAddFunctionExport(module, "_start", "_start");
-
-    // Print it out
+    try write(module);
     // c.BinaryenModulePrint(module);
+}
+
+fn write(module: c.BinaryenModuleRef) !void {
+    // Print it out
+
     var buf: [10_000]u8 = undefined;
+
     const code_from_c = c.BinaryenModuleAllocateAndWriteText(module);
-    std.debug.print("text {s}", .{code_from_c});
+
     var code = try std.fmt.bufPrintZ(&buf, "{s}", .{code_from_c});
 
     const file_path = "./out.wat";
-    var out = std.ArrayList(u8).init(std.heap.page_allocator);
-    defer out.deinit();
+
     const file = try std.fs.cwd().createFile(
         file_path,
         .{ .read = true },
     );
+
     defer file.close();
 
     _ = try file.writeAll(code);
