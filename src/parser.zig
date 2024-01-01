@@ -45,12 +45,12 @@ pub fn deinit(self: *Self) void {
     self.stmts.deinit();
 }
 
-pub fn parse(self: *Self) ParserError![]Stmt {
-    var decls = std.ArrayList(Stmt).init(self.allocator);
+pub fn parse(self: *Self) ParserError![]*Stmt {
+    var decls = std.ArrayList(*Stmt).init(self.allocator);
     while (!self.is_at_end()) {
-        var decl = try self.declaration();
-        if (decl != null) {
-            decls.append(decl.?.*) catch return ParserError.OutOfMemory;
+        var maybe_decl = try self.declaration();
+        if (maybe_decl) |decl| {
+            decls.append(decl) catch return ParserError.OutOfMemory;
         }
     }
 
