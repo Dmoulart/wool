@@ -10,6 +10,14 @@ pub const c = @cImport({
     @cInclude("binaryen-c.h");
 });
 
+const ErrorReporter = @import("./error-reporter.zig").ErrorReporter;
+const Err = ErrorReporter(CompilerError);
+
+pub const CompilerError = error{
+    UnknownVariable,
+    UnknownConstant,
+};
+
 allocator: std.mem.Allocator,
 
 ast: []*Stmt,
@@ -123,14 +131,19 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
             return c.BinaryenBinary(self.module, op, left, right);
         },
         .Variable => |variable| {
-            var index = self.current_env.get_index_by_name(variable.name.lexeme).?;
-            // if (maybe_index) |index| {
-            //@todo types
-            return c.BinaryenLocalGet(self.module, @intCast(index), c.BinaryenTypeInt32());
-            // } else {
-            //     @compileError("Unknown variable");
-            // }
-            // c.BinaryenLocalSet()
+            if (self.current_env.get_index_by_name(variable.name.lexeme)) |index| {
+                return c.BinaryenLocalGet(
+                    self.module,
+                    @intCast(index),
+                    c.BinaryenTypeInt32(),
+                );
+            } else {
+                return Err.raise(
+                    variable.name,
+                    CompilerError.UnknownVariable,
+                    @errorName(CompilerError.UnknownVariable),
+                );
+            }
         },
         else => unreachable,
     };
