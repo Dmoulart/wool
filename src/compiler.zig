@@ -105,6 +105,13 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
         .ConstInit => |*const_init| {
             return try self.expression(const_init.initializer);
         },
+        .VarInit => |*var_init| {
+            const idx = self.current_env.last_index + 1;
+            try self.current_env.set(var_init.name, idx);
+            try self.current_env.add_local_type(c.BinaryenTypeInt32());
+            const value = try self.expression(var_init.initializer);
+            return c.BinaryenLocalSet(self.module, @intCast(idx), value);
+        },
         .Function => |func| {
             var env: *Environment = try self.environments.addOne();
             env.* = Environment.init(self.allocator);
@@ -133,13 +140,14 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
             // horror museum @todo clean this crap up @todo free ?
             const name_ptr: [*:0]const u8 = @ptrCast(self.allocator.dupeZ(u8, name) catch unreachable);
 
+            var var_types = self.current_env.local_types.items;
             _ = c.BinaryenAddFunction(
                 self.module,
                 name_ptr,
                 params orelse 0, // ?
                 c.BinaryenTypeInt32(),
-                null,
-                0,
+                var_types.ptr,
+                @intCast(var_types.len),
                 body,
             );
 
@@ -189,12 +197,6 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
             };
             return c.BinaryenConst(self.module, value);
         },
-        // .Block => |block| {
-        //     for (block.exprs) |child_expr| {
-        //         _ = try self.expression(child_expr);
-        //     }
-        // },
-        // -> wrong block ???!!!
         // https://openhome.cc/eGossip/WebAssembly/Block.html
         .Block => |block| {
             // var children = self.allocator.alloc(c.BinaryenExpressionRef, block.exprs.len) catch return CompilerError.OutOfMemory;
@@ -221,31 +223,16 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
                 c.BinaryenTypeAuto(),
             );
         },
-        else => unreachable,
+        else => {
+            std.debug.print("\nexpr {any}\n", .{expr});
+            // @compileError("not implemented");
+            unreachable;
+        },
     };
 }
 
 fn write(self: *@This()) !void {
-    // Print it out
-
     c.BinaryenModulePrint(self.module);
-
-    // var buf: [10_000]u8 = std.mem.zeroes([10_000]u8);
-
-    // var output = &buf;
-
-    // var written_bytes = c.BinaryenModuleWrite(self.module, @ptrCast(output), 10_000);
-
-    // const file_path = "./out.wat";
-
-    // const file = try std.fs.cwd().createFile(
-    //     file_path,
-    //     .{ .read = true },
-    // );
-
-    // defer file.close();
-
-    // _ = try file.writeAll(output[0..written_bytes]);
 
     var buffer: [10_000]u8 = undefined;
 
