@@ -171,6 +171,15 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
                 );
             }
         },
+        .Literal => |literal| {
+            const value = switch (literal.value) {
+                .Boolean => |boolean| c.BinaryenLiteralInt32(if (boolean) @as(i32, 1) else @as(i32, 0)),
+                .Integer => |integer| c.BinaryenLiteralInt32(integer),
+                .Float => |float| c.BinaryenLiteralFloat32(float),
+                else => unreachable,
+            };
+            return c.BinaryenConst(self.module, value);
+        },
         else => unreachable,
     };
 }

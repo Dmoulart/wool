@@ -424,7 +424,7 @@ fn primary(self: *Self) ParserError!*Expr {
     if (self.match(&.{.NUMBER})) {
         return try self.create_expr(.{
             .Literal = .{
-                .value = .{ .Float = self.previous().type.NUMBER },
+                .value = .{ .Integer = self.previous().type.NUMBER },
             },
         });
     }

@@ -50,8 +50,8 @@ pub const Expr = union(enum) {
     pub const Literal = struct {
         const Value = union(enum) {
             String: []const u8,
-            Integer: i64,
-            Float: f64,
+            Integer: i32,
+            Float: f32, //@todo typpes
             Boolean: bool,
             Nil: ?bool, // what type should we use to represent null values ?
         };
