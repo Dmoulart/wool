@@ -1,7 +1,9 @@
 
 add :: a, b -> { 
 
-    c := a + b;
+    sum := a + b;
 
-    c;
+    double := sum * 2;
+
+    double;
 };
