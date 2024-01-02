@@ -20,7 +20,7 @@ pub const CompilerError = error{
 
 allocator: std.mem.Allocator,
 
-ast: []*Stmt,
+ast: []*Expr,
 
 module: c.BinaryenModuleRef,
 
@@ -30,7 +30,7 @@ current_env: *Environment,
 
 globals: *Environment,
 
-pub fn init(allocator: std.mem.Allocator, ast: []*Stmt) @This() {
+pub fn init(allocator: std.mem.Allocator, ast: []*Expr) @This() {
     var environments = std.ArrayList(Environment).init(allocator);
 
     var globals = environments.addOne() catch unreachable;
@@ -79,11 +79,8 @@ pub fn compile(self: *@This()) !void {
     try write(self.module);
 }
 
-fn codegen(self: *@This(), stmt: *Stmt) !c.BinaryenExpressionRef {
-    return switch (stmt.*) {
-        .Expr => |*expr| try self.expression(expr),
-        else => unreachable,
-    };
+fn codegen(self: *@This(), expr: *Expr) !c.BinaryenExpressionRef {
+    return try self.expression(expr);
 }
 
 fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
@@ -114,10 +111,7 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
 
             var result = c.BinaryenTypeInt32();
 
-            const body = switch (func.body.?.*) {
-                .Expr => |*func_expr| try self.expression(func_expr),
-                else => unreachable,
-            };
+            const body = if (func.body) |body| try self.expression(body) else null;
 
             const name = if (func.name) |name| name.lexeme else "anonymous_func";
 

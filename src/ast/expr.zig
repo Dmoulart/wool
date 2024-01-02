@@ -1,5 +1,5 @@
 const Token = @import("../token.zig");
-const Stmt = @import("./stmt.zig").Stmt;
+// const Stmt = @import("./stmt.zig").Stmt;
 
 pub const Expr = union(enum) {
     Assign: Assign,
@@ -34,7 +34,7 @@ pub const Expr = union(enum) {
 
     pub const Function = struct {
         args: ?[]*const Token,
-        body: ?*const Stmt,
+        body: ?*const Expr,
         name: ?*const Token,
     };
 

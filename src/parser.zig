@@ -24,8 +24,6 @@ const ParserError = error{
 
 allocator: std.mem.Allocator,
 
-stmts: ArrayList(Stmt),
-
 exprs: ArrayList(Expr),
 
 current: u32 = 0,
@@ -36,58 +34,58 @@ pub fn init(tokens: []Token, allocator: std.mem.Allocator) Self {
     return Self{
         .tokens = tokens,
         .allocator = allocator,
-        .stmts = std.ArrayList(Stmt).init(allocator),
         .exprs = std.ArrayList(Expr).init(allocator),
     };
 }
 
 pub fn deinit(self: *Self) void {
-    self.stmts.deinit();
+    self.exprs.deinit();
 }
 
-pub fn parse(self: *Self) ParserError![]*Stmt {
-    var decls = std.ArrayList(*Stmt).init(self.allocator);
+pub fn parse(self: *Self) ParserError![]*Expr {
+    var exprs = std.ArrayList(*Expr).init(self.allocator);
+
     while (!self.is_at_end()) {
-        var maybe_decl = try self.declaration();
+        var maybe_decl = try self.declaration_expression();
         if (maybe_decl) |decl| {
-            decls.append(decl) catch return ParserError.OutOfMemory;
+            exprs.append(decl) catch return ParserError.OutOfMemory;
         }
     }
 
-    return decls.toOwnedSlice() catch ParserError.OutOfMemory;
+    return exprs.toOwnedSlice() catch ParserError.OutOfMemory;
 }
 
-fn declaration(self: *Self) ParserError!?*Stmt {
-    if (self.match(&.{.RETURN})) {
-        return try self.return_stmt();
-    }
+fn declaration_expression(self: *Self) ParserError!?*Expr {
+    // if (self.match(&.{.RETURN})) {
+    //     return try self.return_stmt();
+    // }
 
     return try self.expression_stmt();
 }
 
-fn return_stmt(self: *Self) ParserError!*Stmt {
-    const keyword = self.previous();
+// fn return_stmt(self: *Self) ParserError!*Stmt {
+//     const keyword = self.previous();
 
-    var value: ?*Expr = if (!self.check(.SEMICOLON))
-        try self.expression()
-    else
-        null;
+//     var value: ?*Expr = if (!self.check(.SEMICOLON))
+//         try self.expression()
+//     else
+//         null;
 
-    _ = try self.consume(
-        .SEMICOLON,
-        ParserError.MissingSemiColonAfterReturnValue,
-        "Expect ';' after return value.",
-    );
+//     _ = try self.consume(
+//         .SEMICOLON,
+//         ParserError.MissingSemiColonAfterReturnValue,
+//         "Expect ';' after return value.",
+//     );
 
-    return try self.create_stmt(.{
-        .Return = .{
-            .keyword = keyword,
-            .value = value,
-        },
-    });
-}
+//     return try self.create_stmt(.{
+//         .Return = .{
+//             .keyword = keyword,
+//             .value = value,
+//         },
+//     });
+// }
 
-fn expression_stmt(self: *Self) ParserError!?*Stmt {
+fn expression_stmt(self: *Self) ParserError!?*Expr {
     const expr = try self.expression();
 
     _ = try self.consume(
@@ -96,7 +94,7 @@ fn expression_stmt(self: *Self) ParserError!?*Stmt {
         "Expect ';' after value.",
     );
 
-    return try self.create_stmt(.{ .Expr = expr.* });
+    return try self.create_expr(expr.*);
 }
 
 fn expression(self: *Self) ParserError!*Expr {
