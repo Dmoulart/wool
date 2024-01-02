@@ -61,8 +61,9 @@ fn run(src: []const u8) !void {
     const ast = try parser.parse();
 
     var compiler = Compiler.init(std.heap.page_allocator, ast);
+    _ = compiler;
 
-    try compiler.compile();
+    // try compiler.compile();
 
     try jsonPrint(tokens, "./tokens.json");
     try jsonPrint(ast, "./ast.json");

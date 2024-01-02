@@ -120,14 +120,14 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
             };
 
             const name = if (func.name) |name| name.lexeme else "anonymous_func";
-            // horror museum @todo clean this crap up
+
+            // horror museum @todo clean this crap up @todo free ?
             const c_name: [*:0]const u8 = @ptrCast(self.allocator.dupeZ(u8, name) catch unreachable);
 
-            std.debug.print("name len {}", .{name.len});
             _ = c.BinaryenAddFunction(
                 self.module,
                 c_name,
-                params orelse 0,
+                params orelse 0, // ?
                 result,
                 null,
                 0,

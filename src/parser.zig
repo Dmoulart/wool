@@ -104,85 +104,89 @@ fn expression(self: *Self) ParserError!*Expr {
 }
 
 fn function(self: *Self) ParserError!*Expr {
-    const args_declaration = self.peek().type == .IDENTIFIER and self.check_next(1, .COMMA);
+    const current = self.peek().type;
+    const is_function = current == .MINUS_ARROW or (current == .IDENTIFIER and (self.check_next(1, .MINUS_ARROW) or self.check_next(1, .COMMA)));
 
-    var args: ?std.ArrayList(*Token) = null;
+    if (is_function) {
+        const args_declaration = current == .IDENTIFIER;
+        var args: ?std.ArrayList(*Token) = null;
 
-    if (args_declaration) {
-        args = std.ArrayList(*Token).init(self.allocator);
-        errdefer args.?.deinit();
+        if (args_declaration) {
+            args = std.ArrayList(*Token).init(self.allocator);
+            errdefer args.?.deinit();
 
-        const first_identifier = try self.consume(
-            .IDENTIFIER,
-            ParserError.MissingParameterName,
-            "Expect parameter name.",
-        );
-
-        args.?.append(first_identifier) catch return ParserError.OutOfMemory;
-
-        while (self.match(&.{.COMMA})) {
-            // @todo: do while would have been great in this case
-            if (args.?.items.len >= 255) {
-                return Err.raise(
-                    self.peek(),
-                    ParserError.TooMuchArguments,
-                    "Functions cannot have more than 255 arguments",
-                );
-            }
-
-            const identifier = try self.consume(
+            const first_identifier = try self.consume(
                 .IDENTIFIER,
                 ParserError.MissingParameterName,
                 "Expect parameter name.",
             );
 
-            args.?.append(identifier) catch return ParserError.OutOfMemory;
+            args.?.append(first_identifier) catch return ParserError.OutOfMemory;
+
+            while (self.match(&.{.COMMA})) {
+                // @todo: do while would have been great in this case
+                if (args.?.items.len >= 255) {
+                    return Err.raise(
+                        self.peek(),
+                        ParserError.TooMuchArguments,
+                        "Functions cannot have more than 255 arguments",
+                    );
+                }
+
+                const identifier = try self.consume(
+                    .IDENTIFIER,
+                    ParserError.MissingParameterName,
+                    "Expect parameter name.",
+                );
+
+                args.?.append(identifier) catch return ParserError.OutOfMemory;
+            }
         }
-    }
+        var peek_token = self.peek();
+        if (peek_token.type == .MINUS_ARROW) {
+            _ = try self.consume(
+                .MINUS_ARROW,
+                ParserError.MissingArrowInFunctionExpression,
+                "Expect -> before declaring function body.",
+            );
 
-    if (self.peek().type == .MINUS_ARROW) {
-        _ = try self.consume(
-            .MINUS_ARROW,
-            ParserError.MissingArrowInFunctionExpression,
-            "Expect -> before declaring function body.",
-        );
+            const maybe_last_expr = self.last_expr();
 
-        const maybe_last_expr = self.last_expr();
+            var name: ?*const Token = null;
 
-        var name: ?*const Token = null;
+            if (maybe_last_expr) |last_expression| {
+                name = switch (last_expression.*) {
+                    .ConstInit => |*const_intialization| const_intialization.name,
+                    .VarInit => |var_initialization| var_initialization.name,
+                    .Assign => |assignation| assignation.name,
+                    .Variable => |variable| variable.name,
+                    else => null,
+                };
+            }
 
-        if (maybe_last_expr) |last_expression| {
-            name = switch (last_expression.*) {
-                .ConstInit => |*const_intialization| const_intialization.name,
-                .VarInit => |var_initialization| var_initialization.name,
-                .Assign => |assignation| assignation.name,
-                .Variable => |variable| variable.name,
-                else => null,
-            };
-        }
+            const body = try self.expression_stmt();
 
-        const body = try self.expression_stmt();
-
-        return try self.create_expr(
-            .{
-                .Function = .{
-                    .args = if (args) |*non_empty_args|
-                        non_empty_args.toOwnedSlice() catch return ParserError.OutOfMemory
-                    else
-                        null,
-                    .body = body,
-                    .name = name,
+            return try self.create_expr(
+                .{
+                    .Function = .{
+                        .args = if (args) |*non_empty_args|
+                            non_empty_args.toOwnedSlice() catch return ParserError.OutOfMemory
+                        else
+                            null,
+                        .body = body,
+                        .name = name,
+                    },
                 },
-            },
-        );
-    }
-    // if args were declared but no ->
-    else if (args_declaration) {
-        _ = try self.consume(
-            .MINUS_ARROW,
-            ParserError.MissingArrowInFunctionExpression,
-            "Expect -> before declaring function body.",
-        );
+            );
+        }
+        // if args were declared but no ->
+        else if (args_declaration) {
+            _ = try self.consume(
+                .MINUS_ARROW,
+                ParserError.MissingArrowInFunctionExpression,
+                "Expect -> before declaring function body.",
+            );
+        }
     }
 
     return try self.const_init();
