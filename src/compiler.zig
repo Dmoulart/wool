@@ -23,7 +23,7 @@ allocator: std.mem.Allocator,
 
 ast: []*Expr,
 
-module: c.BinaryenModuleRef,
+module: *c.BinaryenModuleRef,
 
 environments: std.ArrayList(Environment),
 
@@ -31,7 +31,7 @@ current_env: *Environment,
 
 globals: *Environment,
 
-// blocks_children: std.ArrayList(c.BinaryenExpressionRef)
+blocks_children: std.ArrayList([]c.BinaryenExpressionRef),
 
 pub fn init(allocator: std.mem.Allocator, ast: []*Expr) @This() {
     var environments = std.ArrayList(Environment).init(allocator);
@@ -42,21 +42,34 @@ pub fn init(allocator: std.mem.Allocator, ast: []*Expr) @This() {
 
     var current_env = globals;
 
+    var blocks_children = std.ArrayList([]c.BinaryenExpressionRef).init(allocator);
+
     return .{
         .allocator = allocator,
         .ast = ast,
-        .module = c.BinaryenModuleCreate(),
+        .module = &c.BinaryenModuleCreate(),
         .environments = environments,
         .globals = globals,
         .current_env = current_env,
+        .blocks_children = blocks_children,
     };
+}
+
+pub fn deinit(self: *@This()) void {
+    for (self.blocks_children.items) |child_expr| {
+        self.allocator.free(child_expr);
+    }
+
+    self.blocks_children.deinit();
+
+    c.BinaryenModuleDispose(self.module);
 }
 
 pub fn compile(self: *@This()) !void {
     for (self.ast) |stmt| {
         _ = try self.codegen(stmt);
     }
-
+    std.debug.print("\n after compile ", .{});
     // // Create a function type for  i32 (i32, i32)
     // var ii = [2]c.BinaryenType{ c.BinaryenTypeInt32(), c.BinaryenTypeInt32() };
     // var params = c.BinaryenTypeCreate(@ptrCast(&ii), 2);
@@ -77,9 +90,10 @@ pub fn compile(self: *@This()) !void {
 
     // _ = c.BinaryenAddFunctionExport(module, "_start", "_start");
 
-    c.BinaryenModulePrint(self.module);
+    // c.BinaryenModulePrint(self.module);
 
-    try write(self.module);
+    std.debug.print("\n after compile before write ", .{});
+    try self.write();
 }
 
 fn codegen(self: *@This(), expr: *Expr) !c.BinaryenExpressionRef {
@@ -178,30 +192,43 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
         },
         .Block => |block| {
             var children = self.allocator.alloc(c.BinaryenExpressionRef, block.exprs.len) catch return CompilerError.OutOfMemory;
-            // defer self.allocator.free(children);
+
+            // self.blocks_children.append(children) catch return CompilerError.OutOfMemory;
+            var children_ptr = self.blocks_children.addOne() catch return CompilerError.OutOfMemory;
+
+            children_ptr.* = children;
+
             for (block.exprs, 0..) |child_expr, i| {
-                children[i] = try self.expression(child_expr);
+                // std.debug.print("\nchildr_expr {}", .{i});
+                children_ptr.*[i] = try self.expression(child_expr);
             }
+
+            // std.debug.print("\nend block ", .{});
+
             return c.BinaryenBlock(
                 self.module,
                 null,
-                @ptrCast(children),
+                @ptrCast(children_ptr),
                 @intCast(block.exprs.len),
                 c.BinaryenUndefined(),
             );
-            // return c.BinaryenBlock(self.module, null, @ptrCast(&[0]c.BinaryenExpressionRef{}), 0, c.BinaryenUndefined());
         },
         else => unreachable,
     };
 }
 
-fn write(module: c.BinaryenModuleRef) !void {
+fn write(self: *@This()) !void {
+    std.debug.print("\nbuf", .{});
     // Print it out
-    var buf: [10_000]u8 = undefined;
+    var buf: [100_000]u8 = undefined;
 
-    const code_from_c = c.BinaryenModuleAllocateAndWriteText(module);
+    std.debug.print("\n alloc and write text", .{});
+    // const code_from_c = c.BinaryenModuleAllocateAndWriteText(self.module);
+    var written_bytes = c.BinaryenModuleWrite(self.module, @ptrCast(&buf), 100_000);
+    _ = written_bytes;
 
-    var code = try std.fmt.bufPrintZ(&buf, "{s}", .{code_from_c});
+    std.debug.print("\n bufPrintZ", .{});
+    // var code = try std.fmt.bufPrintZ(&buf, "{s}", .{code_from_c});
 
     const file_path = "./out.wat";
 
@@ -212,8 +239,8 @@ fn write(module: c.BinaryenModuleRef) !void {
 
     defer file.close();
 
-    _ = try file.writeAll(code);
+    _ = try file.writeAll(&buf);
 
     // Clean up the module, which owns all the objects we created above
-    c.BinaryenModuleDispose(module);
+    c.BinaryenModuleDispose(self.module);
 }
