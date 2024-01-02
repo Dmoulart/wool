@@ -123,7 +123,6 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
 
             // horror museum @todo clean this crap up @todo free ?
             const c_name: [*:0]const u8 = @ptrCast(self.allocator.dupeZ(u8, name) catch unreachable);
-
             _ = c.BinaryenAddFunction(
                 self.module,
                 c_name,
