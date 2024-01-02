@@ -20,6 +20,8 @@ const ParserError = error{
     MissingArrowInFunctionExpression,
     TooMuchArguments,
     MissingParameterName,
+    MissingClosingBrace,
+    MissingConstInitializer,
 };
 
 allocator: std.mem.Allocator,
@@ -60,7 +62,39 @@ fn declaration_expression(self: *Self) ParserError!?*Expr {
     //     return try self.return_stmt();
     // }
 
+    // if (self.match(&.{.LEFT_BRACE})) {
+    //     return try self.create_expr(.{
+    //         .Block = .{
+    //             .exprs = try self.block(),
+    //         },
+    //     });
+    // }
+
     return try self.expression_stmt();
+}
+
+fn block(self: *Self) ParserError![]*Expr {
+    var exprs = std.ArrayList(*Expr).init(self.allocator);
+
+    while (!self.check(.RIGHT_BRACE) and !self.is_at_end()) {
+        if (self.declaration_expression()) |maybe_decl| {
+            if (maybe_decl) |decl| {
+                exprs.append(decl) catch |decl_err| switch (decl_err) {
+                    error.OutOfMemory => return ParserError.OutOfMemory,
+                };
+            }
+        } else |decl_err| {
+            return decl_err;
+        }
+    }
+
+    _ = try self.consume(
+        .RIGHT_BRACE,
+        ParserError.MissingClosingBrace,
+        "Expect '}' after block.",
+    );
+
+    return exprs.toOwnedSlice();
 }
 
 // fn return_stmt(self: *Self) ParserError!*Stmt {
@@ -98,12 +132,21 @@ fn expression_stmt(self: *Self) ParserError!?*Expr {
 }
 
 fn expression(self: *Self) ParserError!*Expr {
+    if (self.match(&.{.LEFT_BRACE})) {
+        return try self.create_expr(.{
+            .Block = .{
+                .exprs = try self.block(),
+            },
+        });
+    }
+
     return try self.function();
 }
 
 fn function(self: *Self) ParserError!*Expr {
     const current = self.peek().type;
-    const is_function = current == .MINUS_ARROW or (current == .IDENTIFIER and (self.check_next(1, .MINUS_ARROW) or self.check_next(1, .COMMA)));
+    const is_function = current == .MINUS_ARROW or
+        (current == .IDENTIFIER and (self.check_next(1, .MINUS_ARROW) or self.check_next(1, .COMMA)));
 
     if (is_function) {
         const args_declaration = current == .IDENTIFIER;
@@ -162,7 +205,7 @@ fn function(self: *Self) ParserError!*Expr {
                 };
             }
 
-            const body = try self.expression_stmt();
+            const body = try self.expression();
 
             return try self.create_expr(
                 .{

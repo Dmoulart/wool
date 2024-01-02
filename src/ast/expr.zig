@@ -6,8 +6,8 @@ pub const Expr = union(enum) {
     Binary: Binary,
     Call: Call,
     Function: Function,
-    // Lambda: Lambda,
     Grouping: Grouping,
+    Block: Block,
     Literal: Literal,
     Logical: Logical,
     Unary: Unary,
@@ -36,6 +36,10 @@ pub const Expr = union(enum) {
         args: ?[]*const Token,
         body: ?*const Expr,
         name: ?*const Token,
+    };
+
+    pub const Block = struct {
+        exprs: []*const Expr,
     };
 
     // pub const Lambda = struct {

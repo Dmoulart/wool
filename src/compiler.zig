@@ -16,6 +16,7 @@ const Err = ErrorReporter(CompilerError);
 pub const CompilerError = error{
     UnknownVariable,
     UnknownConstant,
+    OutOfMemory,
 };
 
 allocator: std.mem.Allocator,
@@ -29,6 +30,8 @@ environments: std.ArrayList(Environment),
 current_env: *Environment,
 
 globals: *Environment,
+
+// blocks_children: std.ArrayList(c.BinaryenExpressionRef)
 
 pub fn init(allocator: std.mem.Allocator, ast: []*Expr) @This() {
     var environments = std.ArrayList(Environment).init(allocator);
@@ -172,6 +175,21 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
                 else => unreachable,
             };
             return c.BinaryenConst(self.module, value);
+        },
+        .Block => |block| {
+            var children = self.allocator.alloc(c.BinaryenExpressionRef, block.exprs.len) catch return CompilerError.OutOfMemory;
+            // defer self.allocator.free(children);
+            for (block.exprs, 0..) |child_expr, i| {
+                children[i] = try self.expression(child_expr);
+            }
+            return c.BinaryenBlock(
+                self.module,
+                null,
+                @ptrCast(children),
+                @intCast(block.exprs.len),
+                c.BinaryenUndefined(),
+            );
+            // return c.BinaryenBlock(self.module, null, @ptrCast(&[0]c.BinaryenExpressionRef{}), 0, c.BinaryenUndefined());
         },
         else => unreachable,
     };
