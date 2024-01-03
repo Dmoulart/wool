@@ -10,6 +10,7 @@
     ret;
 };*/
 
+global_variable :: 123;
 
 add :: a, b -> {
     a := 1; 

@@ -201,7 +201,7 @@ fn read_number(self: *Self) !Token.Type {
 }
 
 fn read_identifier(self: *Self) Token.Type {
-    while (isAlphanumeric(self.peek())) _ = self.advance();
+    while (isAlphanumeric(self.peek()) or self.peek() == '_') _ = self.advance();
 
     const text = self.src[self.start..self.current];
 
