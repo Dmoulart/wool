@@ -83,7 +83,20 @@ fn codegen(self: *@This(), expr: *Expr) !c.BinaryenExpressionRef {
 fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
     return switch (expr.*) {
         .ConstInit => |*const_init| {
-            return try self.expression(const_init.initializer);
+            const value = try self.expression(const_init.initializer);
+            const name = self.to_c_string(const_init.name.lexeme);
+            const is_function = if (c.BinaryenGetFunction(self.module, @ptrCast(name)) != null)
+                true
+            else
+                false;
+
+            if (!is_function) {
+                _ = c.BinaryenAddGlobal(self.module, @ptrCast(name), c.BinaryenTypeInt32(), false, value);
+                return value;
+                // return c.BinaryenGlobalSet(self.module, @ptrCast(const_init.name.lexeme), value);
+            }
+
+            return value;
         },
         .VarInit => |*var_init| {
             const idx = if (self.current_env.last_index == 0) 0 else self.current_env.last_index + 1;
@@ -95,6 +108,10 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
         .Function => |func| {
             var env: *Environment = try self.environments.addOne();
             env.* = Environment.init(self.allocator);
+
+            const prev_env = self.current_env;
+            defer self.current_env = prev_env;
+
             self.current_env = env;
 
             var params: ?c.BinaryenType = null;
@@ -277,4 +294,9 @@ fn write(self: *@This()) !void {
     defer file.close();
 
     _ = try file.writeAll(code);
+}
+
+fn to_c_string(self: *@This(), str: []const u8) [*:0]const u8 {
+    //@todo horror museum + memory leak
+    return @ptrCast(self.allocator.dupeZ(u8, str) catch unreachable);
 }
