@@ -426,7 +426,7 @@ fn unary(self: *Self) ParserError!*Expr {
         return try self.create_expr(.{
             .Unary = .{
                 .op = self.previous(),
-                .right = (try self.term()),
+                .right = (try self.primary()), // term was before but this would not work : 2 > -2 + 13; (interpreted as 2 > -(2 + 13))
             },
         });
     }
