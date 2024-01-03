@@ -237,27 +237,32 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
         .Grouping => |grouping_expr| {
             return try self.expression(grouping_expr.expr);
         },
-        // .Logical => |logical_expr| {
-        //     _ = logical_expr;
-        //     const lexeme = logical_expr.op.lexeme;
+        .Logical => |logical| {
+            const left = try self.expression(logical.left);
+            const right = try self.expression(logical.right);
 
-        //     const left = try self.expression(logical_expr.left);
-        //     const right = try self.expression(logical_expr.right);
+            const result = switch (logical.op.type) {
+                .AND => .{ .if_true = right, .if_false = left },
+                .OR => .{ .if_true = left, .if_false = right },
+                else => unreachable,
+            };
 
-        //     //@todo use enum for logical op lexeme ???
-        //     if (std.mem.eql(u8, lexeme, "or")) {
-        //         // c.BinaryenSelect(self.module, BinaryenConst(module, BinaryenLiteralInt32(x));, ifTrue: BinaryenExpressionRef, ifFalse: BinaryenExpressionRef, @"type": BinaryenType)
-        //         // @todo there are no negate instruction for integer
-        //         return c.BinaryenBinary(self.module, c.BinaryenMulInt32(), value, c.BinaryenConst(self.module, c.BinaryenLiteralInt32(@as(i32, -1))));
-        //     } else if (std.mem.eql(u8, unary_expr.op.lexeme, "and")) {
-        //         //@todo boolean
-        //         return c.BinaryenBinary(self.module, c.BinaryenMulInt32(), value, c.BinaryenConst(self.module, c.BinaryenLiteralInt32(@as(i32, -1))));
-        //         // c.Binaryenbool
-        //     } else {
-        //         std.debug.print("+ unary expression makes no sense ?", .{});
-        //         unreachable;
-        //     }
-        // },
+            return c.BinaryenSelect(
+                self.module,
+                left,
+                result.if_true,
+                result.if_false,
+                c.BinaryenTypeAuto(),
+            );
+
+            // const condition = switch (logical.op.type) {
+            //     .AND => c.BinaryenBinary(self.module, c.BinaryenNeInt32(), left, c.BinaryenConst(self.module, c.BinaryenLiteralInt32((@as(i32, 0))))),
+            //     .OR => c.BinaryenBinary(self.module, c.BinaryenNeInt32(), left, c.BinaryenConst(self.module, c.BinaryenLiteralInt32((@as(i32, 1))))),
+            //     else => unreachable,
+            // };
+
+            // return c.BinaryenSelect(self.module, condition, right, left, c.BinaryenTypeAuto());
+        },
         else => {
             std.debug.print("\nexpr {any}\n", .{expr});
             // @compileError("not implemented");
