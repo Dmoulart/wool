@@ -1,9 +1,18 @@
-
+/*
 add :: a, b -> { 
 
     sum := a + b;
 
     double := sum * 2;
 
-    sum;
+    ret := -sum;
+
+    a + b;
+
+    ret;
+};
+*/
+
+add :: -> {
+    1 + 2 * 3;
 };

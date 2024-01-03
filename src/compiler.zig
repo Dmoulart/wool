@@ -229,6 +229,9 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
                 unreachable;
             }
         },
+        .Grouping => |grouping_expr| {
+            return try self.expression(grouping_expr.expr);
+        },
         // .Logical => |logical_expr| {
         //     _ = logical_expr;
         //     // c.binaryenOr
