@@ -5,5 +5,5 @@ add :: a, b -> {
 
     double := sum * 2;
 
-    double;
+    sum;
 };

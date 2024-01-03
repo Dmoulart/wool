@@ -141,6 +141,7 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
             const name_ptr: [*:0]const u8 = @ptrCast(self.allocator.dupeZ(u8, name) catch unreachable);
 
             var var_types = self.current_env.local_types.items;
+
             _ = c.BinaryenAddFunction(
                 self.module,
                 name_ptr,
@@ -197,11 +198,8 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
             };
             return c.BinaryenConst(self.module, value);
         },
-        // https://openhome.cc/eGossip/WebAssembly/Block.html
+        // https://openhome.cc/eGossip/WebAssembly/Block.html ?? investigate
         .Block => |block| {
-            // var children = self.allocator.alloc(c.BinaryenExpressionRef, block.exprs.len) catch return CompilerError.OutOfMemory;
-            var children = std.ArrayList(c.BinaryenExpressionRef).init(self.allocator);
-            _ = children;
             var block_exprs = self.blocks_children.addOne() catch return CompilerError.OutOfMemory;
 
             block_exprs.* = std.ArrayList(c.BinaryenExpressionRef).init(self.allocator);
@@ -212,9 +210,6 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
                 block_exprs.append(binaryen_expr) catch return CompilerError.OutOfMemory;
             }
 
-            // var test_children = [_]c.BinaryenExpressionRef{c.BinaryenConst(self.module, c.BinaryenLiteralInt32(@as(i32, 0)))};
-            // var test_children_2: [*c]c.BinaryenExpressionRef = &test_children;
-
             return c.BinaryenBlock(
                 self.module,
                 null,
@@ -223,6 +218,21 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
                 c.BinaryenTypeAuto(),
             );
         },
+        .Unary => |unary_expr| {
+            const value = try self.expression(unary_expr.right);
+            //@todo use enum for unary op lexeme ???
+            if (std.mem.eql(u8, unary_expr.op.lexeme, "-")) {
+                // @todo there are no negate instruction for integer
+                return c.BinaryenBinary(self.module, c.BinaryenMulInt32(), value, c.BinaryenConst(self.module, c.BinaryenLiteralInt32(@as(i32, -1))));
+            } else {
+                std.debug.print("+ unary expression makes no sense ?", .{});
+                unreachable;
+            }
+        },
+        // .Logical => |logical_expr| {
+        //     _ = logical_expr;
+        //     // c.binaryenOr
+        // },
         else => {
             std.debug.print("\nexpr {any}\n", .{expr});
             // @compileError("not implemented");
