@@ -106,7 +106,7 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
             return try self.expression(const_init.initializer);
         },
         .VarInit => |*var_init| {
-            const idx = self.current_env.last_index + 1;
+            const idx = if (self.current_env.last_index == 0) 0 else self.current_env.last_index + 1;
             try self.current_env.set(var_init.name, idx);
             try self.current_env.add_local_type(c.BinaryenTypeInt32());
             const value = try self.expression(var_init.initializer);
@@ -168,7 +168,9 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
                 .PLUS => c.BinaryenAddInt32(),
                 .MINUS => c.BinaryenSubInt32(),
                 .STAR => c.BinaryenMulInt32(),
-                .SLASH => c.BinaryenDivSInt32(), // div s ? div u ?
+                .SLASH => c.BinaryenDivSInt32(), // div s ? div u ?,
+                .EQUAL_EQUAL => c.BinaryenEqInt32(),
+                .BANG_EQUAL => c.BinaryenNeInt32(),
                 else => unreachable,
             };
 
@@ -220,21 +222,36 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
         },
         .Unary => |unary_expr| {
             const value = try self.expression(unary_expr.right);
-            //@todo use enum for unary op lexeme ???
-            if (std.mem.eql(u8, unary_expr.op.lexeme, "-")) {
-                // @todo there are no negate instruction for integer
-                return c.BinaryenBinary(self.module, c.BinaryenMulInt32(), value, c.BinaryenConst(self.module, c.BinaryenLiteralInt32(@as(i32, -1))));
-            } else {
-                std.debug.print("+ unary expression makes no sense ?", .{});
-                unreachable;
-            }
+
+            return switch (unary_expr.op.type) {
+                //@todo bang
+                .MINUS, .BANG => c.BinaryenBinary(self.module, c.BinaryenMulInt32(), value, c.BinaryenConst(self.module, c.BinaryenLiteralInt32(@as(i32, -1)))),
+                else => unreachable,
+            };
         },
         .Grouping => |grouping_expr| {
             return try self.expression(grouping_expr.expr);
         },
         // .Logical => |logical_expr| {
         //     _ = logical_expr;
-        //     // c.binaryenOr
+        //     const lexeme = logical_expr.op.lexeme;
+
+        //     const left = try self.expression(logical_expr.left);
+        //     const right = try self.expression(logical_expr.right);
+
+        //     //@todo use enum for logical op lexeme ???
+        //     if (std.mem.eql(u8, lexeme, "or")) {
+        //         // c.BinaryenSelect(self.module, BinaryenConst(module, BinaryenLiteralInt32(x));, ifTrue: BinaryenExpressionRef, ifFalse: BinaryenExpressionRef, @"type": BinaryenType)
+        //         // @todo there are no negate instruction for integer
+        //         return c.BinaryenBinary(self.module, c.BinaryenMulInt32(), value, c.BinaryenConst(self.module, c.BinaryenLiteralInt32(@as(i32, -1))));
+        //     } else if (std.mem.eql(u8, unary_expr.op.lexeme, "and")) {
+        //         //@todo boolean
+        //         return c.BinaryenBinary(self.module, c.BinaryenMulInt32(), value, c.BinaryenConst(self.module, c.BinaryenLiteralInt32(@as(i32, -1))));
+        //         // c.Binaryenbool
+        //     } else {
+        //         std.debug.print("+ unary expression makes no sense ?", .{});
+        //         unreachable;
+        //     }
         // },
         else => {
             std.debug.print("\nexpr {any}\n", .{expr});
