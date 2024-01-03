@@ -171,6 +171,11 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
                 .SLASH => c.BinaryenDivSInt32(), // div s ? div u ?,
                 .EQUAL_EQUAL => c.BinaryenEqInt32(),
                 .BANG_EQUAL => c.BinaryenNeInt32(),
+                .GREATER => c.BinaryenGtSInt32(),
+                .GREATER_EQUAL => c.BinaryenGeSInt32(),
+                .LESS => c.BinaryenLtSInt32(),
+                .LESS_EQUAL => c.BinaryenLeSInt32(),
+
                 else => unreachable,
             };
 
