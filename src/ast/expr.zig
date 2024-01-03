@@ -42,11 +42,6 @@ pub const Expr = union(enum) {
         exprs: []*const Expr,
     };
 
-    // pub const Lambda = struct {
-    //     args: []*const Token,
-    //     body: []*const Stmt,
-    // };
-
     pub const Grouping = struct {
         expr: *const Expr,
     };

@@ -15,6 +15,7 @@ const Err = ErrorReporter(CompilerError);
 
 pub const CompilerError = error{
     UnknownVariable,
+    UnknownVariableToAssign,
     UnknownConstant,
     OutOfMemory,
 };
@@ -68,30 +69,9 @@ pub fn deinit(self: *@This()) void {
 }
 
 pub fn compile(self: *@This()) !void {
-    for (self.ast) |stmt| {
-        _ = try self.codegen(stmt);
+    for (self.ast) |expr| {
+        _ = try self.codegen(expr);
     }
-    // // Create a function type for  i32 (i32, i32)
-    // var ii = [2]c.BinaryenType{ c.BinaryenTypeInt32(), c.BinaryenTypeInt32() };
-    // var params = c.BinaryenTypeCreate(@ptrCast(&ii), 2);
-    // var results = c.BinaryenTypeInt32();
-
-    // // Get the 0 and 1 arguments, and add them
-    // var x = c.BinaryenLocalGet(module, 0, c.BinaryenTypeInt32());
-    // var y = c.BinaryenLocalGet(module, 1, c.BinaryenTypeInt32());
-    // var add = c.BinaryenBinary(module, c.BinaryenAddInt32(), x, y);
-
-    // // Create the add function
-    // // Note: no additional local variables
-    // // Note: no basic blocks here, we are an AST. The function body is just an
-    // // expression node.
-    // var adder =
-    //     c.BinaryenAddFunction(module, "_start", params, results, null, 0, add);
-    // _ = adder;
-
-    // _ = c.BinaryenAddFunctionExport(module, "_start", "_start");
-
-    // c.BinaryenModulePrint(self.module);
 
     try self.write();
 }
@@ -201,6 +181,7 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
                 .Boolean => |boolean| c.BinaryenLiteralInt32(if (boolean) @as(i32, 1) else @as(i32, 0)),
                 .Integer => |integer| c.BinaryenLiteralInt32(integer),
                 .Float => |float| c.BinaryenLiteralFloat32(float),
+                // .String => |string| return c.BinaryenStringConst(self.module, @ptrCast(string)),
                 else => unreachable,
             };
             return c.BinaryenConst(self.module, value);
@@ -225,17 +206,27 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
                 c.BinaryenTypeAuto(),
             );
         },
-        .Unary => |unary_expr| {
-            const value = try self.expression(unary_expr.right);
+        .Unary => |unary| {
+            const value = try self.expression(unary.right);
 
-            return switch (unary_expr.op.type) {
+            return switch (unary.op.type) {
                 //@todo bang
-                .MINUS, .BANG => c.BinaryenBinary(self.module, c.BinaryenMulInt32(), value, c.BinaryenConst(self.module, c.BinaryenLiteralInt32(@as(i32, -1)))),
+                .MINUS, .BANG => c.BinaryenBinary(
+                    self.module,
+                    c.BinaryenMulInt32(),
+                    value,
+                    c.BinaryenConst(
+                        self.module,
+                        c.BinaryenLiteralInt32(
+                            @as(i32, -1),
+                        ),
+                    ),
+                ),
                 else => unreachable,
             };
         },
-        .Grouping => |grouping_expr| {
-            return try self.expression(grouping_expr.expr);
+        .Grouping => |grouping| {
+            return try self.expression(grouping.expr);
         },
         .Logical => |logical| {
             const left = try self.expression(logical.left);
@@ -254,18 +245,14 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
                 result.if_false,
                 c.BinaryenTypeAuto(),
             );
-
-            // const condition = switch (logical.op.type) {
-            //     .AND => c.BinaryenBinary(self.module, c.BinaryenNeInt32(), left, c.BinaryenConst(self.module, c.BinaryenLiteralInt32((@as(i32, 0))))),
-            //     .OR => c.BinaryenBinary(self.module, c.BinaryenNeInt32(), left, c.BinaryenConst(self.module, c.BinaryenLiteralInt32((@as(i32, 1))))),
-            //     else => unreachable,
-            // };
-
-            // return c.BinaryenSelect(self.module, condition, right, left, c.BinaryenTypeAuto());
+        },
+        .Assign => |assign| {
+            const idx = self.current_env.get_index_by_name(assign.name.lexeme) orelse return CompilerError.UnknownVariableToAssign;
+            const value = try self.expression(assign.value);
+            return c.BinaryenLocalSet(self.module, @intCast(idx), value);
         },
         else => {
-            std.debug.print("\nexpr {any}\n", .{expr});
-            // @compileError("not implemented");
+            std.debug.print("\n Compiler : expression type not implemented for {any}\n", .{expr});
             unreachable;
         },
     };
