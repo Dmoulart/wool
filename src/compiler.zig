@@ -341,6 +341,14 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
 
             return CompilerError.FunctionCallInGlobalScope;
         },
+        .If => |if_expr| {
+            return c.BinaryenIf(
+                self.module,
+                try self.expression(if_expr.condition),
+                try self.expression(if_expr.then_branch),
+                if (if_expr.else_branch) |else_branch| try self.expression(else_branch) else c.BinaryenNop(self.module),
+            );
+        },
         // else => {
         //     std.debug.print("\n Compiler : expression type not implemented for {any}\n", .{expr});
         //     unreachable;

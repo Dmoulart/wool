@@ -1,5 +1,8 @@
-global_variable :: 123;
+global_variable :: 123
 
-inc :: -> global_variable;
+inc :: -> global_variable
 
-add :: -> inc();
+add :: -> {
+    a := 1 
+    if (a == 1) and 0 { 10 } else { 2 }
+}

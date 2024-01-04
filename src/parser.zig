@@ -85,30 +85,6 @@ fn declaration_expression(self: *Self) ParserError!?*Expr {
     return try self.expression_stmt();
 }
 
-fn block(self: *Self) ParserError![]*Expr {
-    var exprs = std.ArrayList(*Expr).init(self.allocator);
-
-    while (!self.check(.RIGHT_BRACE) and !self.is_at_end()) {
-        if (self.declaration_expression()) |maybe_decl| {
-            if (maybe_decl) |decl| {
-                exprs.append(decl) catch |decl_err| switch (decl_err) {
-                    error.OutOfMemory => return ParserError.OutOfMemory,
-                };
-            }
-        } else |decl_err| {
-            return decl_err;
-        }
-    }
-
-    _ = try self.consume(
-        .RIGHT_BRACE,
-        ParserError.MissingClosingBrace,
-        "Expect '}' after block.",
-    );
-
-    return exprs.toOwnedSlice();
-}
-
 // fn return_stmt(self: *Self) ParserError!*Stmt {
 //     const keyword = self.previous();
 
@@ -134,11 +110,11 @@ fn block(self: *Self) ParserError![]*Expr {
 fn expression_stmt(self: *Self) ParserError!?*Expr {
     const expr = try self.expression();
 
-    _ = try self.consume(
-        .SEMICOLON,
-        ParserError.MissingSemiColonAfterValue,
-        "Expect ';' after value.",
-    );
+    // _ = try self.consume(
+    //     .SEMICOLON,
+    //     ParserError.MissingSemiColonAfterValue,
+    //     "Expect ';' after value.",
+    // );
 
     return try self.create_expr(expr.*);
 }
@@ -152,7 +128,47 @@ fn expression(self: *Self) ParserError!*Expr {
         });
     }
 
+    if (self.match(&.{.IF})) {
+        return try self.if_expr();
+    }
+
     return try self.function();
+}
+
+fn block(self: *Self) ParserError![]*Expr {
+    var exprs = std.ArrayList(*Expr).init(self.allocator);
+
+    while (!self.check(.RIGHT_BRACE) and !self.is_at_end()) {
+        if (self.declaration_expression()) |maybe_decl| {
+            if (maybe_decl) |decl| {
+                exprs.append(decl) catch |decl_err| switch (decl_err) {
+                    error.OutOfMemory => return ParserError.OutOfMemory,
+                };
+            }
+        } else |decl_err| {
+            return decl_err;
+        }
+    }
+
+    _ = try self.consume(
+        .RIGHT_BRACE,
+        ParserError.MissingClosingBrace,
+        "Expect '}' after block.",
+    );
+
+    return exprs.toOwnedSlice();
+}
+
+fn if_expr(self: *Self) ParserError!*Expr {
+    const condition = try self.expression();
+    const then_branch = try self.expression();
+    const else_branch = if (self.match(&.{.ELSE})) try self.expression() else null;
+
+    return try self.create_expr(.{ .If = .{
+        .condition = condition,
+        .then_branch = then_branch,
+        .else_branch = else_branch,
+    } });
 }
 
 fn function(self: *Self) ParserError!*Expr {
