@@ -1,19 +1,7 @@
-
-/*add :: a, b -> { 
-
-    sum := a + b;
-
-    double := sum * 2;
-
-    ret := -sum;
-
-    ret;
-};*/
-
 global_variable :: 123;
 
 add :: a, b -> {
     a := 1; 
-    a = a + 2;
+    a = global_variable + a;
     a;
 };

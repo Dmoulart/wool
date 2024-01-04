@@ -29,6 +29,7 @@ pub fn init(allocator: std.mem.Allocator) @This() {
 pub fn deinit(self: *@This()) void {
     self.index_to_token.deinit();
     self.name_to_index.deinit();
+    self.local_types.deinit();
 }
 
 pub fn get_index_by_name(self: *@This(), name: []const u8) ?usize {
