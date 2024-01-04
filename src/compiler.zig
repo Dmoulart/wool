@@ -111,11 +111,13 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
                 const idx = if (current_env.last_index == 0) 0 else current_env.last_index + 1;
                 try current_env.set(var_init.name, idx);
                 try current_env.add_local_type(c.BinaryenTypeInt32());
+
                 const value = try self.expression(var_init.initializer);
+
                 return c.BinaryenLocalSet(self.module, @intCast(idx), value);
-            } else {
-                return CompilerError.VariableInitializationInGlobalScope;
             }
+
+            return CompilerError.VariableInitializationInGlobalScope;
         },
         .Function => |func| {
             var env: *Environment = try self.environments.addOne();
@@ -191,25 +193,29 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
             return c.BinaryenBinary(self.module, op, left, right);
         },
         .Variable => |variable| {
-            if (self.current_env != null and self.current_env.?.get_index_by_name(variable.name.lexeme) != null) {
-                return c.BinaryenLocalGet(
-                    self.module,
-                    @intCast(self.current_env.?.get_index_by_name(variable.name.lexeme).?),
-                    c.BinaryenTypeInt32(),
-                );
-            } else if (self.globals.variables.get(variable.name.lexeme)) |_| {
+            if (!self.in_global_scope()) {
+                if (self.current_env.?.get_index_by_name(variable.name.lexeme)) |idx| {
+                    return c.BinaryenLocalGet(
+                        self.module,
+                        @intCast(idx),
+                        c.BinaryenTypeInt32(),
+                    );
+                }
+            }
+
+            if (self.globals.variables.get(variable.name.lexeme)) |_| {
                 return c.BinaryenGlobalGet(
                     self.module,
                     self.to_c_string(variable.name.lexeme),
                     c.BinaryenTypeAuto(),
                 );
-            } else {
-                return Err.raise(
-                    variable.name,
-                    CompilerError.UnknownVariable,
-                    @errorName(CompilerError.UnknownVariable),
-                );
             }
+
+            return Err.raise(
+                variable.name,
+                CompilerError.UnknownVariable,
+                @errorName(CompilerError.UnknownVariable),
+            );
         },
         .Literal => |literal| {
             const value = switch (literal.value) {
@@ -286,9 +292,9 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
                 const idx = current_env.get_index_by_name(assign.name.lexeme) orelse return CompilerError.UnknownVariable;
                 const value = try self.expression(assign.value);
                 return c.BinaryenLocalSet(self.module, @intCast(idx), value);
-            } else {
-                return CompilerError.VariableAssignationInGlobalScope;
             }
+
+            return CompilerError.VariableAssignationInGlobalScope;
         },
         else => {
             std.debug.print("\n Compiler : expression type not implemented for {any}\n", .{expr});
@@ -321,4 +327,8 @@ fn write(self: *@This()) !void {
 fn to_c_string(self: *@This(), str: []const u8) [*:0]const u8 {
     //@todo horror museum + memory leak
     return @ptrCast(self.allocator.dupeZ(u8, str) catch unreachable);
+}
+
+inline fn in_global_scope(self: *@This()) bool {
+    return self.current_env == null;
 }
