@@ -20,6 +20,7 @@ pub const CompilerError = error{
     VariableInitializationInGlobalScope,
     VariableAssignationInGlobalScope,
     OutOfMemory,
+    FunctionCallInGlobalScope,
 };
 
 allocator: std.mem.Allocator,
@@ -36,12 +37,16 @@ globals: Globals,
 
 blocks_children: std.ArrayList(std.ArrayList(c.BinaryenExpressionRef)),
 
+args: std.AutoArrayHashMap(*const Expr, []c.BinaryenExpressionRef),
+
 pub fn init(allocator: std.mem.Allocator, ast: []*Expr) @This() {
     var environments = std.ArrayList(Environment).init(allocator);
 
     var globals = Globals.init(allocator);
 
     var blocks_children = std.ArrayList(std.ArrayList(c.BinaryenExpressionRef)).init(allocator);
+
+    var args = std.AutoArrayHashMap(*const Expr, []c.BinaryenExpressionRef).init(allocator);
 
     var module = c.BinaryenModuleCreate();
 
@@ -53,6 +58,7 @@ pub fn init(allocator: std.mem.Allocator, ast: []*Expr) @This() {
         .globals = globals,
         .current_env = null,
         .blocks_children = blocks_children,
+        .args = args,
     };
 }
 
@@ -66,6 +72,12 @@ pub fn deinit(self: *@This()) void {
     for (self.environments.items) |*env| {
         env.deinit();
     }
+
+    for (self.args.values()) |args| {
+        self.allocator.free(args);
+    }
+
+    self.args.deinit();
 
     self.environments.deinit();
 
@@ -98,10 +110,12 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
                 false;
 
             // it's a global function
-            if (!is_function) {
-                try self.globals.variables.put(const_init.name.lexeme, {});
+            if (is_function) {
+                try self.globals.add_function(const_init.name.lexeme);
+                // @todo implement funcrefs
+            } else {
+                try self.globals.add_variable(const_init.name.lexeme);
                 _ = c.BinaryenAddGlobal(self.module, @ptrCast(name), c.BinaryenTypeInt32(), false, value);
-                return value;
             }
 
             return value;
@@ -132,6 +146,7 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
 
             if (func.args) |args| {
                 var binaryen_args = try self.allocator.alloc(c.BinaryenType, @intCast(args.len));
+                //@todo dfree
 
                 for (args, 0..) |arg, i| {
                     binaryen_args[i] = c.BinaryenTypeInt32();
@@ -203,12 +218,17 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
                 }
             }
 
-            if (self.globals.variables.get(variable.name.lexeme)) |_| {
+            if (self.globals.has_variable(variable.name.lexeme)) {
                 return c.BinaryenGlobalGet(
                     self.module,
                     self.to_c_string(variable.name.lexeme),
                     c.BinaryenTypeAuto(),
                 );
+            }
+
+            if (self.globals.has_function(variable.name.lexeme)) {
+                //@todo implement funcrefs
+                return c.BinaryenNop(self.module);
             }
 
             return Err.raise(
@@ -296,10 +316,35 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
 
             return CompilerError.VariableAssignationInGlobalScope;
         },
-        else => {
-            std.debug.print("\n Compiler : expression type not implemented for {any}\n", .{expr});
-            unreachable;
+        .Call => |call| {
+            if (self.current_env) |current_env| {
+                _ = current_env;
+                const callee = try self.expression(call.callee);
+                _ = callee;
+
+                var args = try self.allocator.alloc(c.BinaryenExpressionRef, call.args.len);
+
+                for (call.args, 0..) |arg_expr, i| {
+                    args[i] = try self.expression(arg_expr);
+                }
+
+                try self.args.put(call.callee, args);
+
+                return c.BinaryenCall(
+                    self.module,
+                    self.to_c_string(call.callee.Variable.name.lexeme), //@implement funcref ?
+                    @ptrCast(args),
+                    @intCast(args.len),
+                    c.BinaryenTypeInt32(),
+                );
+            }
+
+            return CompilerError.FunctionCallInGlobalScope;
         },
+        // else => {
+        //     std.debug.print("\n Compiler : expression type not implemented for {any}\n", .{expr});
+        //     unreachable;
+        // },
     };
 }
 

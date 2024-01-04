@@ -1,7 +1,5 @@
 global_variable :: 123;
 
-add :: a, b -> {
-    a := 1; 
-    a = global_variable + a;
-    a;
-};
+inc :: -> global_variable;
+
+add :: -> inc();

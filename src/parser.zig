@@ -22,6 +22,7 @@ const ParserError = error{
     MissingParameterName,
     MissingClosingBrace,
     MissingConstInitializer,
+    MissingClosingParenAfterArguments,
 };
 
 allocator: std.mem.Allocator,
@@ -32,16 +33,27 @@ current: u32 = 0,
 
 tokens: []Token,
 
+//function as key args as values
+// This will be used by compiler, but maybe this is wrong ? should parser produce an ast + a list of args ?
+args: std.AutoArrayHashMap(*const Expr, []*const Expr),
+
 pub fn init(tokens: []Token, allocator: std.mem.Allocator) Self {
     return Self{
         .tokens = tokens,
         .allocator = allocator,
         .exprs = std.ArrayList(Expr).init(allocator),
+        .args = std.AutoArrayHashMap(*const Expr, []*const Expr).init(allocator),
     };
 }
 
 pub fn deinit(self: *Self) void {
     self.exprs.deinit();
+
+    for (self.args.values()) |args| {
+        self.allocator.free(args);
+    }
+
+    self.args.deinit();
 }
 
 pub fn parse(self: *Self) ParserError![]*Expr {
@@ -431,8 +443,64 @@ fn unary(self: *Self) ParserError!*Expr {
         });
     }
 
-    // return try self.call();
-    return try self.primary();
+    return try self.call();
+}
+
+fn call(self: *Self) ParserError!*Expr {
+    var expr = try self.primary();
+
+    while (true) {
+        if (self.match(&.{.LEFT_PAREN})) {
+            expr = try self.finish_call(expr);
+        } else {
+            break;
+        }
+    }
+
+    return expr;
+}
+
+fn finish_call(self: *Self, callee: *const Expr) ParserError!*Expr {
+    var args = std.ArrayList(*const Expr).init(self.allocator);
+    errdefer args.deinit();
+
+    if (!self.check(.RIGHT_PAREN)) {
+        const first_expr = try self.expression();
+
+        try args.append(first_expr);
+
+        while (self.match(&.{.COMMA})) {
+            const expr = try self.expression();
+
+            try args.append(expr);
+        }
+    }
+
+    const paren = try self.consume(
+        .RIGHT_PAREN,
+        ParserError.MissingClosingParenAfterArguments,
+        "Expect ')' after arguments.",
+    );
+
+    if (args.items.len > 255) {
+        return Err.raise(
+            self.peek(),
+            ParserError.TooMuchArguments,
+            "Functions cannot have more than 255 arguments",
+        );
+    }
+
+    try self.args.put(callee, try args.toOwnedSlice());
+
+    return try self.create_expr(
+        .{
+            .Call = .{
+                .callee = callee,
+                .paren = paren,
+                .args = self.args.get(callee).?,
+            },
+        },
+    );
 }
 
 fn primary(self: *Self) ParserError!*Expr {
