@@ -17,6 +17,7 @@ pub const Expr = union(enum) {
     If: If,
     Loop: Loop,
     Break: Break,
+    While: While,
 
     pub const Assign = struct {
         name: *const Token,
@@ -98,5 +99,11 @@ pub const Expr = union(enum) {
 
     pub const Break = struct {
         value: ?*const Expr,
+    };
+
+    pub const While = struct {
+        condition: *const Expr,
+        body: *const Expr,
+        inc: ?*const Expr,
     };
 };

@@ -352,27 +352,90 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
                     null,
             );
         },
-        .Loop => |loop| {
+        .While => |while_expr| {
+            const body = try self.expression(while_expr.body);
+            const condition = try self.expression(while_expr.condition);
+            const refs = try self.blocks_children.addOne();
+            refs.* = std.ArrayList(c.BinaryenExpressionRef).init(self.allocator);
+
+            const break_expr = c.BinaryenBreak(
+                self.module,
+                self.to_c_string("loop"),
+                condition,
+                null,
+            );
+
+            const loop = c.BinaryenLoop(self.module, "loop", body);
+            _ = loop;
+
+            try refs.append(body);
+            try refs.append(break_expr);
+
+            const block = c.BinaryenBlock(
+                self.module,
+                "loop_block",
+                @ptrCast(refs.items),
+                2,
+                c.BinaryenTypeAuto(),
+            );
+
+            return c.BinaryenLoop(self.module, "loop", block);
+            // const body = try self.expression(while_expr.body);
+            // const condition = try self.expression(while_expr.condition);
+            // const block = c.BinaryenBlock(self.module, "block", children: [*c]BinaryenExpressionRef, 2, c.BinaryenTypeAuto());
+
             // const loop_expr = c.BinaryenLoop(self.module, "loop", try self.expression(loop.body));
             // c.BinaryenBrOn(self.module, op: BinaryenOp, "loop", ref: BinaryenExpressionRef, castType: BinaryenType)
 
-            // const block = c.BinaryenBlock(self.module, "loop_inside_block", children: [*c]BinaryenExpressionRef, 2, c.BinaryenTypeAuto());
             // const block_children = ;
-            const loop_expr = c.BinaryenLoop(self.module, "loop", try self.expression(loop.body));
-            return loop_expr;
+
+            // c.RelooperAddBranch(from: RelooperBlockRef, to: RelooperBlockRef, condition: BinaryenExpressionRef, code: BinaryenExpressionRef)
+            // c.RelooperAddBlock(relooper, try self.expression(loop.body));
+            // const loop_expr = c.BinaryenLoop(self.module, "loop", try self.expression(loop.body));
+            // return loop_expr;
+
+            // const relooper = c.RelooperCreate(self.module);
+            // const block = c.RelooperAddBlock(relooper, try self.expression(while_expr.body));
+            // const condition = try self.expression(while_expr.condition);
+            // _ = condition;
+            // // c.RelooperAddBranch(block, block, condition, null);
+            // // c.Relooper
+            // const body = c.RelooperRenderAndDispose(relooper, block, 0);
+
+            // return body;
         },
+        // .Loop => |loop| {
+        //     // const loop_expr = c.BinaryenLoop(self.module, "loop", try self.expression(loop.body));
+        //     // c.BinaryenBrOn(self.module, op: BinaryenOp, "loop", ref: BinaryenExpressionRef, castType: BinaryenType)
+
+        //     // const block = c.BinaryenBlock(self.module, "loop_inside_block", children: [*c]BinaryenExpressionRef, 2, c.BinaryenTypeAuto());
+        //     // const block_children = ;
+
+        //     const relooper = c.RelooperCreate(self.module);
+        //     const block = c.RelooperAddBlock(relooper, try self.expression(loop.body));
+        //     c.RelooperAddBranch(block, block, null, null);
+        //     // c.Relooper
+        //     const body = c.RelooperRenderAndDispose(relooper, block, 0);
+
+        //     return body;
+
+        //     // c.RelooperAddBranch(from: RelooperBlockRef, to: RelooperBlockRef, condition: BinaryenExpressionRef, code: BinaryenExpressionRef)
+        //     // c.RelooperAddBlock(relooper, try self.expression(loop.body));
+        //     // const loop_expr = c.BinaryenLoop(self.module, "loop", try self.expression(loop.body));
+        //     // return loop_expr;
+        // },
         .Break => |break_expr| {
             return c.BinaryenBreak(
                 self.module,
-                "loop",
+                self.to_c_string("shape$0$continue"),
                 null,
                 if (break_expr.value) |value| try self.expression(value) else null,
             );
         },
-        // else => {
-        //     std.debug.print("\n Compiler : expression type not implemented for {any}\n", .{expr});
-        //     unreachable;
-        // },
+        else => {
+            std.debug.print("\n Compiler : expression type not implemented for {any}\n", .{expr});
+            unreachable;
+        },
     };
 }
 

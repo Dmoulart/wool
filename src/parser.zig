@@ -132,6 +132,10 @@ fn expression(self: *Self) ParserError!*Expr {
         return try self.if_expr();
     }
 
+    if (self.match(&.{.WHILE})) {
+        return try self.while_expr();
+    }
+
     if (self.match(&.{.LOOP})) {
         return try self.loop();
     }
@@ -165,6 +169,17 @@ fn block(self: *Self) ParserError![]*Expr {
     );
 
     return exprs.toOwnedSlice();
+}
+
+fn while_expr(self: *Self) ParserError!*Expr {
+    const condition = try self.expression();
+    const body = try self.expression();
+
+    return try self.create_expr(.{ .While = .{
+        .condition = condition,
+        .body = body,
+        .inc = null,
+    } });
 }
 
 fn if_expr(self: *Self) ParserError!*Expr {
