@@ -132,6 +132,14 @@ fn expression(self: *Self) ParserError!*Expr {
         return try self.if_expr();
     }
 
+    if (self.match(&.{.LOOP})) {
+        return try self.loop();
+    }
+
+    if (self.match(&.{.BREAK})) {
+        return try self.break_expr();
+    }
+
     return try self.function();
 }
 
@@ -169,6 +177,22 @@ fn if_expr(self: *Self) ParserError!*Expr {
         .then_branch = then_branch,
         .else_branch = else_branch,
     } });
+}
+
+fn loop(self: *Self) ParserError!*Expr {
+    return try self.create_expr(.{
+        .Loop = .{
+            .body = try self.expression(),
+        },
+    });
+}
+
+fn break_expr(self: *Self) ParserError!*Expr {
+    return try self.create_expr(.{
+        .Break = .{
+            .value = try self.expression(),
+        },
+    });
 }
 
 fn function(self: *Self) ParserError!*Expr {

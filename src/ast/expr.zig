@@ -15,6 +15,8 @@ pub const Expr = union(enum) {
     ConstInit: ConstInit, // statement or expression ?
     VarInit: VarInit, // statement or expression ?
     If: If,
+    Loop: Loop,
+    Break: Break,
 
     pub const Assign = struct {
         name: *const Token,
@@ -85,8 +87,16 @@ pub const Expr = union(enum) {
     };
 
     pub const If = struct {
-        condition: *const Expr, // @todo : what is pointer what is not pointer ????
+        condition: *const Expr,
         then_branch: *const Expr,
         else_branch: ?*const Expr,
+    };
+
+    pub const Loop = struct {
+        body: *const Expr,
+    };
+
+    pub const Break = struct {
+        value: ?*const Expr,
     };
 };

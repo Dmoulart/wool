@@ -205,9 +205,12 @@ fn read_identifier(self: *Self) Token.Type {
 
     const text = self.src[self.start..self.current];
 
-    return if (Token.keyword(text)) |keyword_type| keyword_type else Token.Type{
-        .IDENTIFIER = text,
-    };
+    return if (Token.keyword(text)) |keyword|
+        keyword
+    else
+        Token.Type{
+            .IDENTIFIER = text,
+        };
 }
 
 fn is_at_end(self: *Self) bool {

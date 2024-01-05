@@ -2,7 +2,18 @@ global_variable :: 123
 
 inc :: -> global_variable
 
+dorian_buy_bag :: -> true
+
+morgane_love_me :: -> if dorian_buy_bag() true else false
+
+// add :: -> if morgane_love_me() 1 else 0
+
+// add :: -> loop 1 and 1
+
 add :: -> {
-    a := 1 
-    if (a == 1) and 0 { 10 } else { 2 }
+   a := 1
+   loop {
+     a = a + 1
+   }
+   a
 }

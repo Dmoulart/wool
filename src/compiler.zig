@@ -346,7 +346,27 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
                 self.module,
                 try self.expression(if_expr.condition),
                 try self.expression(if_expr.then_branch),
-                if (if_expr.else_branch) |else_branch| try self.expression(else_branch) else c.BinaryenNop(self.module),
+                if (if_expr.else_branch) |else_branch|
+                    try self.expression(else_branch)
+                else
+                    null,
+            );
+        },
+        .Loop => |loop| {
+            // const loop_expr = c.BinaryenLoop(self.module, "loop", try self.expression(loop.body));
+            // c.BinaryenBrOn(self.module, op: BinaryenOp, "loop", ref: BinaryenExpressionRef, castType: BinaryenType)
+
+            // const block = c.BinaryenBlock(self.module, "loop_inside_block", children: [*c]BinaryenExpressionRef, 2, c.BinaryenTypeAuto());
+            // const block_children = ;
+            const loop_expr = c.BinaryenLoop(self.module, "loop", try self.expression(loop.body));
+            return loop_expr;
+        },
+        .Break => |break_expr| {
+            return c.BinaryenBreak(
+                self.module,
+                "loop",
+                null,
+                if (break_expr.value) |value| try self.expression(value) else null,
             );
         },
         // else => {
