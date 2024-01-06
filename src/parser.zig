@@ -205,7 +205,7 @@ fn loop(self: *Self) ParserError!*Expr {
 fn break_expr(self: *Self) ParserError!*Expr {
     return try self.create_expr(.{
         .Break = .{
-            .value = try self.expression(),
+            .value = null,
         },
     });
 }

@@ -382,7 +382,7 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
             const condition = try self.expression(while_expr.condition);
 
             try self.m.begin_block("while", c.BinaryenTypeAuto());
-            try self.m.begin_block("inner-loop", c.BinaryenTypeAuto());
+            try self.m.begin_block("inner", c.BinaryenTypeAuto());
             // const brk_condition =
             // _ = try self.m.expr(c.BinaryenBrOn(self.module, c.BinaryenNeInt32(), "while", condition, c.BinaryenTypeInt32()));
             _ = try self.m.expr(
@@ -483,7 +483,7 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
         .Break => |break_expr| {
             return c.BinaryenBreak(
                 self.module,
-                self.to_c_string("shape$0$continue"),
+                self.to_c_string("while"),
                 null,
                 if (break_expr.value) |value| try self.expression(value) else null,
             );

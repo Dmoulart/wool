@@ -1,29 +1,16 @@
 global_variable :: 123
 
-inc :: -> global_variable
+inc :: n -> n + 1
 
 dorian_buy_bag :: -> true
 
 morgane_love_me :: -> if dorian_buy_bag() true else false
 
-// add :: -> if morgane_love_me() 1 else 0
-
-// add :: -> loop 1 and 1
-
 add :: -> {
-   x := 0
-   y := 0
-   res_x := 0
-   res_y := 0
-
-   while x < 20 {
-    res_x += 1
-    x += 1
-    while y < 20{
-      res_y += 1
-      y += 1
-    }
-   }
-   x + y
-   
+  n := 0
+  while n < 20 {
+    n = inc(n)
+    if n == 10 break 0
+  } 
+  n
 }
