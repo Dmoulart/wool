@@ -1,16 +1,24 @@
-global_variable :: 123
+/* global_constant :: 123
+global_variable := 123
 
 inc :: n -> n + 1
 
-dorian_buy_bag :: -> true
+// dorian_buy_bag :: -> true
 
-morgane_love_me :: -> if dorian_buy_bag() true else false
+// morgane_love_me :: -> if dorian_buy_bag() true else false
 
 add :: -> {
-  n := 0
-  while n < 20 {
-    n = inc(n)
-    if n == 10 break 0
+  while global_variable < 20 {
+    global_variable = inc(global_variable)
+    if global_variable == 10 break
   } 
-  n
+  global_variable
+}
+*/
+
+global_variable := 123 
+global_constant :: 123
+add :: -> {
+  global_variable = global_constant + 1
+  global_constant
 }

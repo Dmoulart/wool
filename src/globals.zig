@@ -2,6 +2,8 @@ const std = @import("std");
 
 variables: std.StringHashMap(void),
 
+constants: std.StringHashMap(void),
+
 functions: std.StringHashMap(void),
 
 allocator: std.mem.Allocator,
@@ -9,6 +11,7 @@ allocator: std.mem.Allocator,
 pub fn init(allocator: std.mem.Allocator) @This() {
     return .{
         .variables = std.StringHashMap(void).init(allocator),
+        .constants = std.StringHashMap(void).init(allocator),
         .functions = std.StringHashMap(void).init(allocator),
         .allocator = allocator,
     };
@@ -16,6 +19,7 @@ pub fn init(allocator: std.mem.Allocator) @This() {
 
 pub fn deinit(self: *@This()) void {
     self.variables.deinit();
+    self.constants.deinit();
     self.functions.deinit();
 }
 
@@ -33,4 +37,12 @@ pub fn add_variable(self: *@This(), variable_name: []const u8) !void {
 
 pub fn has_variable(self: *@This(), variable_name: []const u8) bool {
     return self.variables.get(variable_name) != null;
+}
+
+pub fn add_constant(self: *@This(), variable_name: []const u8) !void {
+    try self.constants.put(variable_name, {});
+}
+
+pub fn has_constant(self: *@This(), variable_name: []const u8) bool {
+    return self.constants.get(variable_name) != null;
 }
