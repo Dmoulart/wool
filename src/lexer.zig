@@ -62,11 +62,11 @@ fn scan_token(self: *Self) !void {
         '}' => .RIGHT_BRACE,
         ',' => .COMMA,
         '.' => .DOT,
-        '+' => .PLUS,
         ';' => .SEMICOLON,
-        '*' => .STAR,
-        '-' => if (self.match('>')) .MINUS_ARROW else .MINUS,
         ':' => if (self.match(':')) .COLON_COLON else if (self.match('=')) .COLON_EQUAL else .COLON,
+        '+' => if (self.match('=')) .PLUS_EQUAL else .PLUS,
+        '*' => if (self.match('=')) .STAR_EQUAL else .STAR,
+        '-' => if (self.match('>')) .MINUS_ARROW else if (self.match('=')) .MINUS_EQUAL else .MINUS,
         '/' => blk: {
             if (self.match('/')) {
                 while (self.peek() != '\n' and !self.is_at_end()) {
@@ -76,6 +76,8 @@ fn scan_token(self: *Self) !void {
             } else if (self.match('*')) {
                 self.read_comment_block();
                 break :blk null;
+            } else if (self.match('=')) {
+                break :blk .SLASH_EQUAL;
             } else {
                 break :blk .SLASH;
             }

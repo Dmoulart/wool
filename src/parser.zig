@@ -329,7 +329,7 @@ fn const_init(self: *Self) ParserError!*Expr {
 }
 
 fn var_init(self: *Self) ParserError!*Expr {
-    var expr = try self.assignment();
+    var expr = try self.operation_assigment();
 
     if (self.match(&.{.COLON_EQUAL})) {
         const equals = self.previous();
@@ -353,6 +353,34 @@ fn var_init(self: *Self) ParserError!*Expr {
         };
     }
 
+    return expr;
+}
+
+fn operation_assigment(self: *Self) ParserError!*Expr {
+    var expr = try self.assignment();
+
+    if (self.match(&.{ .PLUS_EQUAL, .MINUS_EQUAL, .STAR_EQUAL, .SLASH_EQUAL })) {
+        const op = self.previous();
+        const value = try self.expression();
+
+        return switch (expr.*) {
+            .Variable => |*var_expr| {
+                var name = var_expr.name;
+                return try self.create_expr(.{
+                    .OperationAssign = .{
+                        .name = name,
+                        .op = op,
+                        .value = value,
+                    },
+                });
+            },
+            else => Err.raise(
+                op,
+                ParserError.InvalidAssignmentTarget,
+                "Invalid assignment target.",
+            ),
+        };
+    }
     return expr;
 }
 

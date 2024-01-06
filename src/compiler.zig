@@ -319,6 +319,28 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
 
             return CompilerError.VariableAssignationInGlobalScope;
         },
+        .OperationAssign => |op_assign| {
+            if (self.current_env) |current_env| {
+                const idx = current_env.get_index_by_name(op_assign.name.lexeme) orelse return CompilerError.UnknownVariable;
+                const value = try self.expression(op_assign.value);
+                const op = switch (op_assign.op.type) {
+                    .PLUS_EQUAL => c.BinaryenAddInt32(),
+                    .MINUS_EQUAL => c.BinaryenSubInt32(),
+                    .STAR_EQUAL => c.BinaryenMulInt32(),
+                    .SLASH_EQUAL => c.BinaryenDivSInt32(), // div s ? div u ?,
+                    else => unreachable,
+                };
+
+                return c.BinaryenLocalSet(self.module, @intCast(idx), c.BinaryenBinary(
+                    self.module,
+                    op,
+                    c.BinaryenLocalGet(self.module, @intCast(idx), c.BinaryenTypeAuto()),
+                    value,
+                ));
+            }
+
+            return CompilerError.VariableAssignationInGlobalScope;
+        },
         .Call => |call| {
             if (self.current_env) |current_env| {
                 _ = current_env;
@@ -466,6 +488,7 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
                 if (break_expr.value) |value| try self.expression(value) else null,
             );
         },
+
         else => {
             std.debug.print("\n Compiler : expression type not implemented for {any}\n", .{expr});
             unreachable;

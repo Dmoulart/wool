@@ -11,9 +11,11 @@ morgane_love_me :: -> if dorian_buy_bag() true else false
 // add :: -> loop 1 and 1
 
 add :: -> {
-   a := 1
-   while a < 1000000 {
-    a = a + 1
+   a := 10
+   i:=1
+   while a > 0 {
+    a -= 2
+    i += 1
    }
-   a
+   i
 }
