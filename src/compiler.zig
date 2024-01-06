@@ -359,9 +359,12 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
             const body = try self.expression(while_expr.body);
             const condition = try self.expression(while_expr.condition);
 
-            self.m.begin_block("while", c.BinaryenTypeAuto());
-            try self.m.expr(body);
-            try self.m.expr(condition);
+            try self.m.begin_block("while", c.BinaryenTypeAuto());
+            try self.m.begin_block("loop", c.BinaryenTypeAuto());
+            _ = try self.m.expr(condition);
+            _ = try self.m.expr(body);
+            _ = try self.m.expr(c.BinaryenBreak(self.module, "loop", null, null));
+            _ = try self.m.end_block();
             return try self.m.end_block();
 
             // const body = try self.expression(while_expr.body);
