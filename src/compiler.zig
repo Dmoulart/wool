@@ -125,7 +125,7 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
         },
         .VarInit => |*var_init| {
             if (self.current_env) |current_env| {
-                const idx = if (current_env.last_index == 0) 0 else current_env.last_index + 1;
+                const idx = current_env.increment_index();
                 try current_env.set(var_init.name, idx);
                 try current_env.add_local_type(c.BinaryenTypeInt32());
 
@@ -153,7 +153,7 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
 
                 for (args, 0..) |arg, i| {
                     binaryen_args[i] = c.BinaryenTypeInt32();
-                    try env.set(arg, i);
+                    try env.set(arg, @intCast(i));
                 }
 
                 params = c.BinaryenTypeCreate(
