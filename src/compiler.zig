@@ -360,11 +360,30 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
             const condition = try self.expression(while_expr.condition);
 
             try self.m.begin_block("while", c.BinaryenTypeAuto());
-            try self.m.begin_block("loop", c.BinaryenTypeAuto());
-            _ = try self.m.expr(condition);
+            try self.m.begin_block("inner-loop", c.BinaryenTypeAuto());
+            // const brk_condition =
+            // _ = try self.m.expr(c.BinaryenBrOn(self.module, c.BinaryenNeInt32(), "while", condition, c.BinaryenTypeInt32()));
+            _ = try self.m.expr(
+                c.BinaryenBreak(
+                    self.module,
+                    "while",
+                    c.BinaryenBinary(
+                        self.module,
+                        c.BinaryenNeInt32(),
+                        condition,
+                        c.BinaryenConst(
+                            self.module,
+                            c.BinaryenLiteralInt32(
+                                @as(i32, 1),
+                            ),
+                        ),
+                    ),
+                    null,
+                ),
+            );
             _ = try self.m.expr(body);
             _ = try self.m.expr(c.BinaryenBreak(self.module, "loop", null, null));
-            _ = try self.m.end_block();
+            _ = try self.m.end_block_as_loop("loop");
             return try self.m.end_block();
 
             // const body = try self.expression(while_expr.body);

@@ -85,6 +85,24 @@ pub fn end_block(self: *@This()) !c.BinaryenExpressionRef {
     return if (self.current_block()) |_| try self.expr(block_ref) else block_ref;
 }
 
+pub fn end_block_as_loop(self: *@This(), name: []const u8) !c.BinaryenExpressionRef {
+    var exprs: *std.ArrayList(c.BinaryenExpressionRef) = try self.exprs.addOne();
+    exprs.* = std.ArrayList(c.BinaryenExpressionRef).init(self.allocator);
+    try exprs.appendSlice(try self.current_block().?.block_exprs.toOwnedSlice());
+
+    const block = self.blocks.orderedRemove(self.blocks.items.len - 1);
+    const block_ref = c.BinaryenBlock(
+        self.module,
+        self.to_c_string(block.block_name),
+        @ptrCast(exprs.items),
+        @intCast(exprs.items.len),
+        block.block_type,
+    );
+    const loop_ref = c.BinaryenLoop(self.module, self.to_c_string(name), block_ref);
+
+    return if (self.current_block()) |_| try self.expr(loop_ref) else loop_ref;
+}
+
 fn to_c_string(self: *@This(), str: []const u8) [*:0]const u8 {
     //@todo horror museum + memory leak
     return @ptrCast(self.allocator.dupeZ(u8, str) catch unreachable);

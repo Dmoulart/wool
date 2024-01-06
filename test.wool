@@ -12,7 +12,7 @@ morgane_love_me :: -> if dorian_buy_bag() true else false
 
 add :: -> {
    a := 1
-   while a < 10 {
+   while a < 1000000 {
     a = a + 1
    }
    a
