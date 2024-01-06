@@ -17,8 +17,13 @@ add :: -> {
 */
 
 global_variable := 123 
+
 global_constant :: 123
+
 add :: -> {
   global_variable = global_constant + 1
-  global_constant
+  while global_variable < 123000 {
+    global_variable += 1
+  }
+  global_variable
 }

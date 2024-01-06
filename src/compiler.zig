@@ -339,7 +339,6 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
         },
         .OperationAssign => |op_assign| {
             if (self.current_env) |current_env| {
-                const idx = current_env.get_index_by_name(op_assign.name.lexeme) orelse return CompilerError.UnknownVariable;
                 const value = try self.expression(op_assign.value);
                 const op = switch (op_assign.op.type) {
                     .PLUS_EQUAL => c.BinaryenAddInt32(),
@@ -349,12 +348,24 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
                     else => unreachable,
                 };
 
-                return c.BinaryenLocalSet(self.module, @intCast(idx), c.BinaryenBinary(
-                    self.module,
-                    op,
-                    c.BinaryenLocalGet(self.module, @intCast(idx), c.BinaryenTypeAuto()),
-                    value,
-                ));
+                if (current_env.get_index_by_name(op_assign.name.lexeme)) |idx| {
+                    return c.BinaryenLocalSet(self.module, @intCast(idx), c.BinaryenBinary(
+                        self.module,
+                        op,
+                        c.BinaryenLocalGet(self.module, @intCast(idx), c.BinaryenTypeAuto()),
+                        value,
+                    ));
+                }
+                if (self.globals.has_variable(op_assign.name.lexeme)) {
+                    const name = self.to_c_string(op_assign.name.lexeme);
+                    return c.BinaryenGlobalSet(self.module, name, c.BinaryenBinary(
+                        self.module,
+                        op,
+                        c.BinaryenGlobalGet(self.module, name, c.BinaryenTypeInt32()),
+                        value,
+                    ));
+                }
+                return CompilerError.UnknownVariable;
             }
 
             return CompilerError.VariableAssignationInGlobalScope;
