@@ -19,6 +19,7 @@ pub const Expr = union(enum) {
     Loop: Loop,
     Break: Break,
     While: While,
+    Continue: Continue,
 
     pub const Assign = struct {
         name: *const Token,
@@ -113,4 +114,6 @@ pub const Expr = union(enum) {
         body: *const Expr,
         inc: ?*const Expr,
     };
+
+    pub const Continue = struct {};
 };

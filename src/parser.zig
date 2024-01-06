@@ -144,6 +144,10 @@ fn expression(self: *Self) ParserError!*Expr {
         return try self.break_expr();
     }
 
+    if (self.match(&.{.CONTINUE})) {
+        return try self.continue_expr();
+    }
+
     return try self.function();
 }
 
@@ -207,6 +211,12 @@ fn break_expr(self: *Self) ParserError!*Expr {
         .Break = .{
             .value = null,
         },
+    });
+}
+
+fn continue_expr(self: *Self) ParserError!*Expr {
+    return try self.create_expr(.{
+        .Continue = .{},
     });
 }
 

@@ -517,7 +517,14 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
                 if (break_expr.value) |value| try self.expression(value) else null,
             );
         },
-
+        .Continue => |_| {
+            return c.BinaryenBreak(
+                self.module,
+                self.to_c_string("loop"),
+                null,
+                null,
+            );
+        },
         else => {
             std.debug.print("\n Compiler : expression type not implemented for {any}\n", .{expr});
             unreachable;
