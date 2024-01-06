@@ -88,14 +88,10 @@ pub fn deinit(self: *@This()) void {
 
 pub fn compile(self: *@This()) !void {
     for (self.ast) |expr| {
-        _ = try self.codegen(expr);
+        _ = try self.expression(expr);
     }
 
     try self.write();
-}
-
-fn codegen(self: *@This(), expr: *Expr) !c.BinaryenExpressionRef {
-    return try self.expression(expr);
 }
 
 fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
@@ -368,8 +364,8 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
             const loop = c.BinaryenLoop(self.module, "loop", body);
             _ = loop;
 
-            try refs.append(body);
             try refs.append(break_expr);
+            try refs.append(body);
 
             const block = c.BinaryenBlock(
                 self.module,
