@@ -1,5 +1,7 @@
 const std = @import("std");
 
+const Codegen = @import("./codegen.zig");
+
 const Token = @import("./token.zig");
 const Stmt = @import("./ast/stmt.zig").Stmt;
 const Expr = @import("./ast/expr.zig").Expr;
@@ -39,6 +41,8 @@ blocks_children: std.ArrayList(std.ArrayList(c.BinaryenExpressionRef)),
 
 args: std.AutoArrayHashMap(*const Expr, []c.BinaryenExpressionRef),
 
+m: Codegen,
+
 pub fn init(allocator: std.mem.Allocator, ast: []*Expr) @This() {
     var environments = std.ArrayList(Environment).init(allocator);
 
@@ -59,6 +63,7 @@ pub fn init(allocator: std.mem.Allocator, ast: []*Expr) @This() {
         .current_env = null,
         .blocks_children = blocks_children,
         .args = args,
+        .m = Codegen.init(module.?, allocator),
     };
 }
 
@@ -82,6 +87,8 @@ pub fn deinit(self: *@This()) void {
     self.environments.deinit();
 
     self.globals.deinit();
+
+    self.m.deinit();
 
     c.BinaryenModuleDispose(self.module);
 }
@@ -351,31 +358,40 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
         .While => |while_expr| {
             const body = try self.expression(while_expr.body);
             const condition = try self.expression(while_expr.condition);
-            const refs = try self.blocks_children.addOne();
-            refs.* = std.ArrayList(c.BinaryenExpressionRef).init(self.allocator);
 
-            const break_expr = c.BinaryenBreak(
-                self.module,
-                self.to_c_string("loop"),
-                condition,
-                null,
-            );
+            self.m.begin_block("while", c.BinaryenTypeAuto());
+            try self.m.expr(body);
+            try self.m.expr(condition);
+            return try self.m.end_block();
 
-            const loop = c.BinaryenLoop(self.module, "loop", body);
-            _ = loop;
+            // const body = try self.expression(while_expr.body);
+            // const condition = try self.expression(while_expr.condition);
+            // const refs = try self.blocks_children.addOne();
+            // refs.* = std.ArrayList(c.BinaryenExpressionRef).init(self.allocator);
 
-            try refs.append(break_expr);
-            try refs.append(body);
+            // const break_expr = c.BinaryenBreak(
+            //     self.module,
+            //     self.to_c_string("loop"),
+            //     condition,
+            //     null,
+            // );
 
-            const block = c.BinaryenBlock(
-                self.module,
-                "loop_block",
-                @ptrCast(refs.items),
-                2,
-                c.BinaryenTypeAuto(),
-            );
+            // const loop = c.BinaryenLoop(self.module, "loop", body);
+            // _ = loop;
 
-            return c.BinaryenLoop(self.module, "loop", block);
+            // try refs.append(break_expr);
+            // try refs.append(body);
+
+            // const block = c.BinaryenBlock(
+            //     self.module,
+            //     "loop_block",
+            //     @ptrCast(refs.items),
+            //     2,
+            //     c.BinaryenTypeAuto(),
+            // );
+
+            // return c.BinaryenLoop(self.module, "loop", block);
+
             // const body = try self.expression(while_expr.body);
             // const condition = try self.expression(while_expr.condition);
             // const block = c.BinaryenBlock(self.module, "block", children: [*c]BinaryenExpressionRef, 2, c.BinaryenTypeAuto());
