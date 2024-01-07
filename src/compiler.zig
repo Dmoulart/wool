@@ -119,8 +119,7 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
                 // @todo implement funcrefs
             } else {
                 try self.globals.add_constant(const_init.name.lexeme);
-                
-                
+
                 _ = c.BinaryenAddGlobal(
                     self.module,
                     @ptrCast(name),
@@ -265,7 +264,9 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
         },
         .Literal => |literal| {
             const value = switch (literal.value) {
-                .Boolean => |boolean| c.BinaryenLiteralInt32(if (boolean) @as(i32, 1) else @as(i32, 0)),
+                .Boolean => |boolean| c.BinaryenLiteralInt32(
+                    if (boolean) @as(i32, 1) else @as(i32, 0),
+                ),
                 .Integer => |integer| c.BinaryenLiteralInt32(integer),
                 .Float => |float| c.BinaryenLiteralFloat32(float),
                 // .String => |string| return c.BinaryenStringConst(self.module, @ptrCast(string)),
@@ -421,30 +422,39 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
             const condition = try self.expression(while_expr.condition);
 
             try self.m.begin_block("while", c.BinaryenTypeAuto());
-            try self.m.begin_block("inner", c.BinaryenTypeAuto());
-            // const brk_condition =
-            // _ = try self.m.expr(c.BinaryenBrOn(self.module, c.BinaryenNeInt32(), "while", condition, c.BinaryenTypeInt32()));
-            _ = try self.m.expr(
-                c.BinaryenBreak(
-                    self.module,
-                    "while",
-                    c.BinaryenBinary(
-                        self.module,
-                        c.BinaryenNeInt32(),
-                        condition,
-                        c.BinaryenConst(
+            {
+                try self.m.begin_block("inner", c.BinaryenTypeAuto());
+                {
+                    _ = try self.m.expr(
+                        c.BinaryenBreak(
                             self.module,
-                            c.BinaryenLiteralInt32(
-                                @as(i32, 1),
+                            "while",
+                            c.BinaryenBinary(
+                                self.module,
+                                c.BinaryenNeInt32(),
+                                condition,
+                                c.BinaryenConst(
+                                    self.module,
+                                    c.BinaryenLiteralInt32(
+                                        @as(i32, 1),
+                                    ),
+                                ),
                             ),
+                            null,
                         ),
-                    ),
-                    null,
-                ),
-            );
-            _ = try self.m.expr(body);
-            _ = try self.m.expr(c.BinaryenBreak(self.module, "loop", null, null));
-            _ = try self.m.end_block_as_loop("loop");
+                    );
+                    _ = try self.m.expr(body);
+                    _ = try self.m.expr(
+                        c.BinaryenBreak(
+                            self.module,
+                            "loop",
+                            null,
+                            null,
+                        ),
+                    );
+                }
+                _ = try self.m.end_block_as_loop("loop");
+            }
 
             return try self.m.end_block();
 
