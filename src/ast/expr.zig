@@ -20,6 +20,7 @@ pub const Expr = union(enum) {
     Break: Break,
     While: While,
     Continue: Continue,
+    Import: Import,
 
     pub const Assign = struct {
         name: *const Token,
@@ -116,4 +117,9 @@ pub const Expr = union(enum) {
     };
 
     pub const Continue = struct {};
+
+    pub const Import = struct {
+        namespace: *const Token,
+        member: *const Token,
+    };
 };

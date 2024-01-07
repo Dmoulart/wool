@@ -57,6 +57,8 @@ pub const Types = enum {
     CONTINUE,
     TRUE,
     WHILE,
+    FROM,
+    IMPORT,
     EOF,
 };
 
@@ -112,6 +114,8 @@ pub const Type = union(Types) {
     CONTINUE,
     TRUE,
     WHILE,
+    FROM,
+    IMPORT,
     EOF,
 };
 
@@ -129,6 +133,8 @@ const keywords = std.ComptimeStringMap(Type, .{
     .{ "return", .RETURN },
     .{ "true", .TRUE },
     .{ "while", .WHILE },
+    .{ "from", .FROM },
+    .{ "import", .IMPORT },
 });
 
 pub fn keyword(identifier: []const u8) ?Type {

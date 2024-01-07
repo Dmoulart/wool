@@ -23,6 +23,7 @@ const ParserError = error{
     MissingClosingBrace,
     MissingConstInitializer,
     MissingClosingParenAfterArguments,
+    MissingImport,
 };
 
 allocator: std.mem.Allocator,
@@ -148,6 +149,10 @@ fn expression(self: *Self) ParserError!*Expr {
         return try self.continue_expr();
     }
 
+    if (self.match(&.{.FROM})) {
+        return try self.from();
+    }
+
     return try self.function();
 }
 
@@ -217,6 +222,33 @@ fn break_expr(self: *Self) ParserError!*Expr {
 fn continue_expr(self: *Self) ParserError!*Expr {
     return try self.create_expr(.{
         .Continue = .{},
+    });
+}
+
+fn from(self: *Self) ParserError!*Expr {
+    const namespace = try self.consume(
+        .IDENTIFIER,
+        ParserError.MissingImport,
+        "Expect namespace.",
+    );
+
+    _ = try self.consume(
+        .IMPORT,
+        ParserError.MissingImport,
+        "Expect import after namespace.",
+    );
+
+    const member = try self.consume(
+        .IDENTIFIER,
+        ParserError.MissingImport,
+        "Expect member",
+    );
+
+    return try self.create_expr(.{
+        .Import = .{
+            .namespace = namespace,
+            .member = member,
+        },
     });
 }
 

@@ -16,9 +16,11 @@ add :: -> {
 }
 */
 
-global_variable := 123 
+from console import log
 
-global_constant :: 123
+global_variable := 1 
+
+global_constant :: 1
 
 inc :: -> {
   global_variable += 1
@@ -28,11 +30,7 @@ inc :: -> {
 add :: -> {
   i := 0
   while global_variable < 1000 {
-    if(global_variable > 500 and i < 25){
-      i += 1
-      continue
-    }
-    inc() 
+    log(inc())
   }
   i
 }

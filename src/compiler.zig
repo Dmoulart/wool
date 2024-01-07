@@ -371,11 +371,7 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
             return CompilerError.VariableAssignationInGlobalScope;
         },
         .Call => |call| {
-            if (self.current_env) |current_env| {
-                _ = current_env;
-                const callee = try self.expression(call.callee);
-                _ = callee;
-
+            if (!self.in_global_scope()) {
                 var args = try self.allocator.alloc(c.BinaryenExpressionRef, call.args.len);
 
                 for (call.args, 0..) |arg_expr, i| {
@@ -435,6 +431,7 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
             _ = try self.m.expr(body);
             _ = try self.m.expr(c.BinaryenBreak(self.module, "loop", null, null));
             _ = try self.m.end_block_as_loop("loop");
+
             return try self.m.end_block();
 
             // const body = try self.expression(while_expr.body);
@@ -524,6 +521,12 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
                 null,
                 null,
             );
+        },
+        .Import => |import| {
+            c.BinaryenAddFunctionImport(self.module, self.to_c_string(import.member.lexeme), self.to_c_string(import.namespace.lexeme), self.to_c_string(import.member.lexeme), c.BinaryenTypeInt32(), c.BinaryenTypeInt32());
+            try self.globals.add_function(import.member.lexeme);
+            return null;
+            // c.BinaryenGetFunction(module: BinaryenModuleRef, name: [*c]const u8)
         },
         else => {
             std.debug.print("\n Compiler : expression type not implemented for {any}\n", .{expr});
