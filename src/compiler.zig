@@ -152,6 +152,17 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
             return value;
         },
         .VarInit => |*var_init| {
+            try self.ctx.push_frame(
+                .{
+                    .expr = expr,
+                    .expr_type = if (var_init.type) |var_type|
+                        try Type.from_str(var_type.lexeme)
+                    else
+                        .i32,
+                },
+            );
+            defer _ = self.ctx.pop_frame();
+
             if (self.current_env) |current_env| {
                 const idx = current_env.increment_index();
                 try current_env.set(var_init.name, idx);

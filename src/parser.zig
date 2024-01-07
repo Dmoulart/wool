@@ -355,7 +355,7 @@ fn const_init(self: *Self) ParserError!*Expr {
     // must be before declared_type check !
     const implicit_type = self.match(&.{.COLON_COLON});
 
-    const declared_type = self.match(&.{.COLON}) and self.check_next(0, .IDENTIFIER) and self.check_next(1, .COLON);
+    const declared_type = self.check(.COLON) and self.check_next(1, .IDENTIFIER) and self.check_next(2, .COLON);
 
     const is_const = declared_type or implicit_type;
 
@@ -368,9 +368,12 @@ fn const_init(self: *Self) ParserError!*Expr {
             break :blk .{
                 .equals = self.previous(),
                 .value = try self.expression(),
-                .type = @as(?*const Token, null),
+                .type = null,
             };
         } else blk: {
+            // consume colon
+            _ = self.advance();
+
             const equals = self.previous();
 
             const @"type" = try self.consume(
@@ -390,7 +393,7 @@ fn const_init(self: *Self) ParserError!*Expr {
                 .value = value,
             };
         };
-        
+
         return switch (expr.*) {
             .Variable => |*var_expr| {
                 var name = var_expr.name;
@@ -416,9 +419,45 @@ fn const_init(self: *Self) ParserError!*Expr {
 fn var_init(self: *Self) ParserError!*Expr {
     var expr = try self.operation_assigment();
 
-    if (self.match(&.{.COLON_EQUAL})) {
-        const equals = self.previous();
-        const value = try self.expression();
+    const implicit_type = self.match(&.{.COLON_EQUAL});
+
+    const declared_type = self.check(.COLON) and self.check_next(1, .IDENTIFIER) and self.check_next(2, .EQUAL);
+
+    const is_var = implicit_type or declared_type;
+
+    if (is_var) {
+        const props: struct {
+            equals: *const Token,
+            value: *const Expr,
+            type: ?*const Token,
+        } = if (implicit_type) blk: {
+            break :blk .{
+                .equals = self.previous(),
+                .value = try self.expression(),
+                .type = null,
+            };
+        } else blk: {
+            // consume colon
+            _ = self.advance();
+            const equals = self.previous();
+
+            const @"type" = try self.consume(
+                .IDENTIFIER,
+                ParserError.MissingFunctionType,
+                "Missing type",
+            );
+
+            // eat equal
+            _ = self.advance();
+
+            const value = try self.expression();
+
+            break :blk .{
+                .equals = equals,
+                .type = @"type",
+                .value = value,
+            };
+        };
 
         return switch (expr.*) {
             .Variable => |*var_expr| {
@@ -426,13 +465,13 @@ fn var_init(self: *Self) ParserError!*Expr {
                 return try self.create_expr(.{
                     .VarInit = .{
                         .name = name,
-                        .initializer = value,
-                        .type = null,
+                        .initializer = props.value,
+                        .type = props.type,
                     },
                 });
             },
             else => Err.raise(
-                equals,
+                props.equals,
                 ParserError.InvalidAssignmentTarget,
                 "Invalid assignment target.",
             ),
@@ -766,8 +805,8 @@ fn check(self: *Self, token_type: Token.Types) bool {
     if (self.is_at_end()) {
         return false;
     }
-
-    return token_type == @as(Token.Types, self.peek().type);
+    const peek_token = self.peek().type;
+    return token_type == peek_token;
 }
 
 fn check_next(self: *Self, step: u32, comptime token_type: Token.Types) bool {

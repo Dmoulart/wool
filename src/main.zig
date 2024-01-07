@@ -59,6 +59,7 @@ fn run(src: []const u8) !void {
     defer parser.deinit();
 
     const ast = try parser.parse();
+    try jsonPrint(ast, "./ast.json");
 
     var compiler = Compiler.init(std.heap.page_allocator, ast);
     defer compiler.deinit();
@@ -66,7 +67,6 @@ fn run(src: []const u8) !void {
     try compiler.compile();
 
     try jsonPrint(tokens, "./tokens.json");
-    try jsonPrint(ast, "./ast.json");
 }
 
 pub fn jsonPrint(value: anytype, file_path: []const u8) !void {
