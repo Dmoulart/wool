@@ -20,7 +20,7 @@ from console import log
 
 global_variable := 1
 
-global_constant :: 1
+global_constant : i64 : 1
 
 inc :: -> i32 {
   global_variable += 1

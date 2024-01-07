@@ -198,7 +198,7 @@ fn read_number(self: *Self) !Token.Type {
     //@todo handle float
     return Token.Type{
         // .NUMBER = try std.fmt.parseFloat(f64, self.src[self.start..self.current]),
-        .NUMBER = try std.fmt.parseInt(i32, self.src[self.start..self.current], 10),
+        .NUMBER = try std.fmt.parseFloat(f64, self.src[self.start..self.current]),
     };
 }
 

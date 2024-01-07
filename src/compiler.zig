@@ -9,6 +9,10 @@ const Expr = @import("./ast/expr.zig").Expr;
 const Environment = @import("./environment.zig");
 const Globals = @import("./globals.zig");
 
+const Context = @import("./context.zig");
+
+const Type = @import("./types.zig").Type;
+
 pub const c = @cImport({
     @cInclude("binaryen-c.h");
 });
@@ -44,6 +48,8 @@ args: std.AutoArrayHashMap(*const Expr, []c.BinaryenExpressionRef),
 
 m: Codegen,
 
+ctx: Context,
+
 pub fn init(allocator: std.mem.Allocator, ast: []*Expr) @This() {
     var environments = std.ArrayList(Environment).init(allocator);
 
@@ -65,6 +71,7 @@ pub fn init(allocator: std.mem.Allocator, ast: []*Expr) @This() {
         .blocks_children = blocks_children,
         .args = args,
         .m = Codegen.init(module.?, allocator),
+        .ctx = Context.init(allocator),
     };
 }
 
@@ -91,6 +98,8 @@ pub fn deinit(self: *@This()) void {
 
     self.m.deinit();
 
+    self.ctx.deinit();
+
     c.BinaryenModuleDispose(self.module);
 }
 
@@ -105,6 +114,17 @@ pub fn compile(self: *@This()) !void {
 fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
     return switch (expr.*) {
         .ConstInit => |*const_init| {
+            try self.ctx.push_frame(
+                .{
+                    .expr = expr,
+                    .expr_type = if (const_init.type) |const_type|
+                        try Type.from_str(const_type.lexeme)
+                    else
+                        .i32,
+                },
+            );
+            defer _ = self.ctx.pop_frame();
+
             const value = try self.expression(const_init.initializer);
             const name = self.to_c_string(const_init.name.lexeme);
             // @todo find a way to know if the expression is a function directly ?
@@ -123,7 +143,7 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
                 _ = c.BinaryenAddGlobal(
                     self.module,
                     @ptrCast(name),
-                    if (const_init.type) |const_type| try get_type(const_type) else c.BinaryenTypeInt32(),
+                    if (const_init.type) |t| try get_binaryen_type(t) else c.BinaryenTypeInt32(),
                     false,
                     value,
                 );
@@ -192,7 +212,7 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
                 self.module,
                 name_ptr,
                 params orelse 0, // ?
-                try get_type(func.type),
+                try get_binaryen_type(func.type),
                 var_types.ptr,
                 @intCast(var_types.len),
                 body,
@@ -267,9 +287,18 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
                 .Boolean => |boolean| c.BinaryenLiteralInt32(
                     if (boolean) @as(i32, 1) else @as(i32, 0),
                 ),
-                .Integer => |integer| c.BinaryenLiteralInt32(integer),
-                .Float => |float| c.BinaryenLiteralFloat32(float),
-                // .String => |string| return c.BinaryenStringConst(self.module, @ptrCast(string)),
+                .Number => |number| blk: {
+                    if (self.ctx.in(&.{ "ConstInit", "VarInit" })) {
+                        const current_frame = self.ctx.current_frame().?;
+                        break :blk switch (current_frame.expr_type) {
+                            .f32 => c.BinaryenLiteralFloat32(@floatCast(number)),
+                            .f64 => c.BinaryenLiteralFloat64(number),
+                            .i32 => c.BinaryenLiteralInt32(@intFromFloat(number)),
+                            .i64 => c.BinaryenLiteralInt64(@intFromFloat(number)),
+                        };
+                    }
+                    break :blk c.BinaryenLiteralInt32(@intFromFloat(number));
+                },
                 else => unreachable,
             };
             return c.BinaryenConst(self.module, value);
@@ -589,20 +618,17 @@ fn to_c_string(self: *@This(), str: []const u8) [*:0]const u8 {
     return @ptrCast(self.allocator.dupeZ(u8, str) catch unreachable);
 }
 
-inline fn in_global_scope(self: *@This()) bool {
-    return self.current_env == null;
+fn get_binaryen_type(token: *const Token) CompilerError!c.BinaryenType {
+    const @"type" = Type.from_str(token.lexeme) catch return CompilerError.InvalidType;
+
+    return switch (@"type") {
+        .i32 => c.BinaryenTypeInt32(),
+        .i64 => c.BinaryenTypeInt64(),
+        .f32 => c.BinaryenTypeFloat32(),
+        .f64 => c.BinaryenTypeFloat64(),
+    };
 }
 
-fn get_type(token: *const Token) CompilerError!c.BinaryenType {
-    if (std.mem.eql(u8, token.lexeme, "i32")) {
-        return c.BinaryenTypeInt32();
-    } else if (std.mem.eql(u8, token.lexeme, "i64")) {
-        return c.BinaryenTypeInt64();
-    } else if (std.mem.eql(u8, token.lexeme, "f32")) {
-        return c.BinaryenTypeFloat32();
-    } else if (std.mem.eql(u8, token.lexeme, "f64")) {
-        return c.BinaryenTypeFloat64();
-    } else {
-        return CompilerError.InvalidType;
-    }
+inline fn in_global_scope(self: *@This()) bool {
+    return self.current_env == null;
 }

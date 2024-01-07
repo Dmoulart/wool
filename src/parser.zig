@@ -711,7 +711,7 @@ fn primary(self: *Self) ParserError!*Expr {
     if (self.match(&.{.NUMBER})) {
         return try self.create_expr(.{
             .Literal = .{
-                .value = .{ .Integer = self.previous().type.NUMBER },
+                .value = .{ .Number = self.previous().type.NUMBER },
             },
         });
     }

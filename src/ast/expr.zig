@@ -1,6 +1,5 @@
 const Token = @import("../token.zig");
 // const Stmt = @import("./stmt.zig").Stmt;
-
 pub const Expr = union(enum) {
     Assign: Assign,
     OperationAssign: OperationAssign,
@@ -64,8 +63,7 @@ pub const Expr = union(enum) {
     pub const Literal = struct {
         const Value = union(enum) {
             String: []const u8,
-            Integer: i32,
-            Float: f32, //@todo typpes
+            Number: f64,
             Boolean: bool,
             Nil: ?bool, // what type should we use to represent null values ?
         };

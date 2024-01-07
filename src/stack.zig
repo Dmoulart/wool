@@ -32,10 +32,25 @@ pub fn Stack(comptime T: type) type {
             self.len = count;
         }
 
-        pub fn pop(self: *Stack(T)) !T {
+        pub fn pop(self: *Stack(T)) T {
             const last = self.items[self.len - 1];
             self.len -= 1;
             return last;
+        }
+
+        pub fn top(self: *Stack(T)) T {
+            return self.items[self.len - 1];
+        }
+
+        pub fn maybe_top_ptr(self: *Stack(T)) ?*T {
+            if (self.len > 0) {
+                return &self.items[self.len - 1];
+            }
+            return null;
+        }
+
+        pub fn maybe_top(self: *Stack(T)) ?T {
+            return self.items[self.len - 1];
         }
 
         inline fn grow(self: *Stack(T)) !void {
@@ -53,7 +68,8 @@ test Stack {
     try stack.push(2);
     try stack.push(3);
 
-    try std.testing.expect(try stack.pop() == 3);
-    try std.testing.expect(try stack.pop() == 2);
-    try std.testing.expect(try stack.pop() == 1);
+    try std.testing.expect(stack.top() == 3);
+    try std.testing.expect(stack.pop() == 3);
+    try std.testing.expect(stack.pop() == 2);
+    try std.testing.expect(stack.pop() == 1);
 }
