@@ -71,9 +71,9 @@ pub fn parse(self: *Self) ParserError![]*Expr {
 }
 
 fn declaration_expression(self: *Self) ParserError!?*Expr {
-    // if (self.match(&.{.RETURN})) {
-    //     return try self.return_stmt();
-    // }
+    if (self.match(&.{.RETURN})) {
+        return try self.return_expr();
+    }
 
     // if (self.match(&.{.LEFT_BRACE})) {
     //     return try self.create_expr(.{
@@ -86,27 +86,27 @@ fn declaration_expression(self: *Self) ParserError!?*Expr {
     return try self.expression_stmt();
 }
 
-// fn return_stmt(self: *Self) ParserError!*Stmt {
-//     const keyword = self.previous();
+fn return_expr(self: *Self) ParserError!*Expr {
+    const keyword = self.previous();
 
-//     var value: ?*Expr = if (!self.check(.SEMICOLON))
-//         try self.expression()
-//     else
-//         null;
+    var value: ?*Expr = if (!self.check(.SEMICOLON))
+        try self.expression()
+    else
+        null;
 
-//     _ = try self.consume(
-//         .SEMICOLON,
-//         ParserError.MissingSemiColonAfterReturnValue,
-//         "Expect ';' after return value.",
-//     );
+    _ = try self.consume(
+        .SEMICOLON,
+        ParserError.MissingSemiColonAfterReturnValue,
+        "Expect ';' after return value.",
+    );
 
-//     return try self.create_stmt(.{
-//         .Return = .{
-//             .keyword = keyword,
-//             .value = value,
-//         },
-//     });
-// }
+    return try self.create_expr(.{
+        .Return = .{
+            .keyword = keyword,
+            .value = value,
+        },
+    });
+}
 
 fn expression_stmt(self: *Self) ParserError!?*Expr {
     const expr = try self.expression();

@@ -533,6 +533,10 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
             return null;
             // c.BinaryenGetFunction(module: BinaryenModuleRef, name: [*c]const u8)
         },
+        .Return => |return_expr| {
+            return c.BinaryenReturn(self.module, if (return_expr.value) |value| try self.expression(value) else null);
+            // c.BinaryenGetFunction(module: BinaryenModuleRef, name: [*c]const u8)
+        },
         else => {
             std.debug.print("\n Compiler : expression type not implemented for {any}\n", .{expr});
             unreachable;

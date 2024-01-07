@@ -31,6 +31,10 @@ add :: -> {
   i := 0
   while global_variable < 10 {
     log(inc())
+
+    if global_variable == 4 {
+      break
+    }
   }
-  i
+  global_variable
 }

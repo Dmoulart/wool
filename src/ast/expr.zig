@@ -21,6 +21,7 @@ pub const Expr = union(enum) {
     While: While,
     Continue: Continue,
     Import: Import,
+    Return: Return,
 
     pub const Assign = struct {
         name: *const Token,
@@ -104,6 +105,11 @@ pub const Expr = union(enum) {
 
     pub const Loop = struct {
         body: *const Expr,
+    };
+
+    pub const Return = struct {
+        keyword: *const Token,
+        value: ?*const Expr,
     };
 
     pub const Break = struct {
