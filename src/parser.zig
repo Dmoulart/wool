@@ -24,6 +24,7 @@ const ParserError = error{
     MissingConstInitializer,
     MissingClosingParenAfterArguments,
     MissingImport,
+    MissingFunctionType,
 };
 
 allocator: std.mem.Allocator,
@@ -255,7 +256,7 @@ fn from(self: *Self) ParserError!*Expr {
 fn function(self: *Self) ParserError!*Expr {
     const current = self.peek().type;
     const is_function = current == .MINUS_ARROW or
-        (current == .IDENTIFIER and (self.check_next(1, .MINUS_ARROW) or self.check_next(1, .COMMA)));
+        (current == .IDENTIFIER and (self.check_next(0, .MINUS_ARROW) or self.check_next(0, .COMMA)));
 
     if (is_function) {
         const args_declaration = current == .IDENTIFIER;
@@ -300,6 +301,12 @@ fn function(self: *Self) ParserError!*Expr {
                 "Expect -> before declaring function body.",
             );
 
+            const func_type = try self.consume(
+                .IDENTIFIER,
+                ParserError.MissingFunctionType,
+                "Expect type after '->'.",
+            );
+
             const maybe_last_expr = self.last_expr();
 
             var name: ?*const Token = null;
@@ -325,6 +332,7 @@ fn function(self: *Self) ParserError!*Expr {
                             null,
                         .body = body,
                         .name = name,
+                        .type = func_type,
                     },
                 },
             );
@@ -344,27 +352,71 @@ fn function(self: *Self) ParserError!*Expr {
 
 fn const_init(self: *Self) ParserError!*Expr {
     var expr = try self.var_init();
+    // must be before declared_type check !
+    const implicit_type = self.match(&.{.COLON_COLON});
 
-    if (self.match(&.{.COLON_COLON})) {
-        const equals = self.previous();
-        const value = try self.expression();
+    const declared_type = self.match(&.{.COLON}) and self.check_next(0, .IDENTIFIER) and self.check_next(1, .COLON);
 
-        return switch (expr.*) {
-            .Variable => |*var_expr| {
-                var name = var_expr.name;
-                return try self.create_expr(.{
-                    .ConstInit = .{
-                        .name = name,
-                        .initializer = value,
-                    },
-                });
-            },
-            else => Err.raise(
-                equals,
-                ParserError.InvalidAssignmentTarget,
-                "Invalid assignment target.",
-            ),
-        };
+    const is_const = declared_type or implicit_type;
+
+    if (is_const) {
+        if (implicit_type) {
+            const equals = self.previous();
+            const value = try self.expression();
+
+            return switch (expr.*) {
+                .Variable => |*var_expr| {
+                    var name = var_expr.name;
+                    return try self.create_expr(.{
+                        .ConstInit = .{
+                            .name = name,
+                            .initializer = value,
+                            .type = null,
+                        },
+                    });
+                },
+                else => Err.raise(
+                    equals,
+                    ParserError.InvalidAssignmentTarget,
+                    "Invalid assignment target.",
+                ),
+            };
+        }
+
+        if (declared_type) {
+            const equals = self.previous();
+
+            const const_type = try self.consume(
+                .IDENTIFIER,
+                ParserError.MissingFunctionType,
+                "Missing type",
+            );
+
+            // eat semicolon
+            _ = self.advance();
+
+            const value = try self.expression();
+
+            return switch (expr.*) {
+                .Variable => |*var_expr| {
+                    var name = var_expr.name;
+                    return try self.create_expr(.{
+                        .ConstInit = .{
+                            .name = name,
+                            .initializer = value,
+                            .type = const_type,
+                        },
+                    });
+                },
+                else => Err.raise(
+                    equals,
+                    ParserError.InvalidAssignmentTarget,
+                    "Invalid assignment target.",
+                ),
+            };
+        }
+
+        unreachable;
     }
 
     return expr;
@@ -384,6 +436,7 @@ fn var_init(self: *Self) ParserError!*Expr {
                     .VarInit = .{
                         .name = name,
                         .initializer = value,
+                        .type = null,
                     },
                 });
             },

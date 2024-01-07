@@ -18,23 +18,21 @@ add :: -> {
 
 from console import log
 
-global_variable := 1 
+global_variable := 1
 
 global_constant :: 1
 
-inc :: -> {
+inc :: -> i32 {
   global_variable += 1
   global_variable
 }
 
-add :: -> {
+add :: -> i32 {
   i := 0
-  while global_variable < 10 {
-    log(inc())
-
-    if global_variable == 4 {
-      break
-    }
+  
+  while inc() < 10 {
+    log(global_variable)
   }
-  global_variable
+
+  global_constant
 }

@@ -23,6 +23,7 @@ pub const CompilerError = error{
     OutOfMemory,
     FunctionCallInGlobalScope,
     ConstantAssignation,
+    InvalidType,
 };
 
 allocator: std.mem.Allocator,
@@ -118,7 +119,15 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
                 // @todo implement funcrefs
             } else {
                 try self.globals.add_constant(const_init.name.lexeme);
-                _ = c.BinaryenAddGlobal(self.module, @ptrCast(name), c.BinaryenTypeInt32(), false, value);
+                
+                
+                _ = c.BinaryenAddGlobal(
+                    self.module,
+                    @ptrCast(name),
+                    if (const_init.type) |const_type| try get_type(const_type) else c.BinaryenTypeInt32(),
+                    false,
+                    value,
+                );
             }
 
             return value;
@@ -184,7 +193,7 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
                 self.module,
                 name_ptr,
                 params orelse 0, // ?
-                c.BinaryenTypeInt32(),
+                try get_type(func.type),
                 var_types.ptr,
                 @intCast(var_types.len),
                 body,
@@ -572,4 +581,18 @@ fn to_c_string(self: *@This(), str: []const u8) [*:0]const u8 {
 
 inline fn in_global_scope(self: *@This()) bool {
     return self.current_env == null;
+}
+
+fn get_type(token: *const Token) CompilerError!c.BinaryenType {
+    if (std.mem.eql(u8, token.lexeme, "i32")) {
+        return c.BinaryenTypeInt32();
+    } else if (std.mem.eql(u8, token.lexeme, "i64")) {
+        return c.BinaryenTypeInt64();
+    } else if (std.mem.eql(u8, token.lexeme, "f32")) {
+        return c.BinaryenTypeFloat32();
+    } else if (std.mem.eql(u8, token.lexeme, "f64")) {
+        return c.BinaryenTypeFloat64();
+    } else {
+        return CompilerError.InvalidType;
+    }
 }
