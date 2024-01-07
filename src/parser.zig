@@ -360,33 +360,20 @@ fn const_init(self: *Self) ParserError!*Expr {
     const is_const = declared_type or implicit_type;
 
     if (is_const) {
-        if (implicit_type) {
-            const equals = self.previous();
-            const value = try self.expression();
-
-            return switch (expr.*) {
-                .Variable => |*var_expr| {
-                    var name = var_expr.name;
-                    return try self.create_expr(.{
-                        .ConstInit = .{
-                            .name = name,
-                            .initializer = value,
-                            .type = null,
-                        },
-                    });
-                },
-                else => Err.raise(
-                    equals,
-                    ParserError.InvalidAssignmentTarget,
-                    "Invalid assignment target.",
-                ),
+        const props: struct {
+            equals: *const Token,
+            value: *const Expr,
+            type: ?*const Token,
+        } = if (implicit_type) blk: {
+            break :blk .{
+                .equals = self.previous(),
+                .value = try self.expression(),
+                .type = @as(?*const Token, null),
             };
-        }
-
-        if (declared_type) {
+        } else blk: {
             const equals = self.previous();
 
-            const const_type = try self.consume(
+            const @"type" = try self.consume(
                 .IDENTIFIER,
                 ParserError.MissingFunctionType,
                 "Missing type",
@@ -397,26 +384,30 @@ fn const_init(self: *Self) ParserError!*Expr {
 
             const value = try self.expression();
 
-            return switch (expr.*) {
-                .Variable => |*var_expr| {
-                    var name = var_expr.name;
-                    return try self.create_expr(.{
-                        .ConstInit = .{
-                            .name = name,
-                            .initializer = value,
-                            .type = const_type,
-                        },
-                    });
-                },
-                else => Err.raise(
-                    equals,
-                    ParserError.InvalidAssignmentTarget,
-                    "Invalid assignment target.",
-                ),
+            break :blk .{
+                .equals = equals,
+                .type = @"type",
+                .value = value,
             };
-        }
-
-        unreachable;
+        };
+        
+        return switch (expr.*) {
+            .Variable => |*var_expr| {
+                var name = var_expr.name;
+                return try self.create_expr(.{
+                    .ConstInit = .{
+                        .name = name,
+                        .initializer = props.value,
+                        .type = props.type,
+                    },
+                });
+            },
+            else => Err.raise(
+                props.equals,
+                ParserError.InvalidAssignmentTarget,
+                "Invalid assignment target.",
+            ),
+        };
     }
 
     return expr;
