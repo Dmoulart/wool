@@ -180,7 +180,7 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
 
             var var_types = self.current_env.?.local_types.items;
 
-            _ = c.BinaryenAddFunction(
+            const func_ref = c.BinaryenAddFunction(
                 self.module,
                 name_ptr,
                 params orelse 0, // ?
@@ -189,6 +189,11 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
                 @intCast(var_types.len),
                 body,
             );
+            _ = func_ref;
+
+            // if (std.mem.eql(u8, name, "main")) {
+            //     c.BinaryenSetStart(self.module, func_ref);
+            // }
 
             _ = c.BinaryenAddFunctionExport(
                 self.module,
@@ -199,8 +204,8 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
             return body;
         },
         .Binary => |binary| {
-            var left = try self.expression(binary.left);
-            var right = try self.expression(binary.right);
+            const left = try self.expression(binary.left);
+            const right = try self.expression(binary.right);
 
             const op = switch (binary.op.type) {
                 .PLUS => c.BinaryenAddInt32(),
