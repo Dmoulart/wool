@@ -33,8 +33,6 @@ add :: -> f32 {
   }
 
   b : f32 = 5 + 7
-  
-  // multiply(a ,b)
 
   a
 }

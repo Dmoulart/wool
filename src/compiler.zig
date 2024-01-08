@@ -108,14 +108,13 @@ pub fn compile(self: *@This()) !void {
 fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
     return switch (expr.*) {
         .ConstInit => |*const_init| {
-            try self.ctx.push_frame(
-                .{
-                    .expr = expr,
-                    .expr_type = if (const_init.type) |const_type|
-                        try Type.from_str(const_type.lexeme)
-                    else
-                        try infer_type(const_init.initializer) orelse .i32, // @implement more types
-            );
+            try self.ctx.push_frame(.{
+                .expr = expr,
+                .expr_type = if (const_init.type) |const_type|
+                    try Type.from_str(const_type.lexeme)
+                else
+                    try infer_type(const_init.initializer) orelse .i32, // @implement more types
+            });
             defer _ = self.ctx.pop_frame();
 
             const value = try self.expression(const_init.initializer);
