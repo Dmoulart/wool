@@ -20,6 +20,7 @@ const ParserError = error{
     MissingArrowInFunctionExpression,
     TooMuchArguments,
     MissingParameterName,
+    MissingParameterType,
     MissingClosingBrace,
     MissingConstInitializer,
     MissingClosingParenAfterArguments,
@@ -255,15 +256,19 @@ fn from(self: *Self) ParserError!*Expr {
 
 fn function(self: *Self) ParserError!*Expr {
     const current = self.peek().type;
-    const is_function = current == .MINUS_ARROW or
-        (current == .IDENTIFIER and (self.check_next(0, .MINUS_ARROW) or self.check_next(0, .COMMA)));
+
+    const is_function = self.check(.MINUS_ARROW) or
+        (self.check(.IDENTIFIER) and
+        self.check_next(1, .IDENTIFIER) and
+        (self.check_next(2, .MINUS_ARROW) or
+        self.check_next(2, .COMMA)));
 
     if (is_function) {
         const args_declaration = current == .IDENTIFIER;
-        var args: ?std.ArrayList(*Token) = null;
+        var args: ?std.ArrayList(Expr.Function.Arg) = null;
 
         if (args_declaration) {
-            args = std.ArrayList(*Token).init(self.allocator);
+            args = std.ArrayList(Expr.Function.Arg).init(self.allocator);
             errdefer args.?.deinit();
 
             const first_identifier = try self.consume(
@@ -272,7 +277,13 @@ fn function(self: *Self) ParserError!*Expr {
                 "Expect parameter name.",
             );
 
-            args.?.append(first_identifier) catch return ParserError.OutOfMemory;
+            const first_type = try self.consume(
+                .IDENTIFIER,
+                ParserError.MissingParameterType,
+                "Expect parameter type.",
+            );
+
+            args.?.append(.{ .name = first_identifier, .type = first_type }) catch return ParserError.OutOfMemory;
 
             while (self.match(&.{.COMMA})) {
                 // @todo: do while would have been great in this case
@@ -290,10 +301,17 @@ fn function(self: *Self) ParserError!*Expr {
                     "Expect parameter name.",
                 );
 
-                args.?.append(identifier) catch return ParserError.OutOfMemory;
+                const @"type" = try self.consume(
+                    .IDENTIFIER,
+                    ParserError.MissingParameterType,
+                    "Expect parameter type.",
+                );
+
+                args.?.append(.{ .name = identifier, .type = @"type" }) catch return ParserError.OutOfMemory;
             }
         }
         var peek_token = self.peek();
+
         if (peek_token.type == .MINUS_ARROW) {
             _ = try self.consume(
                 .MINUS_ARROW,
@@ -793,6 +811,9 @@ fn create_expr(self: *Self, expr: Expr) ParserError!*Expr {
 fn match(self: *Self, comptime types: []const Token.Types) bool {
     for (types) |token_type| {
         if (self.check(@as(Token.Types, token_type))) {
+            if (token_type == .IDENTIFIER and std.mem.eql(u8, self.peek().lexeme, "a")) {
+                std.debug.print("debug", .{});
+            }
             _ = self.advance();
             return true;
         }
@@ -809,20 +830,12 @@ fn check(self: *Self, token_type: Token.Types) bool {
     return token_type == peek_token;
 }
 
-fn check_next(self: *Self, step: u32, comptime token_type: Token.Types) bool {
-    if (self.is_at_end()) return false;
-
-    var curr_step: u32 = 0;
-
-    var current_token: *Token = &self.tokens[self.current];
-
-    while (curr_step <= step) : (curr_step += 1) {
-        current_token = &self.tokens[self.current + curr_step];
-
-        if (current_token.type == .EOF) return false;
+fn check_next(self: *Self, comptime step: comptime_int, comptime token_type: Token.Types) bool {
+    if (self.current + step >= self.tokens.len) {
+        return false;
     }
 
-    return current_token.type == token_type;
+    return self.tokens[self.current + step].type == token_type;
 }
 
 fn advance(self: *Self) *Token {

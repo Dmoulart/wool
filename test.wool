@@ -20,11 +20,13 @@ add :: -> {
 
 // global_variable := 1
 
-global_constant : f32 : 1
+// global_constant : f32 : 1
+
+multiply :: a f32, b f32 -> a + b 
 
 add :: -> f32 {
   a : f32 = 1 + 2
-  b : f64 = 5 + 5
+  b : f32 = 5 + 5
   
-  a
+  multiply(a ,b)
 }

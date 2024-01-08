@@ -46,10 +46,13 @@ pub const Expr = union(enum) {
     };
 
     pub const Function = struct {
-        args: ?[]*const Token,
+        args: ?[]Arg,
         body: ?*const Expr,
         name: ?*const Token,
         type: *const Token, // @todo type expression
+
+        // @todo Should this be an expression ?
+        pub const Arg = struct { name: *const Token, type: *const Token };
     };
 
     pub const Block = struct {

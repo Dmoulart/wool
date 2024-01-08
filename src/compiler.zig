@@ -202,8 +202,8 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
                 //@todo dfree
 
                 for (args, 0..) |arg, i| {
-                    binaryen_args[i] = c.BinaryenTypeInt32();
-                    try env.set(arg, @intCast(i));
+                    binaryen_args[i] = Type.to_binaryen_type(try Type.from_str(arg.type.lexeme));
+                    try env.set(arg.name, @intCast(i));
                 }
 
                 params = c.BinaryenTypeCreate(
