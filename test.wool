@@ -20,8 +20,11 @@ add :: -> {
 
 // global_variable := 1
 
-global_constant : i64 : 1
+global_constant : f32 : 1
 
-add :: -> i32 {
-  global_constant
+add :: -> f32 {
+  a : f32 = 1 + 2
+  b : f64 = 5 + 5
+  
+  a
 }

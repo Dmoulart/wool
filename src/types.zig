@@ -45,6 +45,23 @@ pub const Type = enum {
         };
     }
 
+    pub fn from_binaryen(@"type": c.BinaryenType) Type {
+        //  cannot switch : comptime call of extern function
+        if (@"type" == c.BinaryenTypeInt32()) {
+            return .i32;
+        }
+        if (@"type" == c.BinaryenTypeInt64()) {
+            return .i64;
+        }
+        if (@"type" == c.BinaryenTypeFloat32()) {
+            return .f32;
+        }
+        if (@"type" == c.BinaryenTypeFloat64()) {
+            return .f64;
+        }
+
+        unreachable;
+    }
     // pub fn to_binaryen_literal(@"type": Type, value: anytype) c.BinaryenLiteral {
     //     return switch (@"type") {
     //         .i32 => c.BinaryenLiteralInt32(value),
