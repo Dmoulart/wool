@@ -1,4 +1,6 @@
 const std = @import("std");
+const floatMax = std.math.floatMax;
+const maxInt = std.math.maxInt;
 
 const Codegen = @import("./codegen.zig");
 
@@ -20,15 +22,7 @@ pub const c = @cImport({
 const ErrorReporter = @import("./error-reporter.zig").ErrorReporter;
 const Err = ErrorReporter(CompilerError);
 
-pub const CompilerError = error{
-    UnknownVariable,
-    UnknownConstant,
-    VariableAssignationInGlobalScope,
-    OutOfMemory,
-    FunctionCallInGlobalScope,
-    ConstantAssignation,
-    InvalidType,
-};
+pub const CompilerError = error{ UnknownVariable, UnknownConstant, VariableAssignationInGlobalScope, OutOfMemory, FunctionCallInGlobalScope, ConstantAssignation, InvalidType, CannotInferType };
 
 allocator: std.mem.Allocator,
 
@@ -120,8 +114,7 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
                     .expr_type = if (const_init.type) |const_type|
                         try Type.from_str(const_type.lexeme)
                     else
-                        .i32,
-                },
+                        try infer_type(const_init.initializer) orelse .i32, // @implement more types
             );
             defer _ = self.ctx.pop_frame();
 
@@ -158,7 +151,7 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
                     .expr_type = if (var_init.type) |var_type|
                         try Type.from_str(var_type.lexeme)
                     else
-                        .i32,
+                        try infer_type(var_init.initializer) orelse .i32,
                 },
             );
             defer _ = self.ctx.pop_frame();
@@ -273,11 +266,11 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
                     .f64 => c.BinaryenMulFloat64(),
                 },
                 .SLASH => switch (Type.from_binaryen(left_type)) {
-                    .i32 => c.BinaryenDivSInt32(),
+                    .i32 => c.BinaryenDivSInt32(), // div s ? div u ?,
                     .i64 => c.BinaryenDivSInt64(),
                     .f32 => c.BinaryenDivFloat32(),
                     .f64 => c.BinaryenDivFloat64(),
-                }, // div s ? div u ?,
+                },
                 .EQUAL_EQUAL => switch (Type.from_binaryen(left_type)) {
                     .i32 => c.BinaryenEqInt32(),
                     .i64 => c.BinaryenEqInt64(),
@@ -554,79 +547,7 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
             }
 
             return try self.m.end_block();
-
-            // const body = try self.expression(while_expr.body);
-            // const condition = try self.expression(while_expr.condition);
-            // const refs = try self.blocks_children.addOne();
-            // refs.* = std.ArrayList(c.BinaryenExpressionRef).init(self.allocator);
-
-            // const break_expr = c.BinaryenBreak(
-            //     self.module,
-            //     self.to_c_string("loop"),
-            //     condition,
-            //     null,
-            // );
-
-            // const loop = c.BinaryenLoop(self.module, "loop", body);
-            // _ = loop;
-
-            // try refs.append(break_expr);
-            // try refs.append(body);
-
-            // const block = c.BinaryenBlock(
-            //     self.module,
-            //     "loop_block",
-            //     @ptrCast(refs.items),
-            //     2,
-            //     c.BinaryenTypeAuto(),
-            // );
-
-            // return c.BinaryenLoop(self.module, "loop", block);
-
-            // const body = try self.expression(while_expr.body);
-            // const condition = try self.expression(while_expr.condition);
-            // const block = c.BinaryenBlock(self.module, "block", children: [*c]BinaryenExpressionRef, 2, c.BinaryenTypeAuto());
-
-            // const loop_expr = c.BinaryenLoop(self.module, "loop", try self.expression(loop.body));
-            // c.BinaryenBrOn(self.module, op: BinaryenOp, "loop", ref: BinaryenExpressionRef, castType: BinaryenType)
-
-            // const block_children = ;
-
-            // c.RelooperAddBranch(from: RelooperBlockRef, to: RelooperBlockRef, condition: BinaryenExpressionRef, code: BinaryenExpressionRef)
-            // c.RelooperAddBlock(relooper, try self.expression(loop.body));
-            // const loop_expr = c.BinaryenLoop(self.module, "loop", try self.expression(loop.body));
-            // return loop_expr;
-
-            // const relooper = c.RelooperCreate(self.module);
-            // const block = c.RelooperAddBlock(relooper, try self.expression(while_expr.body));
-            // const condition = try self.expression(while_expr.condition);
-            // _ = condition;
-            // // c.RelooperAddBranch(block, block, condition, null);
-            // // c.Relooper
-            // const body = c.RelooperRenderAndDispose(relooper, block, 0);
-
-            // return body;
         },
-        // .Loop => |loop| {
-        //     // const loop_expr = c.BinaryenLoop(self.module, "loop", try self.expression(loop.body));
-        //     // c.BinaryenBrOn(self.module, op: BinaryenOp, "loop", ref: BinaryenExpressionRef, castType: BinaryenType)
-
-        //     // const block = c.BinaryenBlock(self.module, "loop_inside_block", children: [*c]BinaryenExpressionRef, 2, c.BinaryenTypeAuto());
-        //     // const block_children = ;
-
-        //     const relooper = c.RelooperCreate(self.module);
-        //     const block = c.RelooperAddBlock(relooper, try self.expression(loop.body));
-        //     c.RelooperAddBranch(block, block, null, null);
-        //     // c.Relooper
-        //     const body = c.RelooperRenderAndDispose(relooper, block, 0);
-
-        //     return body;
-
-        //     // c.RelooperAddBranch(from: RelooperBlockRef, to: RelooperBlockRef, condition: BinaryenExpressionRef, code: BinaryenExpressionRef)
-        //     // c.RelooperAddBlock(relooper, try self.expression(loop.body));
-        //     // const loop_expr = c.BinaryenLoop(self.module, "loop", try self.expression(loop.body));
-        //     // return loop_expr;
-        // },
         .Break => |break_expr| {
             return c.BinaryenBreak(
                 self.module,
@@ -699,4 +620,24 @@ fn get_binaryen_type(token: *const Token) CompilerError!c.BinaryenType {
 
 inline fn in_global_scope(self: *@This()) bool {
     return self.current_env == null;
+}
+
+fn infer_type(expr: *const Expr) !?Type {
+    return switch (expr.*) {
+        .Literal => |literal| {
+            return switch (literal.value) {
+                .Number => |number| {
+                    const is_float = @rem(number, 1) != 0;
+                    if (is_float) {
+                        return if (number > floatMax(f32)) .f64 else .f32;
+                    } else {
+                        return if (number > maxInt(i32)) .i64 else .i32;
+                    }
+                },
+                else => CompilerError.CannotInferType,
+            };
+        },
+        .Function => null,
+        else => CompilerError.CannotInferType,
+    };
 }

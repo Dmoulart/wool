@@ -22,11 +22,19 @@ add :: -> {
 
 // global_constant : f32 : 1
 
-multiply :: a f32, b f32 -> a + b 
+// multiply :: a f32, b f32 -> f32 a + b 
 
 add :: -> f32 {
-  a : f32 = 1 + 2
-  b : f32 = 5 + 5
+
+  int := 2147483647
+
+  a : f32 = {
+      5 + 7
+  }
+
+  b : f32 = 5 + 7
   
-  multiply(a ,b)
+  // multiply(a ,b)
+
+  a
 }
