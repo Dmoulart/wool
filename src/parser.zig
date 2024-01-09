@@ -1,7 +1,6 @@
 const std = @import("std");
 const ArrayList = @import("std").ArrayList;
 const Token = @import("./token.zig");
-const Stmt = @import("./ast/stmt.zig").Stmt;
 const Expr = @import("./ast/expr.zig").Expr;
 
 const Self = @This();
@@ -794,12 +793,6 @@ fn primary(self: *Self) ParserError!*Expr {
         ParserError.MissingExpression,
         "Missing expression",
     );
-}
-
-fn create_stmt(self: *Self, stmt: Stmt) ParserError!*Stmt {
-    var ptr = self.stmts.addOne() catch return ParserError.OutOfMemory;
-    ptr.* = stmt;
-    return ptr;
 }
 
 fn create_expr(self: *Self, expr: Expr) ParserError!*Expr {

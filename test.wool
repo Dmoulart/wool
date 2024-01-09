@@ -24,15 +24,14 @@ add :: -> {
 
 // multiply :: a f32, b f32 -> f32 a + b 
 
-add :: -> f32 {
+global :f32 : 1.5
+main :: -> i32 1
 
-  int := 2147483647
+/* main :: -> void {
 
-  a : f32 = {
-      5 + 7
-  }
+  i := 1.5
 
-  b : f32 = 5 + 7
+  log(1)
 
-  a
-}
+  return {};
+} */

@@ -5,7 +5,6 @@ const maxInt = std.math.maxInt;
 const Codegen = @import("./codegen.zig");
 
 const Token = @import("./token.zig");
-const Stmt = @import("./ast/stmt.zig").Stmt;
 const Expr = @import("./ast/expr.zig").Expr;
 
 const Environment = @import("./environment.zig");
@@ -99,13 +98,13 @@ pub fn deinit(self: *@This()) void {
 
 pub fn compile(self: *@This()) !void {
     for (self.ast) |expr| {
-        _ = try self.expression(expr);
+        _ = try self.compile_expr(expr);
     }
 
     try self.write();
 }
 
-fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
+fn compile_expr(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
     return switch (expr.*) {
         .ConstInit => |*const_init| {
             try self.ctx.push_frame(.{
@@ -117,7 +116,7 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
             });
             defer _ = self.ctx.pop_frame();
 
-            const value = try self.expression(const_init.initializer);
+            const value = try self.compile_expr(const_init.initializer);
             const name = self.to_c_string(const_init.name.lexeme);
             // @todo find a way to know if the expression is a function directly ?
             const is_function = if (c.BinaryenGetFunction(self.module, @ptrCast(name)) != null)
@@ -132,10 +131,18 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
             } else {
                 try self.globals.add_constant(const_init.name.lexeme);
 
+                const @"type" = blk: {
+                    if (const_init.type) |t| break :blk try get_binaryen_type(t);
+
+                    if (try infer_type(const_init.initializer)) |t| break :blk Type.to_binaryen_type(t);
+
+                    break :blk c.BinaryenTypeInt32();
+                };
+
                 _ = c.BinaryenAddGlobal(
                     self.module,
                     @ptrCast(name),
-                    if (const_init.type) |t| try get_binaryen_type(t) else c.BinaryenTypeInt32(),
+                    @"type",
                     false,
                     value,
                 );
@@ -162,7 +169,7 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
                 try current_env.set(var_init.name, idx);
                 try current_env.add_local_type(Type.to_binaryen_type(var_type));
 
-                const value = try self.expression(var_init.initializer);
+                const value = try self.compile_expr(var_init.initializer);
 
                 return c.BinaryenLocalSet(self.module, @intCast(idx), value);
             } else {
@@ -173,7 +180,7 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
                     self.to_c_string(lexeme),
                     Type.to_binaryen_type(var_type),
                     true,
-                    try self.expression(var_init.initializer),
+                    try self.compile_expr(var_init.initializer),
                 );
                 return null;
             }
@@ -204,7 +211,7 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
                 );
             }
 
-            const body = if (func.body) |body| try self.expression(body) else null;
+            const body = if (func.body) |body| try self.compile_expr(body) else null;
 
             const name = if (func.name) |name| name.lexeme else "anonymous_func";
 
@@ -222,7 +229,10 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
                 @intCast(var_types.len),
                 body,
             );
-            _ = func_ref;
+
+            if (std.mem.eql(u8, name, "main")) {
+                c.BinaryenSetStart(self.module, func_ref);
+            }
 
             // if (std.mem.eql(u8, name, "main")) {
             //     c.BinaryenSetStart(self.module, func_ref);
@@ -237,13 +247,15 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
             return body;
         },
         .Binary => |binary| {
-            const left = try self.expression(binary.left);
-            const right = try self.expression(binary.right);
+            const left = try self.compile_expr(binary.left);
+            const right = try self.compile_expr(binary.right);
 
             const left_type = c.BinaryenExpressionGetType(left);
             const right_type = c.BinaryenExpressionGetType(right);
 
-            if (left_type != right_type) return CompilerError.InvalidType;
+            if (left_type != right_type) {
+                return CompilerError.InvalidType;
+            }
 
             const op = switch (binary.op.type) {
                 .PLUS => switch (Type.from_binaryen(left_type)) {
@@ -251,60 +263,70 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
                     .i64 => c.BinaryenAddInt64(),
                     .f32 => c.BinaryenAddFloat32(),
                     .f64 => c.BinaryenAddFloat64(),
+                    else => unreachable,
                 },
                 .MINUS => switch (Type.from_binaryen(left_type)) {
                     .i32 => c.BinaryenSubInt32(),
                     .i64 => c.BinaryenSubInt64(),
                     .f32 => c.BinaryenSubFloat32(),
                     .f64 => c.BinaryenSubFloat64(),
+                    else => unreachable,
                 },
                 .STAR => switch (Type.from_binaryen(left_type)) {
                     .i32 => c.BinaryenMulInt32(),
                     .i64 => c.BinaryenMulInt64(),
                     .f32 => c.BinaryenMulFloat32(),
                     .f64 => c.BinaryenMulFloat64(),
+                    else => unreachable,
                 },
                 .SLASH => switch (Type.from_binaryen(left_type)) {
                     .i32 => c.BinaryenDivSInt32(), // div s ? div u ?,
                     .i64 => c.BinaryenDivSInt64(),
                     .f32 => c.BinaryenDivFloat32(),
                     .f64 => c.BinaryenDivFloat64(),
+                    else => unreachable,
                 },
                 .EQUAL_EQUAL => switch (Type.from_binaryen(left_type)) {
                     .i32 => c.BinaryenEqInt32(),
                     .i64 => c.BinaryenEqInt64(),
                     .f32 => c.BinaryenEqFloat32(),
                     .f64 => c.BinaryenEqFloat64(),
+                    else => unreachable,
                 },
                 .BANG_EQUAL => switch (Type.from_binaryen(left_type)) {
                     .i32 => c.BinaryenNeInt32(),
                     .i64 => c.BinaryenNeInt64(),
                     .f32 => c.BinaryenNeFloat32(),
                     .f64 => c.BinaryenNeFloat64(),
+                    else => unreachable,
                 },
                 .GREATER => switch (Type.from_binaryen(left_type)) {
                     .i32 => c.BinaryenGtSInt32(),
                     .i64 => c.BinaryenGtSInt64(),
                     .f32 => c.BinaryenGtFloat32(),
                     .f64 => c.BinaryenGtFloat64(),
+                    else => unreachable,
                 },
                 .GREATER_EQUAL => switch (Type.from_binaryen(left_type)) {
                     .i32 => c.BinaryenGeSInt32(),
                     .i64 => c.BinaryenGeSInt64(),
                     .f32 => c.BinaryenGeFloat32(),
                     .f64 => c.BinaryenGeFloat64(),
+                    else => unreachable,
                 },
                 .LESS => switch (Type.from_binaryen(left_type)) {
                     .i32 => c.BinaryenLtSInt32(),
                     .i64 => c.BinaryenLtSInt64(),
                     .f32 => c.BinaryenLtFloat32(),
                     .f64 => c.BinaryenLtFloat64(),
+                    else => unreachable,
                 },
                 .LESS_EQUAL => switch (Type.from_binaryen(left_type)) {
                     .i32 => c.BinaryenLeSInt32(),
                     .i64 => c.BinaryenLeSInt64(),
                     .f32 => c.BinaryenLeFloat32(),
                     .f64 => c.BinaryenLeFloat64(),
+                    else => unreachable,
                 },
 
                 else => unreachable,
@@ -355,6 +377,7 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
                             .f64 => c.BinaryenLiteralFloat64(number),
                             .i32 => c.BinaryenLiteralInt32(@intFromFloat(number)),
                             .i64 => c.BinaryenLiteralInt64(@intFromFloat(number)),
+                            else => unreachable,
                         };
                     }
                     break :blk c.BinaryenLiteralInt32(@intFromFloat(number));
@@ -371,7 +394,7 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
 
             for (block.exprs, 0..) |child_expr, i| {
                 _ = i;
-                const binaryen_expr = try self.expression(child_expr);
+                const binaryen_expr = try self.compile_expr(child_expr);
                 block_exprs.append(binaryen_expr) catch return CompilerError.OutOfMemory;
             }
 
@@ -384,7 +407,7 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
             );
         },
         .Unary => |unary| {
-            const value = try self.expression(unary.right);
+            const value = try self.compile_expr(unary.right);
 
             return switch (unary.op.type) {
                 //@todo bang
@@ -403,11 +426,11 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
             };
         },
         .Grouping => |grouping| {
-            return try self.expression(grouping.expr);
+            return try self.compile_expr(grouping.expr);
         },
         .Logical => |logical| {
-            const left = try self.expression(logical.left);
-            const right = try self.expression(logical.right);
+            const left = try self.compile_expr(logical.left);
+            const right = try self.compile_expr(logical.right);
 
             const result = switch (logical.op.type) {
                 .AND => .{ .if_true = right, .if_false = left },
@@ -426,10 +449,10 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
         .Assign => |assign| {
             if (self.current_env) |current_env| {
                 if (current_env.get_index_by_name(assign.name.lexeme)) |idx| {
-                    const value = try self.expression(assign.value);
+                    const value = try self.compile_expr(assign.value);
                     return c.BinaryenLocalSet(self.module, @intCast(idx), value);
                 } else if (self.globals.has_variable(assign.name.lexeme)) {
-                    const value = try self.expression(assign.value);
+                    const value = try self.compile_expr(assign.value);
                     return c.BinaryenGlobalSet(self.module, self.to_c_string(assign.name.lexeme), value);
                 } else if (self.globals.has_constant(assign.name.lexeme)) {
                     return CompilerError.ConstantAssignation;
@@ -443,7 +466,7 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
         },
         .OperationAssign => |op_assign| {
             if (self.current_env) |current_env| {
-                const value = try self.expression(op_assign.value);
+                const value = try self.compile_expr(op_assign.value);
                 const op = switch (op_assign.op.type) {
                     .PLUS_EQUAL => c.BinaryenAddInt32(),
                     .MINUS_EQUAL => c.BinaryenSubInt32(),
@@ -479,7 +502,7 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
                 var args = try self.allocator.alloc(c.BinaryenExpressionRef, call.args.len);
 
                 for (call.args, 0..) |arg_expr, i| {
-                    args[i] = try self.expression(arg_expr);
+                    args[i] = try self.compile_expr(arg_expr);
                 }
 
                 try self.args.put(call.callee, args);
@@ -498,17 +521,17 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
         .If => |if_expr| {
             return c.BinaryenIf(
                 self.module,
-                try self.expression(if_expr.condition),
-                try self.expression(if_expr.then_branch),
+                try self.compile_expr(if_expr.condition),
+                try self.compile_expr(if_expr.then_branch),
                 if (if_expr.else_branch) |else_branch|
-                    try self.expression(else_branch)
+                    try self.compile_expr(else_branch)
                 else
                     null,
             );
         },
         .While => |while_expr| {
-            const body = try self.expression(while_expr.body);
-            const condition = try self.expression(while_expr.condition);
+            const body = try self.compile_expr(while_expr.body);
+            const condition = try self.compile_expr(while_expr.condition);
 
             try self.m.begin_block("while", c.BinaryenTypeAuto());
             {
@@ -552,7 +575,7 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
                 self.module,
                 self.to_c_string("while"),
                 null,
-                if (break_expr.value) |value| try self.expression(value) else null,
+                if (break_expr.value) |value| try self.compile_expr(value) else null,
             );
         },
         .Continue => |_| {
@@ -570,7 +593,7 @@ fn expression(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
             // c.BinaryenGetFunction(module: BinaryenModuleRef, name: [*c]const u8)
         },
         .Return => |return_expr| {
-            return c.BinaryenReturn(self.module, if (return_expr.value) |value| try self.expression(value) else null);
+            return c.BinaryenReturn(self.module, if (return_expr.value) |value| try self.compile_expr(value) else null);
             // c.BinaryenGetFunction(module: BinaryenModuleRef, name: [*c]const u8)
         },
         else => {
@@ -610,10 +633,12 @@ fn get_binaryen_type(token: *const Token) CompilerError!c.BinaryenType {
     const @"type" = Type.from_str(token.lexeme) catch return CompilerError.InvalidType;
 
     return switch (@"type") {
-        .i32 => c.BinaryenTypeInt32(),
+        .i32, .bool => c.BinaryenTypeInt32(),
         .i64 => c.BinaryenTypeInt64(),
         .f32 => c.BinaryenTypeFloat32(),
         .f64 => c.BinaryenTypeFloat64(),
+        .void => c.BinaryenTypeNone(),
+        else => unreachable,
     };
 }
 

@@ -13,8 +13,12 @@ pub const Type = enum {
     i64,
     f32,
     f64,
+    bool,
+    void,
+    func,
 
     pub fn from_str(str: []const u8) !Type {
+        // use meta functions for enums
         if (std.mem.eql(u8, str, "i32")) {
             return .i32;
         } else if (std.mem.eql(u8, str, "i64")) {
@@ -23,6 +27,10 @@ pub const Type = enum {
             return .f32;
         } else if (std.mem.eql(u8, str, "f64")) {
             return .f64;
+        } else if (std.mem.eql(u8, str, "void")) {
+            return .void;
+        } else if (std.mem.eql(u8, str, "bool")) {
+            return .bool;
         } else {
             return TypeError.UnknwownType;
         }
@@ -30,10 +38,12 @@ pub const Type = enum {
 
     pub fn to_binaryen_type(@"type": Type) c.BinaryenType {
         return switch (@"type") {
-            .i32 => c.BinaryenTypeInt32(),
+            .i32, .bool => c.BinaryenTypeInt32(),
             .i64 => c.BinaryenTypeInt64(),
             .f32 => c.BinaryenTypeFloat32(),
             .f64 => c.BinaryenTypeFloat64(),
+            .void => c.BinaryenTypeNone(),
+            else => unreachable,
         };
     }
 
