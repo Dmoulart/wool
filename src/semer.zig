@@ -10,7 +10,10 @@ const TypeError = error{
     InvalidType,
     CannotInferType,
     ValueMismatchDeclaredType,
+    ValueMismatchFunctionReturnType,
 };
+
+const Err = ErrorReporter(TypeError);
 
 pub const Sem = struct {
     type: Type,
@@ -90,7 +93,11 @@ pub fn analyze_expr(self: *@This(), expr: *const Expr) !*Sem {
             if (func.body) |body| {
                 const body_sem = try self.analyze_expr(body);
                 if (body_sem.type != return_type) {
-                    return TypeError.ValueMismatchDeclaredType;
+                    return Err.raise(
+                        func.type,
+                        TypeError.ValueMismatchFunctionReturnType,
+                        "Returned value does not match function return type",
+                    );
                 }
             }
 
@@ -233,3 +240,4 @@ const Type = @import("./types.zig").Type;
 const Context = @import("./context.zig").Context;
 const floatMax = std.math.floatMax;
 const maxInt = std.math.maxInt;
+const ErrorReporter = @import("./error-reporter.zig").ErrorReporter;

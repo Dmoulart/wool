@@ -9,7 +9,7 @@ pub fn ErrorReporter(comptime ErrorType: type) type {
             if (token.type == .EOF) {
                 print(token.line, "at end of file", msg);
             } else {
-                var where = std.fmt.allocPrint(allocator, "at {s}", .{token.lexeme}) catch |print_error| {
+                var where = std.fmt.allocPrint(allocator, "at '{s}'", .{token.lexeme}) catch |print_error| {
                     std.debug.print("\nError reporter cannot report error context : {s}\n", .{@errorName(print_error)});
                     return raised_err;
                 };
