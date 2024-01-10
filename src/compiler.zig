@@ -10,7 +10,7 @@ const Expr = @import("./ast/expr.zig").Expr;
 const Environment = @import("./environment.zig");
 const Globals = @import("./globals.zig");
 
-const Context = @import("./context.zig");
+const Context = @import("./context.zig").Context;
 
 const Type = @import("./types.zig").Type;
 
@@ -41,7 +41,12 @@ args: std.AutoArrayHashMap(*const Expr, []c.BinaryenExpressionRef),
 
 m: Codegen,
 
-ctx: Context,
+ctx: Context(ExpressionFrame),
+
+const ExpressionFrame = struct {
+    expr: *const Expr,
+    expr_type: Type,
+};
 
 pub fn init(allocator: std.mem.Allocator, ast: []*Expr) @This() {
     var environments = std.ArrayList(Environment).init(allocator);
@@ -64,7 +69,7 @@ pub fn init(allocator: std.mem.Allocator, ast: []*Expr) @This() {
         .blocks_children = blocks_children,
         .args = args,
         .m = Codegen.init(module.?, allocator),
-        .ctx = Context.init(allocator),
+        .ctx = Context(ExpressionFrame).init(allocator),
     };
 }
 
@@ -370,8 +375,7 @@ fn compile_expr(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
                     if (boolean) @as(i32, 1) else @as(i32, 0),
                 ),
                 .Number => |number| blk: {
-                    if (self.ctx.in(&.{ "ConstInit", "VarInit" })) {
-                        const current_frame = self.ctx.current_frame().?;
+                    if (self.ctx.in(&.{ "ConstInit", "VarInit" })) |current_frame| {
                         break :blk switch (current_frame.expr_type) {
                             .f32 => c.BinaryenLiteralFloat32(@floatCast(number)),
                             .f64 => c.BinaryenLiteralFloat64(number),
@@ -593,6 +597,7 @@ fn compile_expr(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
             // c.BinaryenGetFunction(module: BinaryenModuleRef, name: [*c]const u8)
         },
         .Return => |return_expr| {
+            //@todo return in webassembly is not like return in other prog languges
             return c.BinaryenReturn(self.module, if (return_expr.value) |value| try self.compile_expr(value) else null);
             // c.BinaryenGetFunction(module: BinaryenModuleRef, name: [*c]const u8)
         },

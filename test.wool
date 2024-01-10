@@ -24,8 +24,17 @@ add :: -> {
 
 // multiply :: a f32, b f32 -> f32 a + b 
 
-global :f32 : 1.5
-main :: -> i32 1
+// global := {}
+
+main :: -> void {
+  
+  a :i32 = {
+    b:= 5.5
+    1
+  }
+
+  return {};
+}
 
 /* main :: -> void {
 

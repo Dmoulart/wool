@@ -87,6 +87,7 @@ fn declaration_expression(self: *Self) ParserError!?*Expr {
     return try self.expression_stmt();
 }
 
+//@todo return in webassembly is not like return in other prog languges
 fn return_expr(self: *Self) ParserError!*Expr {
     const keyword = self.previous();
 

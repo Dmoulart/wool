@@ -54,7 +54,7 @@ fn run(src: []const u8, allocator: std.mem.Allocator) !void {
 
     var semer = Semer.init(allocator, ast);
     var sems = try semer.analyze();
-    print("\nSEMS:\n{any}\n", .{sems});
+    _ = sems;
     // try jsonPrint(sems., "./sems.json");
 
     var compiler = Compiler.init(allocator, ast);

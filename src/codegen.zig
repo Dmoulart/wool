@@ -112,8 +112,3 @@ fn current_block(self: *@This()) ?*Block {
     if (self.blocks.items.len == 0) return null;
     return @constCast(&self.blocks.items[self.blocks.items.len - 1]);
 }
-
-fn Stack(comptime T: type) type {
-    _ = T;
-    return struct {};
-}
