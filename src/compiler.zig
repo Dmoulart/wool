@@ -13,6 +13,7 @@ const Globals = @import("./globals.zig");
 const Context = @import("./context.zig").Context;
 
 const Type = @import("./types.zig").Type;
+const Sems = @import("./semer.zig").Sems;
 
 pub const c = @cImport({
     @cInclude("binaryen-c.h");
@@ -21,11 +22,22 @@ pub const c = @cImport({
 const ErrorReporter = @import("./error-reporter.zig").ErrorReporter;
 const Err = ErrorReporter(CompilerError);
 
-pub const CompilerError = error{ UnknownVariable, UnknownConstant, VariableAssignationInGlobalScope, OutOfMemory, FunctionCallInGlobalScope, ConstantAssignation, InvalidType, CannotInferType };
+pub const CompilerError = error{
+    UnknownVariable,
+    UnknownConstant,
+    VariableAssignationInGlobalScope,
+    OutOfMemory,
+    FunctionCallInGlobalScope,
+    ConstantAssignation,
+    InvalidType,
+    CannotInferType,
+};
 
 allocator: std.mem.Allocator,
 
-ast: []*Expr,
+ast: []*const Expr,
+
+sems: *const Sems,
 
 module: c.BinaryenModuleRef,
 
@@ -48,7 +60,7 @@ const ExpressionFrame = struct {
     expr_type: Type,
 };
 
-pub fn init(allocator: std.mem.Allocator, ast: []*Expr) @This() {
+pub fn init(allocator: std.mem.Allocator, ast: []*const Expr, sems: *const Sems) @This() {
     var environments = std.ArrayList(Environment).init(allocator);
 
     var globals = Globals.init(allocator);
@@ -70,6 +82,7 @@ pub fn init(allocator: std.mem.Allocator, ast: []*Expr) @This() {
         .args = args,
         .m = Codegen.init(module.?, allocator),
         .ctx = Context(ExpressionFrame).init(allocator),
+        .sems = sems,
     };
 }
 
@@ -156,18 +169,14 @@ fn compile_expr(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
             return value;
         },
         .VarInit => |*var_init| {
+            const var_type = self.sems.get(expr).?.type;
             try self.ctx.push_frame(
                 .{
                     .expr = expr,
-                    .expr_type = if (var_init.type) |var_type|
-                        try Type.from_str(var_type.lexeme)
-                    else
-                        try infer_type(var_init.initializer) orelse .i32,
+                    .expr_type = var_type,
                 },
             );
             defer _ = self.ctx.pop_frame();
-
-            const var_type = if (var_init.type) |var_type| try Type.from_str(var_type.lexeme) else .i32;
 
             if (self.current_env) |current_env| {
                 const idx = current_env.increment_index();
@@ -374,17 +383,12 @@ fn compile_expr(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
                 .Boolean => |boolean| c.BinaryenLiteralInt32(
                     if (boolean) @as(i32, 1) else @as(i32, 0),
                 ),
-                .Number => |number| blk: {
-                    if (self.ctx.in(&.{ "ConstInit", "VarInit" })) |current_frame| {
-                        break :blk switch (current_frame.expr_type) {
-                            .f32 => c.BinaryenLiteralFloat32(@floatCast(number)),
-                            .f64 => c.BinaryenLiteralFloat64(number),
-                            .i32 => c.BinaryenLiteralInt32(@intFromFloat(number)),
-                            .i64 => c.BinaryenLiteralInt64(@intFromFloat(number)),
-                            else => unreachable,
-                        };
-                    }
-                    break :blk c.BinaryenLiteralInt32(@intFromFloat(number));
+                .Number => |number| switch (self.sems.get(expr).?.type) {
+                    .f32 => c.BinaryenLiteralFloat32(@floatCast(number)),
+                    .f64 => c.BinaryenLiteralFloat64(number),
+                    .i32 => c.BinaryenLiteralInt32(@intFromFloat(number)),
+                    .i64 => c.BinaryenLiteralInt64(@intFromFloat(number)),
+                    else => unreachable,
                 },
                 else => unreachable,
             };

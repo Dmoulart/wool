@@ -15,6 +15,7 @@ const TypeError = error{
     MultipleReturnTypesForIfExpressions,
     IncompatibleTypesInBinaryExpression,
     AlreadyRegisteredSem,
+    ComparingDifferentTypes,
 };
 
 const Err = ErrorReporter(TypeError);
@@ -22,6 +23,8 @@ const Err = ErrorReporter(TypeError);
 pub const Sem = struct {
     type: Type,
 };
+
+pub const Sems = std.AutoHashMap(*const Expr, Sem);
 
 pub const TypeRecord = struct {
     type: ?Type, // empty sem means it must be infered
@@ -32,12 +35,12 @@ pub fn init(allocator: std.mem.Allocator, ast: []*Expr) @This() {
     return .{
         .allocator = allocator,
         .ast = ast,
-        .sems = std.AutoHashMap(*const Expr, Sem).init(allocator),
+        .sems = Sems.init(allocator),
         .ctx = Context(TypeRecord).init(allocator),
     };
 }
 
-pub fn analyze(self: *@This()) !*std.AutoHashMap(*const Expr, Sem) {
+pub fn analyze(self: *@This()) !*Sems {
     for (self.ast) |expr| {
         _ = try self.analyze_expr(expr);
     }
@@ -161,13 +164,27 @@ pub fn analyze_expr(self: *@This(), expr: *const Expr) !*Sem {
             const left = try self.analyze_expr(binary.left);
             const right = try self.analyze_expr(binary.right);
 
-            if (is_number_type(left.type) and is_number_type(right.type)) {
-                const coerced_type = coerce_number_types(left.type, right.type);
-                left.type = coerced_type;
-                right.type = coerced_type;
-            }
+            switch (binary.op.type) {
+                .PLUS, .MINUS, .STAR, .SLASH => {
+                    if (is_number_type(left.type) and is_number_type(right.type)) {
+                        const coerced_type = coerce_number_types(left.type, right.type);
+                        left.type = coerced_type;
+                        right.type = coerced_type;
+                    }
 
-            return try self.create_sem(expr, .{ .type = left.type });
+                    return try self.create_sem(expr, .{ .type = left.type });
+                },
+                .GREATER, .GREATER_EQUAL, .LESS, .LESS_EQUAL => {
+                    return try self.create_sem(expr, .{ .type = .bool });
+                },
+                .EQUAL_EQUAL, .BANG_EQUAL => {
+                    if (left.type != right.type) {
+                        return TypeError.ComparingDifferentTypes;
+                    }
+                    return try self.create_sem(expr, .{ .type = left.type });
+                },
+                else => unreachable,
+            }
         },
         .Return => |return_expr| {
             const return_type = if (return_expr.value) |return_value|
