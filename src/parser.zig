@@ -91,16 +91,16 @@ fn declaration_expression(self: *Self) ParserError!?*Expr {
 fn return_expr(self: *Self) ParserError!*Expr {
     const keyword = self.previous();
 
-    var value: ?*Expr = if (!self.check(.SEMICOLON))
-        try self.expression()
-    else
-        null;
+    var value: ?*Expr = self.expression() catch |e| switch (e) {
+        ParserError.MissingExpression => null,
+        else => return e,
+    };
 
-    _ = try self.consume(
-        .SEMICOLON,
-        ParserError.MissingSemiColonAfterReturnValue,
-        "Expect ';' after return value.",
-    );
+    // _ = try self.consume(
+    //     .SEMICOLON,
+    //     ParserError.MissingSemiColonAfterReturnValue,
+    //     "Expect ';' after return value.",
+    // );
 
     return try self.create_expr(.{
         .Return = .{

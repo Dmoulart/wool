@@ -72,6 +72,23 @@ pub const Type = enum {
 
         unreachable;
     }
+
+    pub inline fn size_of(@"type": Type) u16 {
+        return switch (@"type") {
+            .i32, .bool => @typeInfo(i32).Int.bits,
+            .i64 => @typeInfo(i64).Int.bits,
+            .f32 => @typeInfo(f32).Float.bits,
+            .f64 => @typeInfo(f64).Float.bits,
+            else => unreachable,
+        };
+    }
+
+    pub inline fn is_number(@"type": Type) bool {
+        return switch (@"type") {
+            .i32, .i64, .f32, .f64 => true,
+            else => false,
+        };
+    }
     // pub fn to_binaryen_literal(@"type": Type, value: anytype) c.BinaryenLiteral {
     //     return switch (@"type") {
     //         .i32 => c.BinaryenLiteralInt32(value),

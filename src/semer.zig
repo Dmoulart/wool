@@ -11,6 +11,10 @@ const TypeError = error{
     CannotInferType,
     ValueMismatchDeclaredType,
     ValueMismatchFunctionReturnType,
+    NonBooleanConditionInIf,
+    MultipleReturnTypesForIfExpressions,
+    IncompatibleTypesInBinaryExpression,
+    AlreadyRegisteredSem,
 };
 
 const Err = ErrorReporter(TypeError);
@@ -81,7 +85,11 @@ pub fn analyze_expr(self: *@This(), expr: *const Expr) !*Sem {
 
             if (maybe_declared_type) |declared_type| {
                 if (sem.type != declared_type) {
-                    return TypeError.ValueMismatchDeclaredType;
+                    return Err.raise(
+                        var_init.name,
+                        TypeError.ValueMismatchDeclaredType,
+                        "Variable initialization value does not match declared type",
+                    );
                 }
             }
 
@@ -119,6 +127,48 @@ pub fn analyze_expr(self: *@This(), expr: *const Expr) !*Sem {
 
             return try self.create_sem(expr, .{ .type = return_type });
         },
+        .If => |if_expr| {
+            //@todo then become invalid when condition is reached
+            var then_branch = (try self.analyze_expr(if_expr.then_branch)).*;
+            const condition = try self.analyze_expr(if_expr.condition);
+            var maybe_else_branch = if (if_expr.else_branch) |else_branch| try self.analyze_expr(else_branch) else null;
+
+            if (condition.type != .bool) return TypeError.NonBooleanConditionInIf;
+
+            if (self.in_assignation()) {
+                if (maybe_else_branch) |else_branch| {
+                    if (then_branch.type != else_branch.type) {
+                        if (then_branch.type.is_number() and else_branch.type.is_number()) {
+                            const coerced_type = coerce_number_types(then_branch.type, else_branch.type);
+                            then_branch.type = coerced_type;
+                            else_branch.type = coerced_type;
+                        } else {
+                            return TypeError.MultipleReturnTypesForIfExpressions;
+                        }
+                    }
+                }
+            }
+
+            if (self.get_target_type()) |target_type| {
+                if (then_branch.type != target_type or maybe_else_branch != null and maybe_else_branch.?.type != target_type) {
+                    return TypeError.ValueMismatchDeclaredType;
+                }
+            }
+
+            return try self.create_sem(expr, .{ .type = then_branch.type });
+        },
+        .Binary => |binary| {
+            const left = try self.analyze_expr(binary.left);
+            const right = try self.analyze_expr(binary.right);
+
+            if (is_number_type(left.type) and is_number_type(right.type)) {
+                const coerced_type = coerce_number_types(left.type, right.type);
+                left.type = coerced_type;
+                right.type = coerced_type;
+            }
+
+            return try self.create_sem(expr, .{ .type = left.type });
+        },
         .Return => |return_expr| {
             const return_type = if (return_expr.value) |return_value|
                 (try self.analyze_expr(return_value)).type
@@ -128,11 +178,23 @@ pub fn analyze_expr(self: *@This(), expr: *const Expr) !*Sem {
         },
         .Literal => |literal| {
             return switch (literal.value) {
+                .Boolean => {
+                    if (self.get_target_type()) |target_type| {
+                        if (target_type != .bool) {
+                            return TypeError.ValueMismatchDeclaredType;
+                        }
+                    }
+                    return try self.create_sem(
+                        expr,
+                        .{
+                            .type = .bool,
+                        },
+                    );
+                },
                 .Number => |number| {
                     if (self.get_target_type()) |target_type| {
-                        switch (target_type) {
-                            .i32, .i64, .f32, .f64 => {},
-                            else => return TypeError.InvalidType,
+                        if (!is_number_type(target_type)) {
+                            return TypeError.InvalidType;
                         }
 
                         if (is_integer_type(target_type) and is_float_value(number)) {
@@ -178,8 +240,13 @@ pub fn analyze_expr(self: *@This(), expr: *const Expr) !*Sem {
 }
 
 fn create_sem(self: *@This(), expr: *const Expr, sem: Sem) !*Sem {
-    try self.sems.put(expr, sem);
-    return self.sems.getPtr(expr).?;
+    const result = self.sems.getOrPut(expr) catch return TypeError.AlreadyRegisteredSem;
+    result.value_ptr.* = sem;
+    return result.value_ptr;
+}
+
+fn in_assignation(self: *@This()) bool {
+    return self.ctx.in(&.{ "VarInit", "ConstInit" }) != null;
 }
 
 fn get_target_type(self: *@This()) ?Type {
@@ -210,6 +277,13 @@ fn get_target_type(self: *@This()) ?Type {
 //         else => TypeError.CannotInferType,
 //     };
 // }
+//@todo remove -> put this in types
+inline fn is_number_type(@"type": Type) bool {
+    return switch (@"type") {
+        .i32, .i64, .f32, .f64 => true,
+        else => false,
+    };
+}
 
 inline fn is_float_value(number: f64) bool {
     return @rem(number, 1) != 0;
@@ -231,6 +305,25 @@ fn infer_number_type(number: f64) Type {
             break :blk if (number > maxInt(i32)) .i64 else .i32;
         }
     };
+}
+
+fn coerce_number_types(a: Type, b: Type) Type {
+    if (a != b) {
+        const size_of_left = a.size_of();
+        const size_of_right = b.size_of();
+
+        if (size_of_left == size_of_right) {
+            if (is_foat_type(a) and !is_foat_type(b)) {
+                return a;
+            } else if (is_foat_type(b) and !is_foat_type(a)) {
+                return b;
+            }
+        } else {
+            return if (size_of_left >= size_of_right) a else b;
+        }
+    }
+
+    return a;
 }
 
 const std = @import("std");

@@ -26,14 +26,18 @@ add :: -> {
 
 // global := {}
 
+glob::1.5
+
 main :: -> void {
   
   a :i32 = {
     b:= 5.5
-    1
+    1 + 1
   }
 
-  return 1;
+  b := if true 1 + 1.5 else 0
+
+  return {}
 }
 
 /* main :: -> void {
