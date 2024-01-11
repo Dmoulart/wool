@@ -16,6 +16,7 @@ const TypeError = error{
     IncompatibleTypesInBinaryExpression,
     AlreadyRegisteredSem,
     ComparingDifferentTypes,
+    ExpectNumbersForMathOperations,
 };
 
 const Err = ErrorReporter(TypeError);
@@ -130,11 +131,19 @@ pub fn analyze_expr(self: *@This(), expr: *const Expr) !*Sem {
 
             return try self.create_sem(expr, .{ .type = return_type });
         },
+        .Grouping => |grouping| {
+            const grouping_sem = try self.analyze_expr(grouping.expr);
+
+            return try self.create_sem(expr, .{ .type = grouping_sem.type });
+        },
         .If => |if_expr| {
             //@todo then become invalid when condition is reached
             var then_branch = (try self.analyze_expr(if_expr.then_branch)).*;
             const condition = try self.analyze_expr(if_expr.condition);
-            var maybe_else_branch = if (if_expr.else_branch) |else_branch| try self.analyze_expr(else_branch) else null;
+            var maybe_else_branch = if (if_expr.else_branch) |else_branch|
+                try self.analyze_expr(else_branch)
+            else
+                null;
 
             if (condition.type != .bool) return TypeError.NonBooleanConditionInIf;
 
@@ -170,11 +179,20 @@ pub fn analyze_expr(self: *@This(), expr: *const Expr) !*Sem {
                         const coerced_type = coerce_number_types(left.type, right.type);
                         left.type = coerced_type;
                         right.type = coerced_type;
+                        return try self.create_sem(expr, .{ .type = left.type });
+                    } else {
+                        return TypeError.ExpectNumbersForMathOperations;
                     }
-
-                    return try self.create_sem(expr, .{ .type = left.type });
                 },
                 .GREATER, .GREATER_EQUAL, .LESS, .LESS_EQUAL => {
+                    if (is_number_type(left.type) and is_number_type(right.type)) {
+                        const coerced_type = coerce_number_types(left.type, right.type);
+                        left.type = coerced_type;
+                        right.type = coerced_type;
+                    } else {
+                        return TypeError.ExpectNumbersForMathOperations;
+                    }
+
                     return try self.create_sem(expr, .{ .type = .bool });
                 },
                 .EQUAL_EQUAL, .BANG_EQUAL => {
@@ -257,6 +275,8 @@ pub fn analyze_expr(self: *@This(), expr: *const Expr) !*Sem {
 }
 
 fn create_sem(self: *@This(), expr: *const Expr, sem: Sem) !*Sem {
+    // vartry self.allocator.create(Sem);
+
     const result = self.sems.getOrPut(expr) catch return TypeError.AlreadyRegisteredSem;
     result.value_ptr.* = sem;
     return result.value_ptr;

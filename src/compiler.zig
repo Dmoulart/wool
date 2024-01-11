@@ -181,7 +181,7 @@ fn compile_expr(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
             if (self.current_env) |current_env| {
                 const idx = current_env.increment_index();
                 try current_env.set(var_init.name, idx);
-                try current_env.add_local_type(Type.to_binaryen_type(var_type));
+                try current_env.add_local_type(var_type.to_binaryen_type());
 
                 const value = try self.compile_expr(var_init.initializer);
 
@@ -264,78 +264,73 @@ fn compile_expr(self: *@This(), expr: *const Expr) !c.BinaryenExpressionRef {
             const left = try self.compile_expr(binary.left);
             const right = try self.compile_expr(binary.right);
 
-            const left_type = c.BinaryenExpressionGetType(left);
-            const right_type = c.BinaryenExpressionGetType(right);
-
-            if (left_type != right_type) {
-                return CompilerError.InvalidType;
-            }
+            const binary_type = self.sems.get(binary.left).?.type; // left or right, semer should have asserted they are the same
 
             const op = switch (binary.op.type) {
-                .PLUS => switch (Type.from_binaryen(left_type)) {
+                .PLUS => switch (binary_type) {
                     .i32 => c.BinaryenAddInt32(),
                     .i64 => c.BinaryenAddInt64(),
                     .f32 => c.BinaryenAddFloat32(),
                     .f64 => c.BinaryenAddFloat64(),
                     else => unreachable,
                 },
-                .MINUS => switch (Type.from_binaryen(left_type)) {
+                .MINUS => switch (binary_type) {
                     .i32 => c.BinaryenSubInt32(),
                     .i64 => c.BinaryenSubInt64(),
                     .f32 => c.BinaryenSubFloat32(),
                     .f64 => c.BinaryenSubFloat64(),
                     else => unreachable,
                 },
-                .STAR => switch (Type.from_binaryen(left_type)) {
+                .STAR => switch (binary_type) {
                     .i32 => c.BinaryenMulInt32(),
                     .i64 => c.BinaryenMulInt64(),
                     .f32 => c.BinaryenMulFloat32(),
                     .f64 => c.BinaryenMulFloat64(),
                     else => unreachable,
                 },
-                .SLASH => switch (Type.from_binaryen(left_type)) {
+                .SLASH => switch (binary_type) {
                     .i32 => c.BinaryenDivSInt32(), // div s ? div u ?,
                     .i64 => c.BinaryenDivSInt64(),
                     .f32 => c.BinaryenDivFloat32(),
                     .f64 => c.BinaryenDivFloat64(),
                     else => unreachable,
                 },
-                .EQUAL_EQUAL => switch (Type.from_binaryen(left_type)) {
+                .EQUAL_EQUAL => switch (binary_type) {
                     .i32 => c.BinaryenEqInt32(),
                     .i64 => c.BinaryenEqInt64(),
                     .f32 => c.BinaryenEqFloat32(),
                     .f64 => c.BinaryenEqFloat64(),
                     else => unreachable,
                 },
-                .BANG_EQUAL => switch (Type.from_binaryen(left_type)) {
+                .BANG_EQUAL => switch (binary_type) {
                     .i32 => c.BinaryenNeInt32(),
                     .i64 => c.BinaryenNeInt64(),
                     .f32 => c.BinaryenNeFloat32(),
                     .f64 => c.BinaryenNeFloat64(),
                     else => unreachable,
                 },
-                .GREATER => switch (Type.from_binaryen(left_type)) {
+                .GREATER => switch (binary_type) {
                     .i32 => c.BinaryenGtSInt32(),
                     .i64 => c.BinaryenGtSInt64(),
                     .f32 => c.BinaryenGtFloat32(),
                     .f64 => c.BinaryenGtFloat64(),
                     else => unreachable,
                 },
-                .GREATER_EQUAL => switch (Type.from_binaryen(left_type)) {
+                .GREATER_EQUAL => switch (binary_type) {
                     .i32 => c.BinaryenGeSInt32(),
                     .i64 => c.BinaryenGeSInt64(),
                     .f32 => c.BinaryenGeFloat32(),
                     .f64 => c.BinaryenGeFloat64(),
                     else => unreachable,
                 },
-                .LESS => switch (Type.from_binaryen(left_type)) {
+                .LESS => switch (binary_type) {
                     .i32 => c.BinaryenLtSInt32(),
                     .i64 => c.BinaryenLtSInt64(),
                     .f32 => c.BinaryenLtFloat32(),
                     .f64 => c.BinaryenLtFloat64(),
                     else => unreachable,
                 },
-                .LESS_EQUAL => switch (Type.from_binaryen(left_type)) {
+                .LESS_EQUAL => switch (binary_type) {
                     .i32 => c.BinaryenLeSInt32(),
                     .i64 => c.BinaryenLeSInt64(),
                     .f32 => c.BinaryenLeFloat32(),
