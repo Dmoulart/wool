@@ -2,7 +2,7 @@
 
 func :: arg_b i32 -> i32 arg_b
 
-arg i32 -> i32 func(true)
+arg i32 -> i32 func(arg)
 
 /* main :: -> void {
 

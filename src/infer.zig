@@ -29,6 +29,7 @@ const TypeError = error{
 const Err = ErrorReporter(TypeError);
 
 pub const TID = u32;
+pub const NUMBER_ID = 0;
 pub const BOOL_ID = 1;
 pub const NodeTypes = enum {
     named,
@@ -68,7 +69,9 @@ pub fn init(allocator: std.mem.Allocator, ast: []*Expr) @This() {
 
 pub fn infer_program(self: *@This()) !*std.ArrayList(Record) {
     for (self.ast) |expr| {
-        _ = try self.infer(expr, &self.ctx);
+        var rec = try self.infer(expr, &self.ctx);
+        std.debug.print("\n{any}\n", .{rec.type});
+        try jsonPrint(rec.type.*, "./types.json");
     }
 
     return &self.records;
@@ -81,6 +84,13 @@ pub fn infer(self: *@This(), expr: *const Expr, ctx: *Context) !*Record {
                 .{
                     .named = .{
                         .id = BOOL_ID,
+                    },
+                },
+            ),
+            .Number => try self.create_record(
+                .{
+                    .named = .{
+                        .id = NUMBER_ID,
                     },
                 },
             ),
@@ -426,3 +436,17 @@ const Context = struct {
 };
 
 const Env = std.StringArrayHashMap(*NodeType);
+pub fn jsonPrint(value: anytype, file_path: []const u8) !void {
+    var out = std.ArrayList(u8).init(std.heap.page_allocator);
+    defer out.deinit();
+
+    try std.json.stringify(value, .{}, out.writer());
+
+    const file = try std.fs.cwd().createFile(
+        file_path,
+        .{ .read = true },
+    );
+    defer file.close();
+
+    _ = try file.writeAll(try out.toOwnedSlice());
+}
