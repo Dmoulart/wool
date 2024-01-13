@@ -52,14 +52,18 @@ fn run(src: []const u8, allocator: std.mem.Allocator) !void {
     const ast = try parser.parse();
     try jsonPrint(ast, "./ast.json");
 
-    var semer = Semer.init(allocator, ast);
-    const sems = try semer.analyze();
+    // var semer = Semer.init(allocator, ast);
+    // const sems = try semer.analyze();
+
+    var inferer = Infer.init(allocator, ast);
+    const sems = try inferer.infer_program();
+    _ = sems;
     // try jsonPrint(sems., "./sems.json");
 
-    var compiler = Compiler.init(allocator, ast, sems);
-    defer compiler.deinit();
+    // var compiler = Compiler.init(allocator, ast, sems);
+    // defer compiler.deinit();
 
-    try compiler.compile();
+    // try compiler.compile();
 
     try jsonPrint(tokens, "./tokens.json");
 }
@@ -87,4 +91,5 @@ const print = std.debug.print;
 const Lexer = @import("./lexer.zig");
 const Parser = @import("./parser.zig");
 const Semer = @import("./semer.zig");
+const Infer = @import("./infer.zig");
 const Compiler = @import("./compiler.zig");

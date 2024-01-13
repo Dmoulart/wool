@@ -1,57 +1,10 @@
-/* global_constant :: 123
-global_variable := 123
 
-inc :: n -> n + 1
 
-// dorian_buy_bag :: -> true
+func :: arg_b i32 -> i32 arg_b
 
-// morgane_love_me :: -> if dorian_buy_bag() true else false
-
-add :: -> {
-  while global_variable < 20 {
-    global_variable = inc(global_variable)
-    if global_variable == 10 break
-  } 
-  global_variable
-}
-*/
-
-// from console import log
-
-// global_variable := 1
-
-// global_constant : f32 : 1
-
-// multiply :: a f32, b f32 -> f32 a + b 
-
-// global := {}
-
-glob::1.5
-
-main :: -> void {
- /* a :i32 = {
-    b:= 5.5
-    1 + 1
-  }*/
-
-  b := ((15 + 25) + 1.5)
-
-  log(b)
-
- /* b := if (15 > 25 + 1.5)
-    1 + 1.5 
-      else 
-    0
-    */
-
-  return {}
-}
+arg i32 -> i32 func(true)
 
 /* main :: -> void {
 
-  i := 1.5
-
-  log(1)
-
-  return {};
-} */
+  return {}
+}*/

@@ -275,8 +275,6 @@ pub fn analyze_expr(self: *@This(), expr: *const Expr) !*Sem {
 }
 
 fn create_sem(self: *@This(), expr: *const Expr, sem: Sem) !*Sem {
-    // vartry self.allocator.create(Sem);
-
     const result = self.sems.getOrPut(expr) catch return TypeError.AlreadyRegisteredSem;
     result.value_ptr.* = sem;
     return result.value_ptr;
