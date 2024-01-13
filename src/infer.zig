@@ -24,13 +24,16 @@ const TypeError = error{
     ComparingDifferentTypes,
     ExpectNumbersForMathOperations,
     UnboundVariable,
+    CircularReference,
 };
 
 const Err = ErrorReporter(TypeError);
 
 pub const TID = u32;
+
 pub const NUMBER_ID = 0;
 pub const BOOL_ID = 1;
+
 pub const NodeTypes = enum {
     named,
     variable,
@@ -49,10 +52,8 @@ pub const NodeType = union(NodeTypes) {
     },
 };
 
-// pub const Records = std.AutoHashMap(*const Expr, Record);
-
 pub const Record = struct {
-    type: *NodeType, // empty record means it must be infered
+    type: *NodeType,
     subst: *Substitutions,
 };
 
@@ -111,27 +112,27 @@ pub fn infer(self: *@This(), expr: *const Expr, ctx: *Context) !*Record {
             }
         },
         .Call => |call| {
-            var func_record = try self.infer(call.callee, ctx);
-            var arg_record = try self.infer(
+            const func_record = try self.infer(call.callee, ctx);
+            const arg_record = try self.infer(
                 call.args[0],
                 try self.apply_subst_to_ctx(func_record.subst, ctx),
             );
-            var new_var = try self.create_node_type(ctx.new_type_var());
-            var s3 = try self.compose_subst(func_record.subst, arg_record.subst);
-            var new_func_call = try self.create_node_type(NodeType{ .function = .{
+            const new_var = try self.create_node_type(ctx.new_type_var());
+            const s3 = try self.compose_subst(func_record.subst, arg_record.subst);
+            const new_func_call = try self.create_node_type(NodeType{ .function = .{
                 .from = arg_record.type,
                 .to = new_var,
             } });
-            var s4 = try self.unify(new_func_call, func_record.type);
-            var func_type_1 = try self.apply_subst_to_type(s4, func_record.type);
-            var s5 = try self.compose_subst(s3, s4);
-            var s6 = try self.unify(
+            const s4 = try self.unify(new_func_call, func_record.type);
+            const func_type_1 = try self.apply_subst_to_type(s4, func_record.type);
+            const s5 = try self.compose_subst(s3, s4);
+            const s6 = try self.unify(
                 try self.apply_subst_to_type(s5, func_type_1.function.from),
                 arg_record.type,
             );
-            var result_subst = try self.compose_subst(s5, s6);
+            const result_subst = try self.compose_subst(s5, s6);
 
-            var ret = try self.create_record_with_subst(
+            const ret = try self.create_record_with_subst(
                 (try self.apply_subst_to_type(result_subst, func_type_1.function.to)).*,
                 result_subst,
             );
@@ -140,16 +141,16 @@ pub fn infer(self: *@This(), expr: *const Expr, ctx: *Context) !*Record {
             // return self.apply_subst_to_type(result_subst, func_type_1.function.to)
         },
         .Function => |function| {
-            var new_type = try self.create_node_type(ctx.new_type_var());
-            var new_ctx = try ctx.clone();
-            var param = function.args.?[0];
-            try new_ctx.add(param.name.lexeme, new_type);
-            var body_record = try self.infer(function.body.?, new_ctx);
-            var inferred_type = NodeType{
+            const func_type_var = try self.create_node_type(ctx.new_type_var());
+            const func_ctx = try ctx.clone();
+            const param = function.args.?[0];
+            try func_ctx.add(param.name.lexeme, func_type_var);
+            const body_record = try self.infer(function.body.?, func_ctx);
+            const inferred_type = NodeType{
                 .function = .{
                     .from = try self.apply_subst_to_type(
                         body_record.subst,
-                        new_type,
+                        func_type_var,
                     ),
                     .to = body_record.type,
                 },
@@ -185,11 +186,11 @@ pub fn apply_subst_to_type(
 // apply given substitution to each type in the context's environment
 // Doesn't change the input context, but returns a new one
 pub fn apply_subst_to_ctx(self: *@This(), subst: *Substitutions, ctx: *Context) !*Context {
-    var new_ctx = try ctx.clone();
-    var env_clone = try new_ctx.env.clone();
+    const new_ctx = try ctx.clone();
+    const env_clone = try new_ctx.env.clone();
 
     for (env_clone.keys()) |key| {
-        var node_type = env_clone.get(key).?;
+        const node_type = env_clone.get(key).?;
         try new_ctx.env.put(key, try self.apply_subst_to_type(subst, node_type));
     }
 
@@ -198,7 +199,7 @@ pub fn apply_subst_to_ctx(self: *@This(), subst: *Substitutions, ctx: *Context) 
 }
 
 fn compose_subst(self: *@This(), s1: *Substitutions, s2: *Substitutions) !*Substitutions {
-    var result = try self.create_subst();
+    const result = try self.create_subst();
 
     var iter_s2 = s2.iterator();
     while (iter_s2.next()) |record| {
@@ -226,11 +227,9 @@ fn create_node_type(self: *@This(), node_type: NodeType) !*NodeType {
 
 fn create_record(self: *@This(), node_type: NodeType) !*Record {
     // create node type
-    var node_type_ptr = try self.node_types.addOne();
-    node_type_ptr.* = node_type;
-
+    var node_type_ptr = try self.create_node_type(node_type);
     // create substituions
-    var subst = try self.create_subst();
+    const subst = try self.create_subst();
 
     // create record
     var record = try self.records.addOne();
@@ -264,18 +263,18 @@ fn create_record_with_subst(self: *@This(), node_type: NodeType, subst: *Substit
     return record;
 }
 
-fn unify(self: *@This(), t_1: *NodeType, t_2: *NodeType) !*Substitutions {
-    if (tag(t_1.*) == .named and tag(t_2.*) == .named and t_2.named.id == t_1.named.id) {
+fn unify(self: *@This(), a: *NodeType, b: *NodeType) !*Substitutions {
+    if (tag(a.*) == .named and tag(b.*) == .named and b.named.id == a.named.id) {
         return try self.create_subst();
-    } else if (tag(t_1.*) == .variable) {
-        return try self.var_bind(t_1.variable.id, t_2);
-    } else if (tag(t_2.*) == .variable) {
-        return try self.var_bind(t_2.variable.id, t_1);
-    } else if (tag(t_1.*) == .function and tag(t_2.*) == .function) {
-        var s1 = try self.unify(t_1.function.from, t_2.function.from);
+    } else if (tag(a.*) == .variable) {
+        return try self.var_bind(a.variable.id, b);
+    } else if (tag(b.*) == .variable) {
+        return try self.var_bind(b.variable.id, a);
+    } else if (tag(a.*) == .function and tag(b.*) == .function) {
+        var s1 = try self.unify(a.function.from, b.function.from);
         var s2 = try self.unify(
-            try self.apply_subst_to_type(s1, t_1.function.to),
-            try self.apply_subst_to_type(s1, t_2.function.to),
+            try self.apply_subst_to_type(s1, a.function.to),
+            try self.apply_subst_to_type(s1, b.function.to),
         );
         return try self.compose_subst(s1, s2);
     } else unreachable;
@@ -286,9 +285,9 @@ fn var_bind(self: *@This(), tid: TID, t: *NodeType) !*Substitutions {
         return try self.create_subst();
     } else if (contains(t, tid)) {
         // throw `Type ${typeToString(t)} contains a reference to itself`;
-        unreachable;
+        return TypeError.CircularReference;
     } else {
-        var subst = try self.create_subst();
+        const subst = try self.create_subst();
         try subst.put(tid, t);
         return subst;
     }
@@ -383,16 +382,6 @@ fn in_assignation(self: *@This()) bool {
 //     return a;
 // }
 
-const std = @import("std");
-
-const Expr = @import("./ast/expr.zig").Expr;
-// const Type = @import("./types.zig").Type;
-// const Context = @import("./context.zig").Context;
-const floatMax = std.math.floatMax;
-const maxInt = std.math.maxInt;
-const ErrorReporter = @import("./error-reporter.zig").ErrorReporter;
-const tag = std.meta.activeTag;
-
 const Context = struct {
     next: TID,
     env: Env,
@@ -434,8 +423,6 @@ const Context = struct {
         try self.env.put(name, node_type);
     }
 };
-
-const Env = std.StringArrayHashMap(*NodeType);
 pub fn jsonPrint(value: anytype, file_path: []const u8) !void {
     var out = std.ArrayList(u8).init(std.heap.page_allocator);
     defer out.deinit();
@@ -450,3 +437,15 @@ pub fn jsonPrint(value: anytype, file_path: []const u8) !void {
 
     _ = try file.writeAll(try out.toOwnedSlice());
 }
+
+const Env = std.StringArrayHashMap(*NodeType);
+
+const std = @import("std");
+
+const Expr = @import("./ast/expr.zig").Expr;
+const Type = @import("./types.zig").Type;
+// const Context = @import("./context.zig").Context;
+const floatMax = std.math.floatMax;
+const maxInt = std.math.maxInt;
+const ErrorReporter = @import("./error-reporter.zig").ErrorReporter;
+const tag = std.meta.activeTag;
