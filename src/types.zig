@@ -89,6 +89,15 @@ pub const Type = enum {
             else => false,
         };
     }
+
+    pub inline fn is_integer(number_type: Type) bool {
+        return number_type == .i32 or number_type == .i64;
+    }
+
+    pub inline fn is_foat(number_type: Type) bool {
+        return number_type == .f32 or number_type == .f64;
+    }
+
     // pub fn to_binaryen_literal(@"type": Type, value: anytype) c.BinaryenLiteral {
     //     return switch (@"type") {
     //         .i32 => c.BinaryenLiteralInt32(value),

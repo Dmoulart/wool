@@ -1,8 +1,8 @@
 
 
-// func :: arg_b i32 -> i32 arg_b 
+// fn :: arg_b i32 -> i32 (1 + arg_b) + (arg_b + 1)
 
-arg i32 -> i32 1
+a i32 -> i32 a + 1.5
 
 /* main :: -> void {
 

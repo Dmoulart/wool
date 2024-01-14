@@ -25,6 +25,7 @@ const TypeError = error{
     ExpectNumbersForMathOperations,
     UnboundVariable,
     CircularReference,
+    TypeMismatch,
 };
 
 const Err = ErrorReporter(TypeError);
@@ -32,7 +33,9 @@ const Err = ErrorReporter(TypeError);
 pub const TID = u32;
 
 pub const NUMBER_ID = 0;
-pub const BOOL_ID = 1;
+pub const I32_ID = 1;
+pub const F32_ID = 2;
+pub const BOOL_ID = 3;
 
 pub const NodeTypes = enum {
     named,
@@ -107,6 +110,73 @@ pub fn infer(self: *@This(), expr: *const Expr, ctx: *Context) !*Record {
             ),
             else => unreachable,
         },
+        .Grouping => |grouping| {
+            return try self.infer(grouping.expr, ctx);
+        },
+        .Binary => |binary| {
+            return switch (binary.op.type) {
+                .PLUS => {
+                    const left_record = try self.infer(binary.left, ctx);
+
+                    const s_left = try self.unify(
+                        left_record.type,
+                        try self.create_node_type(
+                            NodeType{
+                                .named = .{
+                                    .expr = expr,
+                                    .id = NUMBER_ID,
+                                },
+                            },
+                        ),
+                        binary.left,
+                    );
+
+                    const ctx1 = try self.apply_subst_to_ctx(
+                        try self.compose_subst(
+                            left_record.subst,
+                            s_left,
+                            binary.left,
+                        ),
+                        ctx,
+                        expr,
+                    );
+
+                    const right_record = try self.infer(binary.right, ctx1);
+
+                    const s_right = try self.unify(
+                        right_record.type,
+                        try self.create_node_type(
+                            NodeType{
+                                .named = .{
+                                    .expr = binary.right,
+                                    .id = NUMBER_ID,
+                                },
+                            },
+                        ),
+                        binary.right,
+                    );
+                    const s = try self.compose_subst(s_left, s_right, expr);
+
+                    const left_type = try self.apply_subst_to_type(s, left_record.type, binary.left);
+                    const right_type = try self.apply_subst_to_type(s, right_record.type, binary.right);
+
+                    const s_2 = try self.unify(left_type, right_type, expr);
+
+                    const result_s = try self.compose_subst(s, s_2, expr);
+
+                    return try self.create_record_with_subst(
+                        (try self.apply_subst_to_type(
+                            s_2,
+                            right_type,
+                            expr,
+                        )).*,
+                        result_s,
+                    );
+                },
+
+                else => unreachable,
+            };
+        },
         .ConstInit => |const_init| {
             var ret = try self.infer(const_init.initializer, ctx);
 
@@ -165,19 +235,32 @@ pub fn infer(self: *@This(), expr: *const Expr, ctx: *Context) !*Record {
             // return self.apply_subst_to_type(result_subst, func_type_1.function.to)
         },
         .Function => |function| {
-            const func_type_var = try self.create_node_type(ctx.new_type_var(expr));
+            const func_return_type = try self.to_node_type(
+                try Type.from_str(function.type.lexeme),
+                expr,
+            );
+
             const func_ctx = try ctx.clone();
+
             const param = function.args.?[0];
-            try func_ctx.add(param.name.lexeme, func_type_var);
+            const param_type = try self.to_node_type(
+                try Type.from_str(param.type.lexeme),
+                expr,
+            );
+
+            if (function.name) |func_name| {
+                try func_ctx.add(func_name.lexeme, func_return_type);
+            }
+            try func_ctx.add(param.name.lexeme, param_type);
+
             const body_record = try self.infer(function.body.?, func_ctx);
+            const body_substs = try self.unify(body_record.type, func_return_type, function.body.?);
+            _ = body_substs;
+
             const inferred_type = NodeType{
                 .function = .{
-                    .from = try self.apply_subst_to_type(
-                        body_record.subst,
-                        func_type_var,
-                        expr,
-                    ),
-                    .to = body_record.type,
+                    .from = param_type,
+                    .to = func_return_type,
                     .expr = expr,
                 },
             };
@@ -186,6 +269,29 @@ pub fn infer(self: *@This(), expr: *const Expr, ctx: *Context) !*Record {
                 body_record.subst,
             );
         },
+        // Polymorphic function def
+        // .Function => |function| {
+        //     const func_type_var = try self.create_node_type(ctx.new_type_var(expr));
+        //     const func_ctx = try ctx.clone();
+        //     const param = function.args.?[0];
+        //     try func_ctx.add(param.name.lexeme, func_type_var);
+        //     const body_record = try self.infer(function.body.?, func_ctx);
+        //     const inferred_type = NodeType{
+        //         .function = .{
+        //             .from = try self.apply_subst_to_type(
+        //                 body_record.subst,
+        //                 func_type_var,
+        //                 expr,
+        //             ),
+        //             .to = body_record.type,
+        //             .expr = expr,
+        //         },
+        //     };
+        //     return self.create_record_with_subst(
+        //         inferred_type,
+        //         body_record.subst,
+        //     );
+        // },
 
         else => unreachable,
     };
@@ -220,7 +326,11 @@ pub fn apply_subst_to_ctx(self: *@This(), subst: *Substitutions, ctx: *Context, 
 
     for (env_clone.keys()) |key| {
         const node_type = env_clone.get(key).?;
-        try new_ctx.env.put(key, try self.apply_subst_to_type(subst, node_type, expr));
+        try new_ctx.env.put(key, try self.apply_subst_to_type(
+            subst,
+            node_type,
+            expr,
+        ));
     }
 
     return new_ctx;
@@ -307,7 +417,10 @@ fn unify(self: *@This(), a: *NodeType, b: *NodeType, expr: *const Expr) !*Substi
             expr,
         );
         return try self.compose_subst(s1, s2, expr);
-    } else unreachable;
+    } else {
+        std.debug.print("--Type mismatch-- \n Expected {any}\n    Found {any}\n", .{ a, b });
+        return TypeError.TypeMismatch;
+    }
 }
 
 fn var_bind(self: *@This(), tid: TID, node_type: *NodeType) !*Substitutions {
@@ -467,6 +580,14 @@ pub fn jsonPrint(value: anytype, file_path: []const u8) !void {
     defer file.close();
 
     _ = try file.writeAll(try out.toOwnedSlice());
+}
+
+fn to_node_type(self: *@This(), @"type": Type, expr: *const Expr) !*NodeType {
+    if (@"type".is_number()) {
+        return try self.create_node_type(NodeType{ .named = .{ .expr = expr, .id = NUMBER_ID } });
+    } else {
+        return try self.create_node_type(NodeType{ .named = .{ .expr = expr, .id = BOOL_ID } });
+    }
 }
 
 const Env = std.StringArrayHashMap(*NodeType);
