@@ -39,16 +39,20 @@ pub const NodeTypes = enum {
     variable,
     function,
 };
+
 pub const NodeType = union(NodeTypes) {
     named: struct {
         id: TID,
+        expr: *const Expr,
     },
     variable: struct {
         id: TID,
+        expr: *const Expr,
     },
     function: struct {
         from: *NodeType,
         to: *NodeType,
+        expr: *const Expr,
     },
 };
 
@@ -70,10 +74,14 @@ pub fn init(allocator: std.mem.Allocator, ast: []*Expr) @This() {
 
 pub fn infer_program(self: *@This()) !*std.ArrayList(Record) {
     for (self.ast) |expr| {
-        var rec = try self.infer(expr, &self.ctx);
-        std.debug.print("\n{any}\n", .{rec.type});
-        try jsonPrint(rec.type.*, "./types.json");
+        _ = try self.infer(expr, &self.ctx);
     }
+    var types = std.ArrayList(*NodeType).init(self.allocator);
+    for (self.records.items, 0..) |rec, i| {
+        _ = i;
+        try types.append(rec.type);
+    }
+    try jsonPrint(types.items, "./types.json");
 
     return &self.records;
 }
@@ -85,6 +93,7 @@ pub fn infer(self: *@This(), expr: *const Expr, ctx: *Context) !*Record {
                 .{
                     .named = .{
                         .id = BOOL_ID,
+                        .expr = expr,
                     },
                 },
             ),
@@ -92,6 +101,7 @@ pub fn infer(self: *@This(), expr: *const Expr, ctx: *Context) !*Record {
                 .{
                     .named = .{
                         .id = NUMBER_ID,
+                        .expr = expr,
                     },
                 },
             ),
@@ -115,25 +125,39 @@ pub fn infer(self: *@This(), expr: *const Expr, ctx: *Context) !*Record {
             const func_record = try self.infer(call.callee, ctx);
             const arg_record = try self.infer(
                 call.args[0],
-                try self.apply_subst_to_ctx(func_record.subst, ctx),
+                try self.apply_subst_to_ctx(func_record.subst, ctx, expr),
             );
-            const new_var = try self.create_node_type(ctx.new_type_var());
-            const s3 = try self.compose_subst(func_record.subst, arg_record.subst);
+            const new_var = try self.create_node_type(ctx.new_type_var(expr));
+            const s3 = try self.compose_subst(func_record.subst, arg_record.subst, expr);
             const new_func_call = try self.create_node_type(NodeType{ .function = .{
                 .from = arg_record.type,
                 .to = new_var,
+                .expr = expr,
             } });
-            const s4 = try self.unify(new_func_call, func_record.type);
-            const func_type_1 = try self.apply_subst_to_type(s4, func_record.type);
-            const s5 = try self.compose_subst(s3, s4);
-            const s6 = try self.unify(
-                try self.apply_subst_to_type(s5, func_type_1.function.from),
-                arg_record.type,
+            const s4 = try self.unify(new_func_call, func_record.type, expr);
+            const func_type_1 = try self.apply_subst_to_type(
+                s4,
+                func_record.type,
+                expr,
             );
-            const result_subst = try self.compose_subst(s5, s6);
+            const s5 = try self.compose_subst(s3, s4, expr);
+            const s6 = try self.unify(
+                try self.apply_subst_to_type(
+                    s5,
+                    func_type_1.function.from,
+                    expr,
+                ),
+                arg_record.type,
+                expr,
+            );
+            const result_subst = try self.compose_subst(s5, s6, expr);
 
             const ret = try self.create_record_with_subst(
-                (try self.apply_subst_to_type(result_subst, func_type_1.function.to)).*,
+                (try self.apply_subst_to_type(
+                    result_subst,
+                    func_type_1.function.to,
+                    expr,
+                )).*,
                 result_subst,
             );
 
@@ -141,7 +165,7 @@ pub fn infer(self: *@This(), expr: *const Expr, ctx: *Context) !*Record {
             // return self.apply_subst_to_type(result_subst, func_type_1.function.to)
         },
         .Function => |function| {
-            const func_type_var = try self.create_node_type(ctx.new_type_var());
+            const func_type_var = try self.create_node_type(ctx.new_type_var(expr));
             const func_ctx = try ctx.clone();
             const param = function.args.?[0];
             try func_ctx.add(param.name.lexeme, func_type_var);
@@ -151,8 +175,10 @@ pub fn infer(self: *@This(), expr: *const Expr, ctx: *Context) !*Record {
                     .from = try self.apply_subst_to_type(
                         body_record.subst,
                         func_type_var,
+                        expr,
                     ),
                     .to = body_record.type,
+                    .expr = expr,
                 },
             };
             return self.create_record_with_subst(
@@ -160,6 +186,7 @@ pub fn infer(self: *@This(), expr: *const Expr, ctx: *Context) !*Record {
                 body_record.subst,
             );
         },
+
         else => unreachable,
     };
 }
@@ -168,6 +195,7 @@ pub fn apply_subst_to_type(
     self: *@This(),
     subst: *Substitutions,
     node_type: *NodeType,
+    expr: *const Expr,
 ) !*NodeType {
     return switch (node_type.*) {
         .named => node_type,
@@ -175,8 +203,9 @@ pub fn apply_subst_to_type(
         .function => |function_type| try self.create_node_type(
             NodeType{
                 .function = .{
-                    .from = try self.apply_subst_to_type(subst, function_type.from),
-                    .to = try self.apply_subst_to_type(subst, function_type.to),
+                    .from = try self.apply_subst_to_type(subst, function_type.from, expr),
+                    .to = try self.apply_subst_to_type(subst, function_type.to, expr),
+                    .expr = expr,
                 },
             },
         ),
@@ -185,27 +214,27 @@ pub fn apply_subst_to_type(
 
 // apply given substitution to each type in the context's environment
 // Doesn't change the input context, but returns a new one
-pub fn apply_subst_to_ctx(self: *@This(), subst: *Substitutions, ctx: *Context) !*Context {
+pub fn apply_subst_to_ctx(self: *@This(), subst: *Substitutions, ctx: *Context, expr: *const Expr) !*Context {
     const new_ctx = try ctx.clone();
     const env_clone = try new_ctx.env.clone();
 
     for (env_clone.keys()) |key| {
         const node_type = env_clone.get(key).?;
-        try new_ctx.env.put(key, try self.apply_subst_to_type(subst, node_type));
+        try new_ctx.env.put(key, try self.apply_subst_to_type(subst, node_type, expr));
     }
 
     return new_ctx;
     // new_ctx.env.iterator()
 }
 
-fn compose_subst(self: *@This(), s1: *Substitutions, s2: *Substitutions) !*Substitutions {
+fn compose_subst(self: *@This(), s1: *Substitutions, s2: *Substitutions, expr: *const Expr) !*Substitutions {
     const result = try self.create_subst();
 
     var iter_s2 = s2.iterator();
     while (iter_s2.next()) |record| {
         try result.put(
             record.key_ptr.*,
-            try self.apply_subst_to_type(s1, record.value_ptr.*),
+            try self.apply_subst_to_type(s1, record.value_ptr.*, expr),
         );
     }
 
@@ -263,7 +292,7 @@ fn create_record_with_subst(self: *@This(), node_type: NodeType, subst: *Substit
     return record;
 }
 
-fn unify(self: *@This(), a: *NodeType, b: *NodeType) !*Substitutions {
+fn unify(self: *@This(), a: *NodeType, b: *NodeType, expr: *const Expr) !*Substitutions {
     if (tag(a.*) == .named and tag(b.*) == .named and b.named.id == a.named.id) {
         return try self.create_subst();
     } else if (tag(a.*) == .variable) {
@@ -271,24 +300,25 @@ fn unify(self: *@This(), a: *NodeType, b: *NodeType) !*Substitutions {
     } else if (tag(b.*) == .variable) {
         return try self.var_bind(b.variable.id, a);
     } else if (tag(a.*) == .function and tag(b.*) == .function) {
-        var s1 = try self.unify(a.function.from, b.function.from);
+        var s1 = try self.unify(a.function.from, b.function.from, expr);
         var s2 = try self.unify(
-            try self.apply_subst_to_type(s1, a.function.to),
-            try self.apply_subst_to_type(s1, b.function.to),
+            try self.apply_subst_to_type(s1, a.function.to, expr),
+            try self.apply_subst_to_type(s1, b.function.to, expr),
+            expr,
         );
-        return try self.compose_subst(s1, s2);
+        return try self.compose_subst(s1, s2, expr);
     } else unreachable;
 }
 
-fn var_bind(self: *@This(), tid: TID, t: *NodeType) !*Substitutions {
-    if (tag(t.*) == .variable and t.variable.id == tid) {
+fn var_bind(self: *@This(), tid: TID, node_type: *NodeType) !*Substitutions {
+    if (tag(node_type.*) == .variable and node_type.variable.id == tid) {
         return try self.create_subst();
-    } else if (contains(t, tid)) {
+    } else if (contains(node_type, tid)) {
         // throw `Type ${typeToString(t)} contains a reference to itself`;
         return TypeError.CircularReference;
     } else {
         const subst = try self.create_subst();
-        try subst.put(tid, t);
+        try subst.put(tid, node_type);
         return subst;
     }
 }
@@ -395,9 +425,10 @@ const Context = struct {
         };
     }
 
-    pub fn new_type_var(self: *@This()) NodeType {
+    pub fn new_type_var(self: *@This(), expr: *const Expr) NodeType {
         return NodeType{ .variable = .{
             .id = self.inc(),
+            .expr = expr,
         } };
     }
 

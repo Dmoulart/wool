@@ -1,1 +1,70 @@
-{"function":{"from":{"variable":{"id":2}},"to":{"variable":{"id":2}}}}
+[
+  {
+    "named": { "id": 0, "expr": { "Literal": { "value": { "Number": 1.0 } } } }
+  },
+  {
+    "function": {
+      "from": {
+        "variable": {
+          "id": 2,
+          "expr": {
+            "Function": {
+              "args": [
+                {
+                  "name": {
+                    "type": { "IDENTIFIER": "arg" },
+                    "lexeme": "arg",
+                    "line": 5
+                  },
+                  "type": {
+                    "type": { "IDENTIFIER": "i32" },
+                    "lexeme": "i32",
+                    "line": 5
+                  }
+                }
+              ],
+              "body": { "Literal": { "value": { "Number": 1.0 } } },
+              "name": null,
+              "type": {
+                "type": { "IDENTIFIER": "i32" },
+                "lexeme": "i32",
+                "line": 5
+              }
+            }
+          }
+        }
+      },
+      "to": {
+        "named": {
+          "id": 0,
+          "expr": { "Literal": { "value": { "Number": 1.0 } } }
+        }
+      },
+      "expr": {
+        "Function": {
+          "args": [
+            {
+              "name": {
+                "type": { "IDENTIFIER": "arg" },
+                "lexeme": "arg",
+                "line": 5
+              },
+              "type": {
+                "type": { "IDENTIFIER": "i32" },
+                "lexeme": "i32",
+                "line": 5
+              }
+            }
+          ],
+          "body": { "Literal": { "value": { "Number": 1.0 } } },
+          "name": null,
+          "type": {
+            "type": { "IDENTIFIER": "i32" },
+            "lexeme": "i32",
+            "line": 5
+          }
+        }
+      }
+    }
+  }
+]

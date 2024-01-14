@@ -1,8 +1,8 @@
 
 
-func :: arg_b i32 -> i32 arg_b
+// func :: arg_b i32 -> i32 arg_b 
 
-arg i32 -> i32 func(arg)
+arg i32 -> i32 1
 
 /* main :: -> void {
 
