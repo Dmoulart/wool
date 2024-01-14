@@ -10,7 +10,7 @@ substs: std.ArrayList(Substitutions),
 
 node_types: std.ArrayList(NodeType),
 
-const Substitutions = std.AutoHashMap(TID, *NodeType);
+const Substitutions = std.AutoHashMap(TypeID, *NodeType);
 
 const TypeError = error{
     InvalidType,
@@ -30,12 +30,12 @@ const TypeError = error{
 
 const Err = ErrorReporter(TypeError);
 
-pub const TID = u32;
+pub const TypeID = u64;
 
-pub const NUMBER_ID = 0;
-pub const I32_ID = 1;
-pub const F32_ID = 2;
-pub const BOOL_ID = 3;
+pub const NUMBER_ID = 1;
+pub const I32_ID = 2;
+pub const F32_ID = 3;
+pub const BOOL_ID = 4;
 
 pub const NodeTypes = enum {
     named,
@@ -45,11 +45,12 @@ pub const NodeTypes = enum {
 
 pub const NodeType = union(NodeTypes) {
     named: struct {
-        id: TID,
+        id: TypeID,
         expr: *const Expr,
     },
     variable: struct {
-        id: TID,
+        // parent_id: TypeID,
+        id: TypeID,
         expr: *const Expr,
     },
     function: struct {
@@ -100,10 +101,14 @@ pub fn infer(self: *@This(), expr: *const Expr, ctx: *Context) !*Record {
                     },
                 },
             ),
-            .Number => try self.create_record(
+            .Number => |num| try self.create_record(
                 .{
                     .named = .{
-                        .id = NUMBER_ID,
+                        .id = switch (Type.get_number_type(num)) {
+                            .i32, .i64 => I32_ID,
+                            .f32, .f64 => F32_ID,
+                            else => unreachable,
+                        },
                         .expr = expr,
                     },
                 },
@@ -118,44 +123,13 @@ pub fn infer(self: *@This(), expr: *const Expr, ctx: *Context) !*Record {
                 .PLUS => {
                     const left_record = try self.infer(binary.left, ctx);
 
-                    const s_left = try self.unify(
-                        left_record.type,
-                        try self.create_node_type(
-                            NodeType{
-                                .named = .{
-                                    .expr = expr,
-                                    .id = NUMBER_ID,
-                                },
-                            },
-                        ),
-                        binary.left,
-                    );
+                    const right_record = try self.infer(binary.right, ctx);
 
-                    const ctx1 = try self.apply_subst_to_ctx(
-                        try self.compose_subst(
-                            left_record.subst,
-                            s_left,
-                            binary.left,
-                        ),
-                        ctx,
+                    const s = try self.unify(
+                        left_record.type,
+                        right_record.type,
                         expr,
                     );
-
-                    const right_record = try self.infer(binary.right, ctx1);
-
-                    const s_right = try self.unify(
-                        right_record.type,
-                        try self.create_node_type(
-                            NodeType{
-                                .named = .{
-                                    .expr = binary.right,
-                                    .id = NUMBER_ID,
-                                },
-                            },
-                        ),
-                        binary.right,
-                    );
-                    const s = try self.compose_subst(s_left, s_right, expr);
 
                     const left_type = try self.apply_subst_to_type(s, left_record.type, binary.left);
                     const right_type = try self.apply_subst_to_type(s, right_record.type, binary.right);
@@ -165,14 +139,68 @@ pub fn infer(self: *@This(), expr: *const Expr, ctx: *Context) !*Record {
                     const result_s = try self.compose_subst(s, s_2, expr);
 
                     return try self.create_record_with_subst(
-                        (try self.apply_subst_to_type(
-                            s_2,
-                            right_type,
-                            expr,
-                        )).*,
+                        left_type.*,
                         result_s,
                     );
                 },
+                // .PLUS => {
+                //     const left_record = try self.infer(binary.left, ctx);
+
+                //     const s_left = try self.unify(
+                //         left_record.type,
+                //         try self.create_node_type(
+                //             NodeType{
+                //                 .named = .{
+                //                     .expr = expr,
+                //                     .id = NUMBER_ID,
+                //                 },
+                //             },
+                //         ),
+                //         binary.left,
+                //     );
+
+                //     const ctx1 = try self.apply_subst_to_ctx(
+                //         try self.compose_subst(
+                //             left_record.subst,
+                //             s_left,
+                //             binary.left,
+                //         ),
+                //         ctx,
+                //         expr,
+                //     );
+
+                //     const right_record = try self.infer(binary.right, ctx1);
+
+                //     const s_right = try self.unify(
+                //         right_record.type,
+                //         try self.create_node_type(
+                //             NodeType{
+                //                 .named = .{
+                //                     .expr = binary.right,
+                //                     .id = NUMBER_ID,
+                //                 },
+                //             },
+                //         ),
+                //         binary.right,
+                //     );
+                //     const s = try self.compose_subst(s_left, s_right, expr);
+
+                //     const left_type = try self.apply_subst_to_type(s, left_record.type, binary.left);
+                //     const right_type = try self.apply_subst_to_type(s, right_record.type, binary.right);
+
+                //     const s_2 = try self.unify(left_type, right_type, expr);
+
+                //     const result_s = try self.compose_subst(s, s_2, expr);
+
+                //     return try self.create_record_with_subst(
+                //         (try self.apply_subst_to_type(
+                //             s_2,
+                //             right_type,
+                //             expr,
+                //         )).*,
+                //         result_s,
+                //     );
+                // },
 
                 else => unreachable,
             };
@@ -405,6 +433,12 @@ fn create_record_with_subst(self: *@This(), node_type: NodeType, subst: *Substit
 fn unify(self: *@This(), a: *NodeType, b: *NodeType, expr: *const Expr) !*Substitutions {
     if (tag(a.*) == .named and tag(b.*) == .named and b.named.id == a.named.id) {
         return try self.create_subst();
+    } else if (tag(a.*) == .named and a.named.id == I32_ID and tag(b.*) == .named and b.named.id == F32_ID) {
+        a.named.id = F32_ID;
+        return try self.create_subst();
+    } else if (tag(b.*) == .named and b.named.id == I32_ID and tag(a.*) == .named and a.named.id == F32_ID) {
+        b.named.id = F32_ID;
+        return try self.create_subst();
     } else if (tag(a.*) == .variable) {
         return try self.var_bind(a.variable.id, b);
     } else if (tag(b.*) == .variable) {
@@ -423,7 +457,7 @@ fn unify(self: *@This(), a: *NodeType, b: *NodeType, expr: *const Expr) !*Substi
     }
 }
 
-fn var_bind(self: *@This(), tid: TID, node_type: *NodeType) !*Substitutions {
+fn var_bind(self: *@This(), tid: TypeID, node_type: *NodeType) !*Substitutions {
     if (tag(node_type.*) == .variable and node_type.variable.id == tid) {
         return try self.create_subst();
     } else if (contains(node_type, tid)) {
@@ -436,7 +470,7 @@ fn var_bind(self: *@This(), tid: TID, node_type: *NodeType) !*Substitutions {
     }
 }
 
-fn contains(t: *NodeType, tid: TID) bool {
+fn contains(t: *NodeType, tid: TypeID) bool {
     return switch (t.*) {
         .named => false,
         .variable => |variable| variable.id == tid,
@@ -526,7 +560,7 @@ fn in_assignation(self: *@This()) bool {
 // }
 
 const Context = struct {
-    next: TID,
+    next: TypeID,
     env: Env,
     allocator: std.mem.Allocator,
 
@@ -545,7 +579,7 @@ const Context = struct {
         } };
     }
 
-    pub fn inc(self: *@This()) TID {
+    pub fn inc(self: *@This()) TypeID {
         self.next += 1;
         return self.next;
     }
@@ -584,7 +618,11 @@ pub fn jsonPrint(value: anytype, file_path: []const u8) !void {
 
 fn to_node_type(self: *@This(), @"type": Type, expr: *const Expr) !*NodeType {
     if (@"type".is_number()) {
-        return try self.create_node_type(NodeType{ .named = .{ .expr = expr, .id = NUMBER_ID } });
+        return try self.create_node_type(NodeType{ .named = .{ .expr = expr, .id = switch (@"type") {
+            .i32, .i64 => I32_ID,
+            .f32, .f64 => F32_ID,
+            else => unreachable,
+        } } });
     } else {
         return try self.create_node_type(NodeType{ .named = .{ .expr = expr, .id = BOOL_ID } });
     }

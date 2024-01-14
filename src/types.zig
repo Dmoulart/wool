@@ -98,6 +98,15 @@ pub const Type = enum {
         return number_type == .f32 or number_type == .f64;
     }
 
+    pub fn get_number_type(number: f64) Type {
+        return blk: {
+            if (is_float_value(number)) {
+                break :blk if (number > floatMax(f32)) .f64 else .f32;
+            } else {
+                break :blk if (number > maxInt(i32)) .i64 else .i32;
+            }
+        };
+    }
     // pub fn to_binaryen_literal(@"type": Type, value: anytype) c.BinaryenLiteral {
     //     return switch (@"type") {
     //         .i32 => c.BinaryenLiteralInt32(value),
@@ -107,3 +116,8 @@ pub const Type = enum {
     //     };
     // }
 };
+inline fn is_float_value(number: f64) bool {
+    return @rem(number, 1) != 0;
+}
+const floatMax = std.math.floatMax;
+const maxInt = std.math.maxInt;
