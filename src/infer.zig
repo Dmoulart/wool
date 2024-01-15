@@ -26,13 +26,13 @@ const TypeError = error{
     UnboundVariable,
     CircularReference,
     TypeMismatch,
+    BodyTypeMismatchReturnType,
 };
 
 const Err = ErrorReporter(TypeError);
 
 pub const TypeID = u64;
 
-pub const NUMBER_ID = 1;
 pub const I32_ID = 2;
 pub const F32_ID = 3;
 pub const BOOL_ID = 4;
@@ -41,6 +41,7 @@ pub const NodeTypes = enum {
     named,
     variable,
     function,
+    binary,
 };
 
 pub const NodeType = union(NodeTypes) {
@@ -58,6 +59,20 @@ pub const NodeType = union(NodeTypes) {
         to: *NodeType,
         expr: *const Expr,
     },
+    binary: struct {
+        left: *NodeType,
+        right: *NodeType,
+        expr: *const Expr,
+    },
+
+    pub fn get_type_id(self: NodeType) TypeID {
+        return switch (self) {
+            .named => |*named| named.id,
+            .variable => |*variable| variable.id,
+            .function => |function| function.to.get_type_id(),
+            .binary => |binary| binary.left.get_type_id(),
+        };
+    }
 };
 
 pub const Record = struct {
@@ -139,10 +154,15 @@ pub fn infer(self: *@This(), expr: *const Expr, ctx: *Context) !*Record {
                     const result_s = try self.compose_subst(s, s_2, expr);
 
                     return try self.create_record_with_subst(
-                        left_type.*,
+                        NodeType{ .function = .{
+                            .from = left_type,
+                            .to = right_type,
+                            .expr = expr,
+                        } },
                         result_s,
                     );
                 },
+
                 // .PLUS => {
                 //     const left_record = try self.infer(binary.left, ctx);
 
@@ -282,8 +302,12 @@ pub fn infer(self: *@This(), expr: *const Expr, ctx: *Context) !*Record {
             try func_ctx.add(param.name.lexeme, param_type);
 
             const body_record = try self.infer(function.body.?, func_ctx);
-            const body_substs = try self.unify(body_record.type, func_return_type, function.body.?);
-            _ = body_substs;
+
+            if (body_record.type.get_type_id() != func_return_type.get_type_id()) {
+                std.debug.print("\n --- BodyTypeMismatchReturnType --- \n Expected {} \n Found {} \n", .{ func_return_type.get_type_id(), body_record.type.get_type_id() });
+                return TypeError.BodyTypeMismatchReturnType;
+            }
+            // const body_substs = try self.unify(body_record.type, func_return_type, function.body.?);
 
             const inferred_type = NodeType{
                 .function = .{
@@ -292,9 +316,8 @@ pub fn infer(self: *@This(), expr: *const Expr, ctx: *Context) !*Record {
                     .expr = expr,
                 },
             };
-            return self.create_record_with_subst(
+            return self.create_record(
                 inferred_type,
-                body_record.subst,
             );
         },
         // Polymorphic function def
@@ -339,6 +362,15 @@ pub fn apply_subst_to_type(
                 .function = .{
                     .from = try self.apply_subst_to_type(subst, function_type.from, expr),
                     .to = try self.apply_subst_to_type(subst, function_type.to, expr),
+                    .expr = expr,
+                },
+            },
+        ),
+        .binary => |binary| try self.create_node_type(
+            NodeType{
+                .binary = .{
+                    .left = try self.apply_subst_to_type(subst, binary.left, expr),
+                    .right = try self.apply_subst_to_type(subst, binary.right, expr),
                     .expr = expr,
                 },
             },
@@ -451,8 +483,53 @@ fn unify(self: *@This(), a: *NodeType, b: *NodeType, expr: *const Expr) !*Substi
             expr,
         );
         return try self.compose_subst(s1, s2, expr);
-    } else {
-        std.debug.print("--Type mismatch-- \n Expected {any}\n    Found {any}\n", .{ a, b });
+    } else if (tag(a.*) == .function and tag(b.*) == .named) {
+        var s_from = try self.unify(a.function.from, b, expr);
+        var s_to = try self.unify(a.function.to, b, expr);
+
+        var res_s = try self.compose_subst(s_from, s_to, expr);
+
+        var s2 = try self.unify(
+            try self.apply_subst_to_type(res_s, a.function.from, expr),
+            try self.apply_subst_to_type(res_s, b, expr),
+            expr,
+        );
+        return s2;
+    } else if (tag(a.*) == .named and tag(b.*) == .function) {
+        var s_from = try self.unify(b.function.from, a, expr);
+        var s_to = try self.unify(b.function.to, a, expr);
+
+        var res_s = try self.compose_subst(s_from, s_to, expr);
+
+        var s2 = try self.unify(
+            try self.apply_subst_to_type(res_s, b.function.from, expr),
+            try self.apply_subst_to_type(res_s, a, expr),
+            expr,
+        );
+        return s2;
+    }
+    // else if (tag(a.*) == .binary and tag(b.*) == .binary) {
+    //     var s1 = try self.unify(a.binary.right, b.binary.right, expr);
+    //     var s2 = try self.unify(
+    //         try self.apply_subst_to_type(s1, a.binary.left, expr),
+    //         try self.apply_subst_to_type(s1, b.binary.left, expr),
+    //         expr,
+    //     );
+    //     return try self.compose_subst(s1, s2, expr);
+    // } else if (tag(a.*) == .binary) {
+    //     var s1 = try self.unify(a.binary.left, b.binary.right, expr);
+    //     var s2 = try self.unify(
+    //         a.binary.left,
+    //         try self.apply_subst_to_type(s1, b.binary.right, expr),
+    //         expr,
+    //     );
+    //     return try self.compose_subst(s1, s2, expr);
+    // }
+    else {
+        std.debug.print("--Type mismatch-- \n Expected {any}\n    Found {any}\n", .{
+            a.get_type_id(),
+            b.get_type_id(),
+        });
         return TypeError.TypeMismatch;
     }
 }
@@ -473,8 +550,9 @@ fn var_bind(self: *@This(), tid: TypeID, node_type: *NodeType) !*Substitutions {
 fn contains(t: *NodeType, tid: TypeID) bool {
     return switch (t.*) {
         .named => false,
-        .variable => |variable| variable.id == tid,
-        .function => |function| contains(function.from, tid) or contains(function.to, tid),
+        .variable => |*variable| variable.id == tid,
+        .function => |*function| contains(function.from, tid) or contains(function.to, tid),
+        .binary => |*binary| contains(binary.left, tid) or contains(binary.right, tid),
     };
 }
 
