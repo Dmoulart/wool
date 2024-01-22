@@ -16,6 +16,7 @@ pub const Type = enum {
     bool,
     void,
     func,
+    variable,
 
     pub fn from_str(str: []const u8) !Type {
         // use meta functions for enums

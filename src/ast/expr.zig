@@ -64,7 +64,7 @@ pub const Expr = union(enum) {
     };
 
     pub const Literal = struct {
-        const Value = union(enum) {
+        pub const Value = union(enum) {
             String: []const u8,
             Number: f64,
             Boolean: bool,
