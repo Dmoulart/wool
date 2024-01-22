@@ -463,19 +463,22 @@ fn create_record_with_subst(self: *@This(), node_type: NodeType, subst: *Substit
 }
 
 fn unify(self: *@This(), a: *NodeType, b: *NodeType, expr: *const Expr) !*Substitutions {
-    if (tag(a.*) == .named and tag(b.*) == .named and b.named.id == a.named.id) {
+    const tag_a = tag(a.*);
+    const tag_b = tag(b.*);
+    
+    if (tag_a == .named and tag_b == .named and b.named.id == a.named.id) {
         return try self.create_subst();
-    } else if (tag(a.*) == .named and a.named.id == I32_ID and tag(b.*) == .named and b.named.id == F32_ID) {
+    } else if (tag_a == .named and a.named.id == I32_ID and tag_b == .named and b.named.id == F32_ID) {
         a.named.id = F32_ID;
         return try self.create_subst();
-    } else if (tag(b.*) == .named and b.named.id == I32_ID and tag(a.*) == .named and a.named.id == F32_ID) {
+    } else if (tag_b == .named and b.named.id == I32_ID and tag_a == .named and a.named.id == F32_ID) {
         b.named.id = F32_ID;
         return try self.create_subst();
-    } else if (tag(a.*) == .variable) {
+    } else if (tag_a == .variable) {
         return try self.var_bind(a.variable.id, b);
-    } else if (tag(b.*) == .variable) {
+    } else if (tag_b == .variable) {
         return try self.var_bind(b.variable.id, a);
-    } else if (tag(a.*) == .function and tag(b.*) == .function) {
+    } else if (tag_a == .function and tag_b == .function) {
         var s1 = try self.unify(a.function.from, b.function.from, expr);
         var s2 = try self.unify(
             try self.apply_subst_to_type(s1, a.function.to, expr),
@@ -483,7 +486,7 @@ fn unify(self: *@This(), a: *NodeType, b: *NodeType, expr: *const Expr) !*Substi
             expr,
         );
         return try self.compose_subst(s1, s2, expr);
-    } else if (tag(a.*) == .function and tag(b.*) == .named) {
+    } else if (tag_a == .function and tag_b == .named) {
         var s_from = try self.unify(a.function.from, b, expr);
         var s_to = try self.unify(a.function.to, b, expr);
 
@@ -495,7 +498,7 @@ fn unify(self: *@This(), a: *NodeType, b: *NodeType, expr: *const Expr) !*Substi
             expr,
         );
         return s2;
-    } else if (tag(a.*) == .named and tag(b.*) == .function) {
+    } else if (tag_a == .named and tag_b == .function) {
         var s_from = try self.unify(b.function.from, a, expr);
         var s_to = try self.unify(b.function.to, a, expr);
 
@@ -508,7 +511,7 @@ fn unify(self: *@This(), a: *NodeType, b: *NodeType, expr: *const Expr) !*Substi
         );
         return s2;
     }
-    // else if (tag(a.*) == .binary and tag(b.*) == .binary) {
+    // else if (tag_a == .binary and tag_b == .binary) {
     //     var s1 = try self.unify(a.binary.right, b.binary.right, expr);
     //     var s2 = try self.unify(
     //         try self.apply_subst_to_type(s1, a.binary.left, expr),
@@ -516,7 +519,7 @@ fn unify(self: *@This(), a: *NodeType, b: *NodeType, expr: *const Expr) !*Substi
     //         expr,
     //     );
     //     return try self.compose_subst(s1, s2, expr);
-    // } else if (tag(a.*) == .binary) {
+    // } else if (tag_a == .binary) {
     //     var s1 = try self.unify(a.binary.left, b.binary.right, expr);
     //     var s2 = try self.unify(
     //         a.binary.left,
