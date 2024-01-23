@@ -101,13 +101,15 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Record {
                 },
             };
 
-            const s = try self.unify(infered, type_decl);
+            const s = try self.unify(type_decl, infered);
+
+            const infered_type = apply_subst(s, infered);
 
             return try self.create_record_with_subst(
                 TypeNode{
                     .type = .{
                         .id = type_decl.get_node_id(),
-                        .tid = type_decl.get_type_id(),
+                        .tid = infered_type.get_type_id(),
                     },
                 },
                 s,
@@ -115,9 +117,10 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Record {
         },
         .Literal => |*literal| {
             const substs = try self.create_subst();
+            const id = self.get_next_ID();
             try substs.put(
                 self.allocator,
-                @intFromPtr(expr),
+                id,
                 type_of(literal.value),
             );
 
@@ -125,7 +128,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Record {
                 .{
                     .type = .{
                         .tid = .any,
-                        .id = self.get_next_ID(),
+                        .id = id,
                     },
                 },
                 substs,
@@ -165,6 +168,7 @@ fn unify(self: *@This(), a: TypeNode, b: TypeNode) !*Substitutions {
     const s = try self._unify(a, b);
 
     if (!types_intersects(a.get_type_id(), b.get_type_id())) {
+        std.debug.print("Type Mismatch --\nExpected {}\nFound {}", .{ a.get_type_id(), b.get_type_id() });
         return TypeError.TypeMismatch;
     }
 
@@ -290,13 +294,13 @@ fn is_narrower(tid: TypeID, maybe_narrower: TypeID) bool {
 fn is_subtype(tid: TypeID, maybe_subtype: TypeID) bool {
     const maybe_subtypes = find_subtypes(tid, &type_hierarchy);
     if (maybe_subtypes) |subtypes| {
-        if (subtypes.get(tid)) |subtype| {
+        if (subtypes.get(maybe_subtype)) |subtype| {
             const subtype_tid = switch (subtype.*) {
                 .terminal => |ty| ty.tid,
                 .supertype => |ty| ty.tid,
             };
 
-            if (subtype_tid == tid) {
+            if (subtype_tid == maybe_subtype) {
                 return true;
             }
             for (subtypes.values) |m_subtype| {
@@ -320,6 +324,7 @@ fn find_subtypes(target: TypeID, hierarchy: *const TypeHierarchy) ?*const Subtyp
     return switch (hierarchy.*) {
         .terminal => null,
         .supertype => |supertype| {
+            if (supertype.tid == target) return &supertype.subtypes;
             for (&supertype.subtypes.values) |m_subtype| {
                 if (m_subtype) |subtype| {
                     const subtype_tid = switch (subtype.*) {
@@ -334,11 +339,11 @@ fn find_subtypes(target: TypeID, hierarchy: *const TypeHierarchy) ?*const Subtyp
                         };
                     }
 
-                    if (return switch (subtype.*) {
-                        .terminal => null,
-                        .supertype => |s| &s.subtypes,
-                    }) |subs| {
-                        return find_subtypes(target, subs);
+                    if (switch (subtype.*) {
+                        .terminal => false,
+                        .supertype => true,
+                    }) {
+                        return find_subtypes(target, subtype);
                     }
                 }
             }
@@ -353,8 +358,8 @@ fn types_intersects(a: TypeID, b: TypeID) bool {
         return true;
     }
 
-    const a_is_terminal = find_subtypes(a, &type_hierarchy) != null;
-    const b_is_terminal = find_subtypes(b, &type_hierarchy) != null;
+    const a_is_terminal = find_subtypes(a, &type_hierarchy) == null;
+    const b_is_terminal = find_subtypes(b, &type_hierarchy) == null;
 
     if (!a_is_terminal and is_subtype(a, b)) {
         return true;
