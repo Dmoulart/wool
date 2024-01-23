@@ -8,6 +8,8 @@ records: std.ArrayListUnmanaged(Record),
 
 type_nodes: std.ArrayListUnmanaged(TypeNode),
 
+next_id: NodeID = 0,
+
 const NodeID = usize;
 
 pub const TypeID = enum {
@@ -31,8 +33,15 @@ pub const VarType = struct {
 };
 
 const TypeNode = union(enum) {
-    type: TypeID,
+    type: MonoType,
     vartype: VarType,
+
+    pub fn get_node_id(self: TypeNode) NodeID {
+        return switch (self) {
+            .type => |*ty| ty.id,
+            .vartype => |*varty| varty.id,
+        };
+    }
 
     pub fn get_type_id(self: TypeNode) TypeID {
         return switch (self) {
@@ -44,12 +53,12 @@ const TypeNode = union(enum) {
 
 const Substitutions = std.AutoHashMapUnmanaged(NodeID, TypeID);
 
-const TypeError = error{};
+const TypeError = error{ TypeMismatch, UnknwownType };
 
 const Err = ErrorReporter(TypeError);
 
 pub const Record = struct {
-    type: TypeNode,
+    node: TypeNode,
     subst: *Substitutions,
 };
 
@@ -72,7 +81,7 @@ pub fn infer_program(self: *@This()) !*std.ArrayListUnmanaged(Record) {
     var types = std.ArrayList(TypeNode).init(self.allocator);
 
     for (self.records.items) |rec| {
-        try types.append(rec.type);
+        try types.append(rec.node);
     }
 
     try jsonPrint(types.items, "./types.json");
@@ -82,6 +91,28 @@ pub fn infer_program(self: *@This()) !*std.ArrayListUnmanaged(Record) {
 
 pub fn infer(self: *@This(), expr: *const Expr) !*Record {
     return switch (expr.*) {
+        .ConstInit => |*const_init| {
+            const record = try self.infer(const_init.initializer);
+            const infered = apply_subst(record.subst, record.node);
+            const type_decl = TypeNode{
+                .type = .{
+                    .id = self.get_next_ID(),
+                    .tid = if (const_init.type) |decl| try type_from_str(decl.lexeme) else .any,
+                },
+            };
+
+            const s = try self.unify(infered, type_decl);
+
+            return try self.create_record_with_subst(
+                TypeNode{
+                    .type = .{
+                        .id = type_decl.get_node_id(),
+                        .tid = type_decl.get_type_id(),
+                    },
+                },
+                s,
+            );
+        },
         .Literal => |*literal| {
             const substs = try self.create_subst();
             try substs.put(
@@ -91,269 +122,266 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Record {
             );
 
             return try self.create_record_with_subst(
-                TypeNode{ .type = .any },
+                .{
+                    .type = .{
+                        .tid = .any,
+                        .id = self.get_next_ID(),
+                    },
+                },
                 substs,
             );
         },
         else => unreachable,
-
-        // .Grouping => |grouping| {
-        //     return try self.infer(grouping.expr, ctx);
-        // },
-        // .Binary => |binary| {
-        //     return switch (binary.op.type) {
-        //         .PLUS => {
-        //             const left_record = try self.infer(binary.left, ctx);
-
-        //             const right_record = try self.infer(binary.right, ctx);
-
-        //             const s = try self.unify(
-        //                 left_record.type,
-        //                 right_record.type,
-        //                 expr,
-        //             );
-
-        //             const left_type = try self.apply_subst_to_type(s, left_record.type, binary.left);
-        //             const right_type = try self.apply_subst_to_type(s, right_record.type, binary.right);
-
-        //             const s_2 = try self.unify(left_type, right_type, expr);
-
-        //             const result_s = try self.compose_subst(s, s_2, expr);
-
-        //             return try self.create_record_with_subst(
-        //                 TypeNode{ .function = .{
-        //                     .from = left_type,
-        //                     .to = right_type,
-        //                     .expr = expr,
-        //                 } },
-        //                 result_s,
-        //             );
-        //         },
-
-        //         // .PLUS => {
-        //         //     const left_record = try self.infer(binary.left, ctx);
-
-        //         //     const s_left = try self.unify(
-        //         //         left_record.type,
-        //         //         try self.create_type_node(
-        //         //             TypeNode{
-        //         //                 .named = .{
-        //         //                     .expr = expr,
-        //         //                     .id = NUMBER_ID,
-        //         //                 },
-        //         //             },
-        //         //         ),
-        //         //         binary.left,
-        //         //     );
-
-        //         //     const ctx1 = try self.apply_subst_to_ctx(
-        //         //         try self.compose_subst(
-        //         //             left_record.subst,
-        //         //             s_left,
-        //         //             binary.left,
-        //         //         ),
-        //         //         ctx,
-        //         //         expr,
-        //         //     );
-
-        //         //     const right_record = try self.infer(binary.right, ctx1);
-
-        //         //     const s_right = try self.unify(
-        //         //         right_record.type,
-        //         //         try self.create_type_node(
-        //         //             TypeNode{
-        //         //                 .named = .{
-        //         //                     .expr = binary.right,
-        //         //                     .id = NUMBER_ID,
-        //         //                 },
-        //         //             },
-        //         //         ),
-        //         //         binary.right,
-        //         //     );
-        //         //     const s = try self.compose_subst(s_left, s_right, expr);
-
-        //         //     const left_type = try self.apply_subst_to_type(s, left_record.type, binary.left);
-        //         //     const right_type = try self.apply_subst_to_type(s, right_record.type, binary.right);
-
-        //         //     const s_2 = try self.unify(left_type, right_type, expr);
-
-        //         //     const result_s = try self.compose_subst(s, s_2, expr);
-
-        //         //     return try self.create_record_with_subst(
-        //         //         (try self.apply_subst_to_type(
-        //         //             s_2,
-        //         //             right_type,
-        //         //             expr,
-        //         //         )).*,
-        //         //         result_s,
-        //         //     );
-        //         // },
-
-        //         else => unreachable,
-        //     };
-        // },
-        // .ConstInit => |const_init| {
-        //     var ret = try self.infer(const_init.initializer, ctx);
-
-        //     try ctx.add(const_init.name.lexeme, ret.type);
-
-        //     return ret;
-        // },
-        // .Variable => |variable| {
-        //     if (ctx.env.get(variable.name.lexeme)) |type_node| {
-        //         return try self.create_record(type_node.*);
-        //     } else {
-        //         return TypeError.UnboundVariable;
-        //     }
-        // },
-        // .Call => |call| {
-        //     const func_record = try self.infer(call.callee, ctx);
-        //     const arg_record = try self.infer(
-        //         call.args[0],
-        //         try self.apply_subst_to_ctx(func_record.subst, ctx, expr),
-        //     );
-        //     const new_var = try self.create_type_node(ctx.new_type_var(expr));
-        //     const s3 = try self.compose_subst(func_record.subst, arg_record.subst, expr);
-        //     const new_func_call = try self.create_type_node(TypeNode{ .function = .{
-        //         .from = arg_record.type,
-        //         .to = new_var,
-        //         .expr = expr,
-        //     } });
-        //     const s4 = try self.unify(new_func_call, func_record.type, expr);
-        //     const func_type_1 = try self.apply_subst_to_type(
-        //         s4,
-        //         func_record.type,
-        //         expr,
-        //     );
-        //     const s5 = try self.compose_subst(s3, s4, expr);
-        //     const s6 = try self.unify(
-        //         try self.apply_subst_to_type(
-        //             s5,
-        //             func_type_1.function.from,
-        //             expr,
-        //         ),
-        //         arg_record.type,
-        //         expr,
-        //     );
-        //     const result_subst = try self.compose_subst(s5, s6, expr);
-
-        //     const ret = try self.create_record_with_subst(
-        //         (try self.apply_subst_to_type(
-        //             result_subst,
-        //             func_type_1.function.to,
-        //             expr,
-        //         )).*,
-        //         result_subst,
-        //     );
-
-        //     return ret;
-        //     // return self.apply_subst_to_type(result_subst, func_type_1.function.to)
-        // },
-        // .Function => |function| {
-        //     const func_return_type = try self.to_type_node(
-        //         try Type.from_str(function.type.lexeme),
-        //         expr,
-        //     );
-
-        //     const func_ctx = try ctx.clone();
-
-        //     const param = function.args.?[0];
-        //     const param_type = try self.to_type_node(
-        //         try Type.from_str(param.type.lexeme),
-        //         expr,
-        //     );
-
-        //     if (function.name) |func_name| {
-        //         try func_ctx.add(func_name.lexeme, func_return_type);
-        //     }
-        //     try func_ctx.add(param.name.lexeme, param_type);
-
-        //     const body_record = try self.infer(function.body.?, func_ctx);
-
-        //     if (body_record.type.get_type_id() != func_return_type.get_type_id()) {
-        //         std.debug.print("\n --- BodyTypeMismatchReturnType --- \n Expected {} \n Found {} \n", .{ func_return_type.get_type_id(), body_record.type.get_type_id() });
-        //         return TypeError.BodyTypeMismatchReturnType;
-        //     }
-        //     // const body_substs = try self.unify(body_record.type, func_return_type, function.body.?);
-
-        //     const inferred_type = TypeNode{
-        //         .function = .{
-        //             .from = param_type,
-        //             .to = func_return_type,
-        //             .expr = expr,
-        //         },
-        //     };
-        //     return self.create_record(
-        //         inferred_type,
-        //     );
-        // },
-
     };
 }
 
-pub fn apply_subst_to_type(
-    self: *@This(),
+pub fn apply_subst(
     subst: *Substitutions,
-    type_node: *TypeNode,
-    expr: *const Expr,
-) !*TypeNode {
-    return switch (type_node.*) {
-        .named => type_node,
-        .variable => |var_type| if (subst.get(var_type.id)) |t| t else type_node,
-        .function => |function_type| try self.create_type_node(
-            TypeNode{
-                .function = .{
-                    .from = try self.apply_subst_to_type(subst, function_type.from, expr),
-                    .to = try self.apply_subst_to_type(subst, function_type.to, expr),
-                    .expr = expr,
-                },
+    type_node: TypeNode,
+) TypeNode {
+    return switch (type_node) {
+        .type => |ty| .{
+            .type = .{
+                .id = ty.id,
+                .tid = subst.get(ty.id) orelse ty.tid,
             },
-        ),
-        .binary => |binary| try self.create_type_node(
-            TypeNode{
-                .binary = .{
-                    .left = try self.apply_subst_to_type(subst, binary.left, expr),
-                    .right = try self.apply_subst_to_type(subst, binary.right, expr),
-                    .expr = expr,
-                },
+        },
+        .vartype => |ty| .{
+            .vartype = .{
+                .id = ty.id,
+                .name = ty.name,
+                .tid = subst.get(ty.id) orelse ty.tid,
             },
-        ),
+        },
     };
 }
 
-// apply given substitution to each type in the context's environment
-// Doesn't change the input context, but returns a new one
-// pub fn apply_subst_to_ctx(self: *@This(), subst: *Substitutions, ctx: *Context, expr: *const Expr) !*Context {
-//     const new_ctx = try ctx.clone();
-//     const env_clone = try new_ctx.env.clone();
+fn get_next_ID(self: *@This()) NodeID {
+    self.next_id += 1;
+    return self.next_id;
+}
 
-//     for (env_clone.keys()) |key| {
-//         const type_node = env_clone.get(key).?;
-//         try new_ctx.env.put(key, try self.apply_subst_to_type(
-//             subst,
-//             type_node,
-//             expr,
-//         ));
-//     }
+fn unify(self: *@This(), a: TypeNode, b: TypeNode) !*Substitutions {
+    const s = try self._unify(a, b);
 
-//     return new_ctx;
-//     // new_ctx.env.iterator()
-// }
+    if (!types_intersects(a.get_type_id(), b.get_type_id())) {
+        return TypeError.TypeMismatch;
+    }
 
-fn compose_subst(self: *@This(), s1: *Substitutions, s2: *Substitutions, expr: *const Expr) !*Substitutions {
+    return s;
+}
+
+fn _unify(self: *@This(), a: TypeNode, b: TypeNode) !*Substitutions {
+    const s1 = try self.coerce(a, b);
+    const s2 = try self.substitute(a, b);
+
+    return try self.compose_subst(s1, s2);
+}
+
+fn coerce(self: *@This(), a: TypeNode, b: TypeNode) !*Substitutions {
+    const tid_a = a.get_type_id();
+    const tid_b = b.get_type_id();
+
+    const s = try self.create_subst();
+
+    if ((tid_a == .number or tid_a == .float) and (tid_b == .number or tid_b == .float)) {
+        if ((tid_a == .float and tid_b != .float) or (tid_b == .float and tid_a != .float)) {
+            try s.put(self.allocator, a.get_node_id(), .float);
+            try s.put(self.allocator, b.get_node_id(), .float);
+        }
+    }
+
+    return s;
+}
+
+fn substitute(self: *@This(), a: TypeNode, b: TypeNode) !*Substitutions {
+    const tid_a = a.get_type_id();
+    const tid_b = b.get_type_id();
+
+    if (is_narrower(tid_a, tid_b)) {
+        const s = try self.create_subst();
+        try s.put(self.allocator, a.get_node_id(), b.get_type_id());
+        return s;
+    }
+
+    return try self.create_subst();
+}
+
+// const TypeHierarchy = union(enum) {
+//     terminal,
+//     subtypes: std.EnumArray(TypeID, *TypeHierarchy),
+// };
+
+// const TypeHierarchy = union(enum) {
+//     terminal: TypeID,
+//     supertype: struct { tid: TypeID, subtypes: std.EnumArray(TypeID, *TypeHierarchy) },
+// };
+const Subtypes = std.EnumArray(TypeID, ?*const TypeHierarchy);
+const TypeHierarchy = union(enum) {
+    terminal: struct { tid: TypeID },
+    supertype: struct { tid: TypeID, subtypes: Subtypes },
+
+    pub fn get_type_id(self: *TypeHierarchy) TypeID {
+        return switch (self.*) {
+            .terminal => |terminal| terminal.tid,
+            .supertype => |supertype| supertype.tid,
+        };
+    }
+
+    pub fn get_subtypes(self: *TypeHierarchy) ?*Subtypes {
+        return if (tag(self.*) == .supertype) &self.supertype.subtypes else null;
+    }
+};
+
+const int_type: TypeHierarchy = .{
+    .terminal = .{ .tid = .int },
+};
+const float_type: TypeHierarchy = .{
+    .terminal = .{ .tid = .float },
+};
+const bool_type: TypeHierarchy = .{
+    .terminal = .{ .tid = .bool },
+};
+const string_type: TypeHierarchy = .{
+    .terminal = .{ .tid = .string },
+};
+
+const any_subtypes: Subtypes = blk: {
+    var subtypes = Subtypes.initFill(null);
+
+    var number_subtypes = Subtypes.initFill(null);
+    number_subtypes.set(.int, &float_type);
+    number_subtypes.set(.float, &int_type);
+
+    var number_type: TypeHierarchy = .{
+        .supertype = .{
+            .tid = .number,
+            .subtypes = number_subtypes,
+        },
+    };
+
+    subtypes.set(
+        .number,
+        &number_type,
+    );
+    subtypes.set(
+        .bool,
+        &bool_type,
+    );
+    subtypes.set(
+        .string,
+        &string_type,
+    );
+
+    break :blk subtypes;
+};
+
+const type_hierarchy = TypeHierarchy{
+    .supertype = .{
+        .tid = .any,
+        .subtypes = any_subtypes,
+    },
+};
+
+fn is_narrower(tid: TypeID, maybe_narrower: TypeID) bool {
+    return is_subtype(tid, maybe_narrower);
+}
+
+fn is_subtype(tid: TypeID, maybe_subtype: TypeID) bool {
+    const maybe_subtypes = find_subtypes(tid, &type_hierarchy);
+    if (maybe_subtypes) |subtypes| {
+        if (subtypes.get(tid)) |subtype| {
+            const subtype_tid = switch (subtype.*) {
+                .terminal => |ty| ty.tid,
+                .supertype => |ty| ty.tid,
+            };
+
+            if (subtype_tid == tid) {
+                return true;
+            }
+            for (subtypes.values) |m_subtype| {
+                if (m_subtype) |sub| {
+                    const subtype_tid_2 = switch (sub.*) {
+                        .terminal => |ty| ty.tid,
+                        .supertype => |ty| ty.tid,
+                    };
+                    if (is_subtype(subtype_tid_2, maybe_subtype)) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+    }
+    return false;
+}
+
+fn find_subtypes(target: TypeID, hierarchy: *const TypeHierarchy) ?*const Subtypes {
+    return switch (hierarchy.*) {
+        .terminal => null,
+        .supertype => |supertype| {
+            for (&supertype.subtypes.values) |m_subtype| {
+                if (m_subtype) |subtype| {
+                    const subtype_tid = switch (subtype.*) {
+                        .terminal => |ty| ty.tid,
+                        .supertype => |ty| ty.tid,
+                    };
+
+                    if (subtype_tid == target) {
+                        return switch (subtype.*) {
+                            .terminal => null,
+                            .supertype => |s| &s.subtypes,
+                        };
+                    }
+
+                    if (return switch (subtype.*) {
+                        .terminal => null,
+                        .supertype => |s| &s.subtypes,
+                    }) |subs| {
+                        return find_subtypes(target, subs);
+                    }
+                }
+            }
+
+            return null;
+        },
+    };
+}
+
+fn types_intersects(a: TypeID, b: TypeID) bool {
+    if (a == b) {
+        return true;
+    }
+
+    const a_is_terminal = find_subtypes(a, &type_hierarchy) != null;
+    const b_is_terminal = find_subtypes(b, &type_hierarchy) != null;
+
+    if (!a_is_terminal and is_subtype(a, b)) {
+        return true;
+    }
+
+    if (!b_is_terminal and is_subtype(b, a)) {
+        return true;
+    }
+
+    return false;
+}
+
+fn compose_subst(self: *@This(), s1: *Substitutions, s2: *Substitutions) !*Substitutions {
     const result = try self.create_subst();
 
     var iter_s2 = s2.iterator();
     while (iter_s2.next()) |record| {
         try result.put(
+            self.allocator,
             record.key_ptr.*,
-            try self.apply_subst_to_type(s1, record.value_ptr.*, expr),
+            record.value_ptr.*,
         );
     }
 
     var iter_s1 = s1.iterator();
     while (iter_s1.next()) |record| {
-        try result.put(record.key_ptr.*, record.value_ptr.*);
+        try result.put(self.allocator, record.key_ptr.*, record.value_ptr.*);
     }
 
     return result;
@@ -398,113 +426,12 @@ fn create_record_with_subst(self: *@This(), type_node: TypeNode, subst: *Substit
     // create record
     var record = try self.records.addOne(self.allocator);
     record.* = Record{
-        .type = type_node_ptr.*,
+        .node = type_node_ptr.*,
         .subst = subst,
     };
 
     return record;
 }
-
-// fn unify(self: *@This(), a: *TypeNode, b: *TypeNode, expr: *const Expr) !*Substitutions {
-//     const tag_a = tag(a.*);
-//     const tag_b = tag(b.*);
-
-//     if (tag_a == .named and tag_b == .named and b.named.id == a.named.id) {
-//         return try self.create_subst();
-//     } else if (tag_a == .named and a.named.id == I32_ID and tag_b == .named and b.named.id == F32_ID) {
-//         a.named.id = F32_ID;
-//         return try self.create_subst();
-//     } else if (tag_b == .named and b.named.id == I32_ID and tag_a == .named and a.named.id == F32_ID) {
-//         b.named.id = F32_ID;
-//         return try self.create_subst();
-//     } else if (tag_a == .variable) {
-//         return try self.var_bind(a.variable.id, b);
-//     } else if (tag_b == .variable) {
-//         return try self.var_bind(b.variable.id, a);
-//     } else if (tag_a == .function and tag_b == .function) {
-//         var s1 = try self.unify(a.function.from, b.function.from, expr);
-//         var s2 = try self.unify(
-//             try self.apply_subst_to_type(s1, a.function.to, expr),
-//             try self.apply_subst_to_type(s1, b.function.to, expr),
-//             expr,
-//         );
-//         return try self.compose_subst(s1, s2, expr);
-//     } else if (tag_a == .function and tag_b == .named) {
-//         var s_from = try self.unify(a.function.from, b, expr);
-//         var s_to = try self.unify(a.function.to, b, expr);
-
-//         var res_s = try self.compose_subst(s_from, s_to, expr);
-
-//         var s2 = try self.unify(
-//             try self.apply_subst_to_type(res_s, a.function.from, expr),
-//             try self.apply_subst_to_type(res_s, b, expr),
-//             expr,
-//         );
-//         return s2;
-//     } else if (tag_a == .named and tag_b == .function) {
-//         var s_from = try self.unify(b.function.from, a, expr);
-//         var s_to = try self.unify(b.function.to, a, expr);
-
-//         var res_s = try self.compose_subst(s_from, s_to, expr);
-
-//         var s2 = try self.unify(
-//             try self.apply_subst_to_type(res_s, b.function.from, expr),
-//             try self.apply_subst_to_type(res_s, a, expr),
-//             expr,
-//         );
-//         return s2;
-//     }
-//     // else if (tag_a == .binary and tag_b == .binary) {
-//     //     var s1 = try self.unify(a.binary.right, b.binary.right, expr);
-//     //     var s2 = try self.unify(
-//     //         try self.apply_subst_to_type(s1, a.binary.left, expr),
-//     //         try self.apply_subst_to_type(s1, b.binary.left, expr),
-//     //         expr,
-//     //     );
-//     //     return try self.compose_subst(s1, s2, expr);
-//     // } else if (tag_a == .binary) {
-//     //     var s1 = try self.unify(a.binary.left, b.binary.right, expr);
-//     //     var s2 = try self.unify(
-//     //         a.binary.left,
-//     //         try self.apply_subst_to_type(s1, b.binary.right, expr),
-//     //         expr,
-//     //     );
-//     //     return try self.compose_subst(s1, s2, expr);
-//     // }
-//     else {
-//         std.debug.print("--Type mismatch-- \n Expected {any}\n    Found {any}\n", .{
-//             a.get_type_id(),
-//             b.get_type_id(),
-//         });
-//         return TypeError.TypeMismatch;
-//     }
-// }
-
-// fn var_bind(self: *@This(), tid: TypeID, type_node: *TypeNode) !*Substitutions {
-//     if (tag(type_node.*) == .variable and type_node.variable.id == tid) {
-//         return try self.create_subst();
-//     } else if (contains(type_node, tid)) {
-//         // throw `Type ${typeToString(t)} contains a reference to itself`;
-//         return TypeError.CircularReference;
-//     } else {
-//         const subst = try self.create_subst();
-//         try subst.put(tid, type_node);
-//         return subst;
-//     }
-// }
-
-// fn contains(t: *TypeNode, tid: TypeID) bool {
-//     return switch (t.*) {
-//         .named => false,
-//         .variable => |*variable| variable.id == tid,
-//         .function => |*function| contains(function.from, tid) or contains(function.to, tid),
-//         .binary => |*binary| contains(binary.left, tid) or contains(binary.right, tid),
-//     };
-// }
-
-// fn in_assignation(self: *@This()) bool {
-//     return self.ctx.in(&.{ "VarInit", "ConstInit" }) != null;
-// }
 
 fn type_of(value: Expr.Literal.Value) TypeID {
     return switch (value) {
@@ -515,125 +442,10 @@ fn type_of(value: Expr.Literal.Value) TypeID {
     };
 }
 
-// fn get_target_type(self: *@This()) ?Type {
-//     if (self.ctx.in(&.{ "VarInit", "ConstInit" })) |frame| {
-//         if (frame.type) |frame_type| {
-//             return frame_type;
-//         }
-//     }
-//     return null;
-// }
-
-// fn infer_type(expr: *const Expr) !?Type {
-//     return switch (expr.*) {
-//         .Literal => |literal| {
-//             return switch (literal.value) {
-//                 .Number => |number| {
-//                     const is_float = @rem(number, 1) != 0;
-//                     if (is_float) {
-//                         return if (number > floatMax(f32)) .f64 else .f32;
-//                     } else {
-//                         return if (number > maxInt(i32)) .i64 else .i32;
-//                     }
-//                 },
-//                 else => TypeError.CannotInferType,
-//             };
-//         },
-//         .Function => .func,
-//         else => TypeError.CannotInferType,
-//     };
-// }
-//@todo remove -> put this in types
-// inline fn is_number_type(@"type": Type) bool {
-//     return switch (@"type") {
-//         .i32, .i64, .f32, .f64 => true,
-//         else => false,
-//     };
-// }
-
 inline fn is_float_value(number: f64) bool {
     return @rem(number, 1) != 0;
 }
 
-// inline fn is_integer_type(number_type: Type) bool {
-//     return number_type == .i32 or number_type == .i64;
-// }
-
-// inline fn is_foat_type(number_type: Type) bool {
-//     return number_type == .f32 or number_type == .f64;
-// }
-
-// fn infer_number_type(number: f64) Type {
-//     return blk: {
-//         if (is_float_value(number)) {
-//             break :blk if (number > floatMax(f32)) .f64 else .f32;
-//         } else {
-//             break :blk if (number > maxInt(i32)) .i64 else .i32;
-//         }
-//     };
-// }
-
-// fn coerce_number_types(a: Type, b: Type) Type {
-//     if (a != b) {
-//         const size_of_left = a.size_of();
-//         const size_of_right = b.size_of();
-
-//         if (size_of_left == size_of_right) {
-//             if (is_foat_type(a) and !is_foat_type(b)) {
-//                 return a;
-//             } else if (is_foat_type(b) and !is_foat_type(a)) {
-//                 return b;
-//             }
-//         } else {
-//             return if (size_of_left >= size_of_right) a else b;
-//         }
-//     }
-
-//     return a;
-// }
-
-// const Context = struct {
-//     next: TypeID,
-//     env: Env,
-//     allocator: std.mem.Allocator,
-
-//     pub fn init(allocator: std.mem.Allocator) @This() {
-//         return .{
-//             .allocator = allocator,
-//             .env = Env.init(allocator),
-//             .next = BOOL_ID,
-//         };
-//     }
-
-//     pub fn new_type_var(self: *@This(), expr: *const Expr) TypeNode {
-//         return TypeNode{ .variable = .{
-//             .id = self.inc(),
-//             .expr = expr,
-//         } };
-//     }
-
-//     pub fn inc(self: *@This()) TypeID {
-//         self.next += 1;
-//         return self.next;
-//     }
-
-//     pub fn clone(self: *@This()) !*@This() {
-//         const new_next = self.next;
-//         const new_env = try self.env.clone();
-//         const new_allocator = self.allocator;
-
-//         var new_ctx = try self.allocator.create(Context);
-//         new_ctx.allocator = new_allocator;
-//         new_ctx.env = new_env;
-//         new_ctx.next = new_next;
-
-//         return new_ctx;
-//     }
-
-//     pub fn add(self: *@This(), name: []const u8, type_node: *TypeNode) !void {
-//         try self.env.put(name, type_node);
-//     }
-// };
 pub fn jsonPrint(value: anytype, file_path: []const u8) !void {
     var out = std.ArrayList(u8).init(std.heap.page_allocator);
     defer out.deinit();
@@ -648,7 +460,24 @@ pub fn jsonPrint(value: anytype, file_path: []const u8) !void {
 
     _ = try file.writeAll(try out.toOwnedSlice());
 }
-
+pub fn type_from_str(str: []const u8) !TypeID {
+    // use meta functions for enums
+    if (std.mem.eql(u8, str, "i32")) {
+        return .int;
+    } else if (std.mem.eql(u8, str, "i64")) {
+        return .int;
+    } else if (std.mem.eql(u8, str, "f32")) {
+        return .float;
+    } else if (std.mem.eql(u8, str, "f64")) {
+        return .float;
+    } else if (std.mem.eql(u8, str, "void")) {
+        unreachable;
+    } else if (std.mem.eql(u8, str, "bool")) {
+        return .bool;
+    } else {
+        return TypeError.UnknwownType;
+    }
+}
 // fn to_type_node(self: *@This(), @"type": Type, expr: *const Expr) !*TypeNode {
 //     if (@"type".is_number()) {
 //         return try self.create_type_node(TypeNode{ .named = .{ .expr = expr, .id = switch (@"type") {

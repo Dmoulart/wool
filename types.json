@@ -1,1 +1,1 @@
-[{ "type": "any" }]
+[{ "type": { "id": 1, "tid": "any" } }, { "type": { "id": 2, "tid": "any" } }]
