@@ -209,16 +209,6 @@ fn substitute(self: *@This(), a: TypeNode, b: TypeNode) !*Substitutions {
 
     return try self.create_subst();
 }
-
-// const TypeHierarchy = union(enum) {
-//     terminal,
-//     subtypes: std.EnumArray(TypeID, *TypeHierarchy),
-// };
-
-// const TypeHierarchy = union(enum) {
-//     terminal: TypeID,
-//     supertype: struct { tid: TypeID, subtypes: std.EnumArray(TypeID, *TypeHierarchy) },
-// };
 const Subtypes = std.EnumArray(TypeID, ?*const TypeHierarchy);
 const TypeHierarchy = union(enum) {
     terminal: struct { tid: TypeID },
@@ -365,7 +355,7 @@ fn types_intersects(a: TypeID, b: TypeID) bool {
 
 fn compose_subst(self: *@This(), s1: *Substitutions, s2: *Substitutions) !*Substitutions {
     const result = try self.create_subst();
-
+    
     var iter_s2 = s2.iterator();
     while (iter_s2.next()) |record| {
         try result.put(
@@ -386,8 +376,6 @@ fn compose_subst(self: *@This(), s1: *Substitutions, s2: *Substitutions) !*Subst
 fn create_type_node(self: *@This(), type_node: TypeNode) !*TypeNode {
     var type_node_ptr = try self.type_nodes.addOne();
     type_node_ptr.* = type_node;
-    // const result = self.records.getOrPut(expr) catch return TypeError.AlreadyRegisteredRecord;
-    // result.value_ptr.* = record;
     return type_node_ptr;
 }
 
