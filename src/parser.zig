@@ -805,9 +805,6 @@ fn create_expr(self: *Self, expr: Expr) ParserError!*Expr {
 fn match(self: *Self, comptime types: []const Token.Types) bool {
     for (types) |token_type| {
         if (self.check(@as(Token.Types, token_type))) {
-            if (token_type == .IDENTIFIER and std.mem.eql(u8, self.peek().lexeme, "a")) {
-                std.debug.print("debug", .{});
-            }
             _ = self.advance();
             return true;
         }

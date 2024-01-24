@@ -69,7 +69,6 @@ pub fn init(allocator: std.mem.Allocator, ast: []*Expr) @This() {
         .records = .{},
         .type_nodes = .{},
         .substs = .{},
-        // .ctx = Context.init(allocator),
     };
 }
 
@@ -168,7 +167,7 @@ fn unify(self: *@This(), a: TypeNode, b: TypeNode) !*Substitutions {
     const s = try self._unify(a, b);
 
     if (!types_intersects(a.get_type_id(), b.get_type_id())) {
-        std.debug.print("Type Mismatch --\nExpected {}\nFound {}", .{ a.get_type_id(), b.get_type_id() });
+        std.debug.print("\nType Mismatch --\nExpected : {}\nFound : {}\n", .{ a.get_type_id(), b.get_type_id() });
         return TypeError.TypeMismatch;
     }
 
@@ -291,30 +290,22 @@ fn is_narrower(tid: TypeID, maybe_narrower: TypeID) bool {
     return is_subtype(tid, maybe_narrower);
 }
 
-fn is_subtype(tid: TypeID, maybe_subtype: TypeID) bool {
-    const maybe_subtypes = find_subtypes(tid, &type_hierarchy);
-    if (maybe_subtypes) |subtypes| {
-        if (subtypes.get(maybe_subtype)) |subtype| {
-            const subtype_tid = switch (subtype.*) {
-                .terminal => |ty| ty.tid,
-                .supertype => |ty| ty.tid,
-            };
+fn is_subtype(supertype: TypeID, maybe_subtype: TypeID) bool {
+    if (find_subtypes(supertype, &type_hierarchy)) |subtypes| {
+        if (subtypes.get(maybe_subtype)) |_| {
+            return true;
+        }
 
-            if (subtype_tid == maybe_subtype) {
-                return true;
-            }
-            for (subtypes.values) |m_subtype| {
-                if (m_subtype) |sub| {
-                    const subtype_tid_2 = switch (sub.*) {
-                        .terminal => |ty| ty.tid,
-                        .supertype => |ty| ty.tid,
-                    };
-                    if (is_subtype(subtype_tid_2, maybe_subtype)) {
-                        return true;
-                    }
+        for (subtypes.values) |subtype| {
+            if (subtype) |sub| {
+                const subtype_tid_2 = switch (sub.*) {
+                    .terminal => |ty| ty.tid,
+                    .supertype => |ty| ty.tid,
+                };
+                if (is_subtype(subtype_tid_2, maybe_subtype)) {
+                    return true;
                 }
             }
-            return false;
         }
     }
     return false;
