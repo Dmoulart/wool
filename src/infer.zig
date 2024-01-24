@@ -92,7 +92,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Record {
     return switch (expr.*) {
         .ConstInit => |*const_init| {
             const record = try self.infer(const_init.initializer);
-            const infered = apply_subst(record.subst, record.node);
+            const infered = apply_subst(record.subst, &record.node);
             const type_decl = TypeNode{
                 .type = .{
                     .id = self.get_next_ID(),
@@ -100,7 +100,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Record {
                 },
             };
 
-            const s = try self.unify(type_decl, infered);
+            const s = try self.unify(type_decl, infered.*);
 
             const infered_type = apply_subst(s, infered);
 
@@ -139,9 +139,9 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Record {
 
 pub fn apply_subst(
     subst: *Substitutions,
-    type_node: TypeNode,
-) TypeNode {
-    return switch (type_node) {
+    type_node: *TypeNode,
+) *TypeNode {
+    const node: TypeNode = switch (type_node.*) {
         .type => |ty| .{
             .type = .{
                 .id = ty.id,
@@ -156,6 +156,8 @@ pub fn apply_subst(
             },
         },
     };
+    type_node.* = node;
+    return type_node;
 }
 
 fn get_next_ID(self: *@This()) NodeID {
@@ -167,7 +169,10 @@ fn unify(self: *@This(), a: TypeNode, b: TypeNode) !*Substitutions {
     const s = try self._unify(a, b);
 
     if (!types_intersects(a.get_type_id(), b.get_type_id())) {
-        std.debug.print("\nType Mismatch --\nExpected : {}\nFound : {}\n", .{ a.get_type_id(), b.get_type_id() });
+        std.debug.print(
+            "\nType Mismatch --\nExpected : {}\nFound : {}\n",
+            .{ a.get_type_id(), b.get_type_id() },
+        );
         return TypeError.TypeMismatch;
     }
 
@@ -355,7 +360,7 @@ fn types_intersects(a: TypeID, b: TypeID) bool {
 
 fn compose_subst(self: *@This(), s1: *Substitutions, s2: *Substitutions) !*Substitutions {
     const result = try self.create_subst();
-    
+
     var iter_s2 = s2.iterator();
     while (iter_s2.next()) |record| {
         try result.put(
