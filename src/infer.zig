@@ -107,14 +107,14 @@ const TypeHierarchy = union(enum) {
 var add_args = [_]TypeNode{
     .{
         .vartype = .{
-            .id = 112,
+            .id = 999,
             .name = "T",
             .tid = .number,
         },
     },
     .{
         .vartype = .{
-            .id = 113,
+            .id = 999,
             .name = "T",
             .tid = .number,
         },
@@ -122,7 +122,7 @@ var add_args = [_]TypeNode{
 };
 var add_return_type = .{
     .vartype = .{
-        .id = 114,
+        .id = 999,
         .name = "T",
         .tid = .number,
     },
