@@ -1,1 +1,1 @@
-[{"type":{"id":1,"tid":"any"}},{"type":{"id":2,"tid":"string"}}]
+[{"type":{"type":{"id":1,"tid":"float"}},"expr":{"Literal":{"value":{"Number":1.5e+00}}}},{"type":{"type":{"id":2,"tid":"float"}},"expr":{"ConstInit":{"name":{"type":{"IDENTIFIER":"a"},"lexeme":"a","line":1},"initializer":{"Literal":{"value":{"Number":1.5e+00}}},"type":null}}}]
