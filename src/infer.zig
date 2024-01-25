@@ -312,9 +312,7 @@ fn call(self: *@This(), name: []const u8, args: []*const Expr, ctx: *Context, ex
         if (function.args.len != args.len) {
             return TypeError.WrongArgumentsNumber;
         }
-        var t = type_hierarchy;
-        std.debug.print("\n{}\n", .{t});
-        // var call_ctx = try ctx.clone();
+
         var call_ctx: *Context = try self.contexts.addOne(self.allocator);
         call_ctx.* = try ctx.clone();
 
@@ -326,7 +324,7 @@ fn call(self: *@This(), name: []const u8, args: []*const Expr, ctx: *Context, ex
             const is_vartype = tag(fn_arg.*) == .vartype;
 
             if (is_vartype) {
-                fn_arg = (try call_ctx.get_or_create_var(fn_arg));
+                fn_arg = (try call_ctx.get_or_put_var(fn_arg));
             }
 
             var record = try self.infer(expr_arg, call_ctx);
@@ -674,7 +672,7 @@ const Context = struct {
         try self.variables.put(type_node.vartype.name, type_node);
     }
 
-    pub fn get_or_create_var(self: *@This(), type_node: *TypeNode) !*TypeNode {
+    pub fn get_or_put_var(self: *@This(), type_node: *TypeNode) !*TypeNode {
         if (self.get_variable(type_node.vartype.name)) |type_variable| {
             return type_variable;
         }
