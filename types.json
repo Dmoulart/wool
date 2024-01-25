@@ -1,1 +1,36 @@
-[{"type":{"type":{"id":1,"tid":"float"}},"expr":{"Literal":{"value":{"Number":1.5e+00}}}},{"type":{"type":{"id":2,"tid":"float"}},"expr":{"ConstInit":{"name":{"type":{"IDENTIFIER":"a"},"lexeme":"a","line":1},"initializer":{"Literal":{"value":{"Number":1.5e+00}}},"type":null}}}]
+[
+  {
+    "type": { "type": { "id": 1, "tid": "float" } },
+    "expr": { "Literal": { "value": { "Number": 1.5 } } }
+  },
+  {
+    "type": { "type": { "id": 2, "tid": "number" } },
+    "expr": { "Literal": { "value": { "Number": 1.0 } } }
+  },
+  {
+    "type": { "vartype": { "id": 114, "tid": "number", "name": "T" } },
+    "expr": {
+      "Binary": {
+        "left": { "Literal": { "value": { "Number": 1.5 } } },
+        "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
+        "right": { "Literal": { "value": { "Number": 1.0 } } }
+      }
+    }
+  },
+  {
+    "type": { "type": { "id": 3, "tid": "number" } },
+    "expr": {
+      "ConstInit": {
+        "name": { "type": { "IDENTIFIER": "a" }, "lexeme": "a", "line": 1 },
+        "initializer": {
+          "Binary": {
+            "left": { "Literal": { "value": { "Number": 1.5 } } },
+            "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
+            "right": { "Literal": { "value": { "Number": 1.0 } } }
+          }
+        },
+        "type": null
+      }
+    }
+  }
+]

@@ -83,6 +83,7 @@ pub const FunType = struct {
 };
 
 const Subtypes = std.EnumArray(TypeID, ?*const TypeHierarchy);
+// const Subtypes = ComptimeEnumMap(TypeID, ?*const TypeHierarchy)
 const TypeHierarchy = union(enum) {
     terminal: struct { tid: TypeID },
     supertype: struct { tid: TypeID, subtypes: Subtypes },
@@ -311,7 +312,8 @@ fn call(self: *@This(), name: []const u8, args: []*const Expr, ctx: *Context, ex
         if (function.args.len != args.len) {
             return TypeError.WrongArgumentsNumber;
         }
-
+        var t = type_hierarchy;
+        std.debug.print("\n{}\n", .{t});
         // var call_ctx = try ctx.clone();
         var call_ctx: *Context = try self.contexts.addOne(self.allocator);
         call_ctx.* = try ctx.clone();
@@ -470,7 +472,7 @@ fn find_subtypes(target: TypeID, hierarchy: *const TypeHierarchy) ?*const Subtyp
                     if (subtype_tid == target) {
                         return switch (subtype.*) {
                             .terminal => null,
-                            .supertype => |s| &s.subtypes,
+                            .supertype => &subtype.supertype.subtypes,
                         };
                     }
 
@@ -693,3 +695,31 @@ const Context = struct {
         };
     }
 };
+
+fn ComptimeEnumMap(comptime K: type, comptime V: type) type {
+    return struct {
+        const Self = ComptimeEnumMap(K, V);
+
+        values: [std.meta.fields(K).len]?V,
+        indicies: [std.meta.fields(K).len]bool,
+
+        pub fn init() Self {
+            var self: Self = undefined;
+            @memset(&self.values, null);
+            @memset(&self.indicies, false);
+            return self;
+        }
+
+        pub fn put(self: *Self, comptime key: K, comptime value: V) void {
+            self.indicies[@intFromEnum(key)] = true;
+            self.values[@intFromEnum(key)] = value;
+        }
+
+        pub fn get(self: *Self, comptime key: K) ?V {
+            if (self.indicies[@intFromEnum(key)]) {
+                return self.values[@intFromEnum(key)];
+            }
+            return null;
+        }
+    };
+}
