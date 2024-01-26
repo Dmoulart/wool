@@ -6,7 +6,7 @@ substs: std.ArrayListUnmanaged(Substitutions),
 
 records: std.ArrayListUnmanaged(Record),
 
-type_nodes: std.ArrayListUnmanaged(TypeNode),
+type_nodes: std.AutoArrayHashMapUnmanaged(NodeID, TypeNode),
 
 sems: std.AutoArrayHashMapUnmanaged(*const Expr, *TypeNode),
 
@@ -319,28 +319,28 @@ fn call(self: *@This(), name: []const u8, args: []*const Expr, ctx: *Context, ex
         var substs = try self.create_subst();
 
         for (args, 0..) |expr_arg, i| {
-            var fn_arg = try self.create_type_node(function.args[i]);
+            var arg = try self.get_or_create_type_node(function.args[i]);
 
-            const is_vartype = tag(fn_arg.*) == .vartype;
+            const is_vartype = tag(arg.*) == .vartype;
 
             if (is_vartype) {
-                fn_arg = (try call_ctx.get_or_put_var(fn_arg));
+                arg = try call_ctx.get_or_put_var(arg);
             }
 
             var record = try self.infer(expr_arg, call_ctx);
 
             var infered_arg = apply_subst(record.subst, record.node);
 
-            var s = try self.unify(infered_arg.*, fn_arg.*);
+            var s = try self.unify(infered_arg.*, arg.*);
 
             substs = try self.compose_subst(substs, s);
 
             if (is_vartype) {
-                try call_ctx.put_variable(apply_subst(substs, fn_arg));
+                try call_ctx.put_variable(apply_subst(substs, arg));
             }
         }
 
-        var return_type = try self.create_type_node(function.return_type.*);
+        var return_type = try self.get_or_create_type_node(function.return_type.*);
 
         return try self.create_record_with_subst(
             apply_subst(substs, return_type).*,
@@ -527,15 +527,19 @@ fn compose_subst(self: *@This(), s1: *Substitutions, s2: *Substitutions) !*Subst
     return result;
 }
 
-fn create_type_node(self: *@This(), type_node: TypeNode) !*TypeNode {
-    var type_node_ptr = try self.type_nodes.addOne(self.allocator);
-    type_node_ptr.* = type_node;
-    return type_node_ptr;
+fn get_or_create_type_node(self: *@This(), type_node: TypeNode) !*TypeNode {
+    var result = try self.type_nodes.getOrPut(self.allocator, type_node.get_node_id());
+    if (result.found_existing) {
+        return result.value_ptr;
+    } else {
+        result.value_ptr.* = type_node;
+        return result.value_ptr;
+    }
 }
 
 fn create_record(self: *@This(), type_node: TypeNode) !*Record {
     // create node type
-    var type_node_ptr = try self.create_type_node(type_node);
+    var type_node_ptr = try self.get_or_create_type_node(type_node);
     // create substituions
     const subst = try self.create_subst();
 
@@ -558,8 +562,7 @@ fn create_subst(self: *@This()) !*Substitutions {
 
 fn create_record_with_subst(self: *@This(), type_node: TypeNode, subst: *Substitutions, expr: *const Expr) !*Record {
     // create node type
-    var type_node_ptr = try self.type_nodes.addOne(self.allocator);
-    type_node_ptr.* = type_node;
+    var type_node_ptr = try self.get_or_create_type_node(type_node);
 
     try self.sems.put(self.allocator, expr, type_node_ptr);
 
