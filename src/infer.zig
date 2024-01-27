@@ -64,38 +64,6 @@ const TypeHierarchy = union(enum) {
         return if (tag(self.*) == .supertype) &self.supertype.subtypes else null;
     }
 };
-// var builtins_ids: u32 = 10_000; //@todo find a solution to avoid conflict with runtime ids
-// fn next_builtin_id() u32 {
-//     comptime builtins_ids += 1;
-//     return builtins_ids;
-// }
-var add_args = [_]TypeNode{
-    .{
-        .var_id = 1,
-        .tid = .number,
-    },
-    .{
-        .var_id = 1,
-        .tid = .number,
-    },
-};
-var add_return_type: TypeNode = .{
-    .var_id = 1,
-    .tid = .number,
-};
-
-const builtins_types = std.ComptimeStringMap(
-    FunType,
-    .{
-        .{
-            "+", FunType{
-                .name = "+",
-                .args = &add_args,
-                .return_type = &add_return_type,
-            },
-        },
-    },
-);
 
 const int_type: TypeHierarchy = .{
     .terminal = .{
@@ -235,15 +203,28 @@ pub fn infer(self: *@This(), expr: *const Expr, ctx: *Context) !*Record {
             var args = try self.allocator.alloc(*const Expr, 2);
             args[0] = binary.left;
             args[1] = binary.right;
+            defer {
+                self.allocator.free(args);
+            }
 
             var local_ctx: *Context = try self.contexts.addOne(self.allocator);
             local_ctx.* = try ctx.clone();
 
-            if (builtins_types.get("+")) |function| {
-                return try self.call(function, args, local_ctx, expr);
-            } else {
-                return TypeError.UnknownBuiltin;
-            }
+            const builtin_name = try switch (binary.op.type) {
+                .PLUS => "+",
+                .MINUS => "-",
+                .SLASH => "/",
+                .STAR => "*",
+                .GREATER => ">",
+                .GREATER_EQUAL => ">=",
+                .LESS => "<",
+                .LESS_EQUAL => "<=",
+                .EQUAL_EQUAL => "==",
+                .BANG_EQUAL => "!=",
+                else => TypeError.UnknownBuiltin,
+            };
+
+            return try self.call(builtins_types.get(builtin_name).?, args, local_ctx, expr);
         },
         .Literal => |*literal| {
             const substs = try self.create_subst();
@@ -308,13 +289,11 @@ fn call(self: *@This(), function: FunType, args: []*const Expr, local_ctx: *Cont
 
         if (arg_global_ref.is_var()) |_| {
             record.node = arg_local_ref;
-            std.debug.print("\narg_local-ref : {}\nrecord.node : {}\n", .{ @intFromPtr(arg_local_ref), @intFromPtr(record.node) });
             _ = apply_subst(substs, arg_local_ref);
         }
-        std.debug.print("\nbefore_arg {any} \n", .{before_arg});
         before_arg = record.node;
 
-        try self.log_sems();
+        // try self.log_sems();
     }
     const return_type = if (function.return_type.is_var()) |_|
         try local_ctx.get_var_instance(function.return_type)
@@ -685,3 +664,235 @@ fn ComptimeEnumMap(comptime K: type, comptime V: type) type {
         }
     };
 }
+
+var add_args = [_]TypeNode{
+    .{
+        .var_id = 1,
+        .tid = .number,
+    },
+    .{
+        .var_id = 1,
+        .tid = .number,
+    },
+};
+var add_return_type: TypeNode = .{
+    .var_id = 1,
+    .tid = .number,
+};
+var sub_args = [_]TypeNode{
+    .{
+        .var_id = 1,
+        .tid = .number,
+    },
+    .{
+        .var_id = 1,
+        .tid = .number,
+    },
+};
+var sub_return_type: TypeNode = .{
+    .var_id = 1,
+    .tid = .number,
+};
+
+var mul_args = [_]TypeNode{
+    .{
+        .var_id = 1,
+        .tid = .number,
+    },
+    .{
+        .var_id = 1,
+        .tid = .number,
+    },
+};
+var mul_return_type: TypeNode = .{
+    .var_id = 1,
+    .tid = .number,
+};
+
+var div_args = [_]TypeNode{
+    .{
+        .var_id = 1,
+        .tid = .number,
+    },
+    .{
+        .var_id = 1,
+        .tid = .number,
+    },
+};
+var div_return_type: TypeNode = .{
+    .var_id = 1,
+    .tid = .number,
+};
+
+var equal_equal_args = [_]TypeNode{
+    .{
+        .var_id = 1,
+        .tid = .any,
+    },
+    .{
+        .var_id = 1,
+        .tid = .any,
+    },
+};
+var equal_equal_return_type: TypeNode = .{
+    .var_id = null,
+    .tid = .bool,
+};
+
+var bang_equal_args = [_]TypeNode{
+    .{
+        .var_id = 1,
+        .tid = .any,
+    },
+    .{
+        .var_id = 1,
+        .tid = .any,
+    },
+};
+var bang_equal_return_type: TypeNode = .{
+    .var_id = null,
+    .tid = .bool,
+};
+
+var greater_args = [_]TypeNode{
+    .{
+        .var_id = 1,
+        .tid = .number,
+    },
+    .{
+        .var_id = 1,
+        .tid = .number,
+    },
+};
+var greater_return_type: TypeNode = .{
+    .var_id = null,
+    .tid = .bool,
+};
+
+var greater_equal_args = [_]TypeNode{
+    .{
+        .var_id = 1,
+        .tid = .number,
+    },
+    .{
+        .var_id = 1,
+        .tid = .number,
+    },
+};
+var greater_equal_return_type: TypeNode = .{
+    .var_id = null,
+    .tid = .bool,
+};
+
+var less_args = [_]TypeNode{
+    .{
+        .var_id = 1,
+        .tid = .number,
+    },
+    .{
+        .var_id = 1,
+        .tid = .number,
+    },
+};
+var less_return_type: TypeNode = .{
+    .var_id = null,
+    .tid = .bool,
+};
+
+var less_equal_args = [_]TypeNode{
+    .{
+        .var_id = 1,
+        .tid = .number,
+    },
+    .{
+        .var_id = 1,
+        .tid = .number,
+    },
+};
+var less_equal_return_type: TypeNode = .{
+    .var_id = null,
+    .tid = .bool,
+};
+
+//   .GREATER => ">",
+//                 .GREATER_EQUAL => ">=",
+//                 .LESS => "<",
+//                 .LESS_EQUAL => "<=",
+//                 .EQUAL_EQUAL => "==",
+//                 .BANG_EQUAL => "!=",
+
+const builtins_types = std.ComptimeStringMap(
+    FunType,
+    .{
+        .{
+            "+", FunType{
+                .name = "+",
+                .args = &add_args,
+                .return_type = &add_return_type,
+            },
+        },
+        .{
+            "-", FunType{
+                .name = "-",
+                .args = &sub_args,
+                .return_type = &sub_return_type,
+            },
+        },
+        .{
+            "*", FunType{
+                .name = "*",
+                .args = &mul_args,
+                .return_type = &mul_return_type,
+            },
+        },
+        .{
+            "/", FunType{
+                .name = "/",
+                .args = &div_args,
+                .return_type = &div_return_type,
+            },
+        },
+        .{
+            ">", FunType{
+                .name = ">",
+                .args = &greater_args,
+                .return_type = &greater_return_type,
+            },
+        },
+        .{
+            ">=", FunType{
+                .name = ">=",
+                .args = &greater_equal_args,
+                .return_type = &greater_equal_return_type,
+            },
+        },
+        .{
+            "<", FunType{
+                .name = "<",
+                .args = &less_args,
+                .return_type = &less_return_type,
+            },
+        },
+        .{
+            "<=", FunType{
+                .name = "<=",
+                .args = &less_equal_args,
+                .return_type = &less_equal_return_type,
+            },
+        },
+        .{
+            "==", FunType{
+                .name = "==",
+                .args = &equal_equal_args,
+                .return_type = &equal_equal_return_type,
+            },
+        },
+        .{
+            "!=", FunType{
+                .name = "!=",
+                .args = &bang_equal_args,
+                .return_type = &bang_equal_return_type,
+            },
+        },
+    },
+);
