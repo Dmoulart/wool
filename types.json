@@ -5,6 +5,10 @@
   },
   {
     "type": { "tid": "float", "var_id": 1 },
+    "expr": { "Literal": { "value": { "Number": 1.0 } } }
+  },
+  {
+    "type": { "tid": "float", "var_id": 1 },
     "expr": { "Literal": { "value": { "Number": 1.5 } } }
   },
   {
@@ -18,6 +22,22 @@
     }
   },
   {
+    "type": { "tid": "float", "var_id": 1 },
+    "expr": {
+      "Binary": {
+        "left": { "Literal": { "value": { "Number": 1.0 } } },
+        "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
+        "right": {
+          "Binary": {
+            "left": { "Literal": { "value": { "Number": 1.0 } } },
+            "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
+            "right": { "Literal": { "value": { "Number": 1.5 } } }
+          }
+        }
+      }
+    }
+  },
+  {
     "type": { "tid": "float", "var_id": null },
     "expr": {
       "ConstInit": {
@@ -26,7 +46,13 @@
           "Binary": {
             "left": { "Literal": { "value": { "Number": 1.0 } } },
             "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
-            "right": { "Literal": { "value": { "Number": 1.5 } } }
+            "right": {
+              "Binary": {
+                "left": { "Literal": { "value": { "Number": 1.0 } } },
+                "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
+                "right": { "Literal": { "value": { "Number": 1.5 } } }
+              }
+            }
           }
         },
         "type": null
