@@ -8,7 +8,7 @@ records: std.ArrayListUnmanaged(Record),
 
 type_nodes: std.ArrayListUnmanaged(TypeNode),
 
-sems: std.AutoArrayHashMapUnmanaged(*const Expr, *TypeNode),
+sems: std.AutoArrayHashMapUnmanaged(*const Expr, *Record),
 
 next_id: NodeID = 0,
 
@@ -184,21 +184,26 @@ pub fn init(allocator: std.mem.Allocator, ast: []*Expr) @This() {
     };
 }
 
-pub fn infer_program(self: *@This()) anyerror!*std.AutoArrayHashMapUnmanaged(*const Expr, *TypeNode) {
+pub fn infer_program(self: *@This()) anyerror!*std.AutoArrayHashMapUnmanaged(*const Expr, *Record) {
     for (self.ast) |expr| {
         _ = try self.infer(expr, &self.ctx);
     }
 
+    try self.log_sems();
+
+    return &self.sems;
+}
+pub fn log_sems(self: *@This()) !void {
     var types = std.ArrayList(struct { type: TypeNode, expr: Expr }).init(self.allocator);
 
     var iter = self.sems.iterator();
+    std.debug.print("\nlog sems\n", .{});
     while (iter.next()) |entry| {
-        try types.append(.{ .type = entry.value_ptr.*.*, .expr = entry.key_ptr.*.* });
+        std.debug.print("\n {any} \n", .{.{ .type = entry.value_ptr.*.*, .expr = entry.key_ptr.*.* }});
+        try types.append(.{ .type = entry.value_ptr.*.*.node.*, .expr = entry.key_ptr.*.* });
     }
 
     try jsonPrint(types.items, "./types.json");
-
-    return &self.sems;
 }
 
 pub fn infer(self: *@This(), expr: *const Expr, ctx: *Context) !*Record {
@@ -268,38 +273,50 @@ fn call(self: *@This(), name: []const u8, args: []*const Expr, local_ctx: *Conte
 
         var substs = try self.create_subst();
 
+        var before_arg: ?*TypeNode = null;
+
         for (args, 0..) |expr_arg, i| {
-            const arg_global_ref = &function.args[i];
-
-            const arg_local_ref = if (arg_global_ref.is_var()) |_|
-                try local_ctx.get_var_instance(arg_global_ref)
-            else
-                arg_global_ref;
-
             var record = try self.infer(expr_arg, local_ctx);
 
             var arg_instance = record.node;
 
             _ = apply_subst(record.subst, arg_instance);
 
-            const arg_subs = try self.unify(arg_instance, arg_local_ref);
+            const arg_global_ref = &function.args[i];
 
-            _ = apply_subst(arg_subs, arg_instance);
+            const arg_local_ref = if (arg_global_ref.is_var()) |var_id| blk: {
+                if (local_ctx.variables.get(var_id)) |var_type| {
+                    break :blk var_type;
+                } else {
+                    var tn = try self.create_type_node(arg_global_ref.*);
+                    try local_ctx.variables.put(local_ctx.allocator, var_id, tn);
+                    break :blk tn;
+                }
+            } else arg_global_ref;
 
-            if (arg_global_ref.is_var()) |_| {
-                _ = apply_subst(arg_subs, arg_local_ref);
-            }
+            const arg_subs = try self.unify(
+                arg_local_ref,
+                arg_instance,
+            );
+
+            _ = apply_subst(arg_subs, arg_local_ref);
 
             substs = try self.compose_subst(substs, arg_subs);
+
+            if (arg_global_ref.is_var()) |_| {
+                record.node = arg_local_ref;
+                std.debug.print("\narg_local-ref : {}\nrecord.node : {}\n", .{ @intFromPtr(arg_local_ref), @intFromPtr(record.node) });
+                _ = apply_subst(substs, arg_local_ref);
+            }
+            std.debug.print("\nbefore_arg {any} \n", .{before_arg});
+            before_arg = record.node;
+
+            try self.log_sems();
         }
-        var return_type_ref = function.return_type;
-
-        const return_type_local_ref = if (return_type_ref.is_var()) |_|
-            try local_ctx.get_var_instance(return_type_ref)
+        const return_type = if (function.return_type.is_var()) |_|
+            try local_ctx.get_var_instance(function.return_type)
         else
-            return_type_ref;
-
-        var return_type = try self.create_type_node(return_type_local_ref.*);
+            function.return_type;
 
         return try self.create_record_with_subst(
             apply_subst(substs, return_type).*,
@@ -507,14 +524,14 @@ fn create_record_with_subst(self: *@This(), type_node: TypeNode, subst: *Substit
     // create node type
     var type_node_ptr = try self.create_type_node(type_node);
 
-    try self.sems.put(self.allocator, expr, type_node_ptr);
-
     // create record
     var record = try self.records.addOne(self.allocator);
     record.* = Record{
         .node = type_node_ptr,
         .subst = subst,
     };
+
+    try self.sems.put(self.allocator, expr, record);
 
     return record;
 }
@@ -620,6 +637,10 @@ const Context = struct {
             return type_node;
         }
         unreachable;
+    }
+
+    pub fn has_var_instance(self: *@This(), var_id: VarID) bool {
+        return self.variables.get(var_id) != null;
     }
 
     pub fn next_id(self: *Context) u32 {

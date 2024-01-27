@@ -1,10 +1,10 @@
 [
   {
-    "type": { "tid": "number", "var_id": null },
+    "type": { "tid": "float", "var_id": 1 },
     "expr": { "Literal": { "value": { "Number": 1.0 } } }
   },
   {
-    "type": { "tid": "float", "var_id": null },
+    "type": { "tid": "float", "var_id": 1 },
     "expr": { "Literal": { "value": { "Number": 1.5 } } }
   },
   {
