@@ -36,6 +36,17 @@ const TypeNode = union(enum) {
         };
     }
 
+    pub fn set_type_id(self: *TypeNode, tid: TypeID) void {
+        return switch (self.*) {
+            .type => {
+                self.type.tid = tid;
+            },
+            .vartype => {
+                self.vartype.tid = tid;
+            },
+        };
+    }
+
     pub fn clone(self: TypeNode) TypeNode {
         return switch (self) {
             .type => |ty| .{
@@ -329,6 +340,10 @@ fn call(self: *@This(), name: []const u8, args: []*const Expr, ctx: *Context, ex
 
             var record = try self.infer(expr_arg, call_ctx);
 
+            if (is_vartype) {
+                try call_ctx.bind_to_variable(record.node, arg.vartype.name);
+            }
+
             var infered_arg = apply_subst(record.subst, record.node);
 
             var s = try self.unify(infered_arg.*, arg.*);
@@ -337,6 +352,7 @@ fn call(self: *@This(), name: []const u8, args: []*const Expr, ctx: *Context, ex
 
             if (is_vartype) {
                 try call_ctx.put_variable(apply_subst(substs, arg));
+                sync_bounded_types_to_vars(call_ctx);
             }
         }
 
@@ -349,6 +365,22 @@ fn call(self: *@This(), name: []const u8, args: []*const Expr, ctx: *Context, ex
         );
     } else {
         return TypeError.UnknownBuiltin;
+    }
+}
+pub fn sync_bounded_types_to_vars(
+    ctx: *Context,
+) void {
+    var iter = ctx.variables.iterator();
+
+    while (iter.next()) |kv| {
+        const var_name = kv.value_ptr.*.vartype.name;
+        const var_tid = kv.value_ptr.*.vartype.tid;
+
+        if (ctx.bounded_types.get(var_name)) |bounded_types| {
+            for (bounded_types.items) |ty| {
+                ty.set_type_id(var_tid);
+            }
+        }
     }
 }
 
@@ -648,19 +680,24 @@ const tag = std.meta.activeTag;
 const Context = struct {
     next_var_id: u32 = 0,
 
-    variables: std.StringHashMap(*TypeNode),
+    variables: std.StringHashMapUnmanaged(*TypeNode),
+
+    //@todo:mem deinit
+    bounded_types: std.StringArrayHashMapUnmanaged(std.ArrayListUnmanaged(*TypeNode)),
 
     allocator: std.mem.Allocator,
 
     pub fn init(allocator: std.mem.Allocator) Context {
         return .{
-            .variables = std.StringHashMap(*TypeNode).init(allocator),
+            .variables = .{},
+            .bounded_types = .{},
             .allocator = allocator,
         };
     }
 
     pub fn deinit(self: *@This()) void {
-        self.variables.deinit();
+        self.variables.deinit(self.allocator);
+        self.bounded_types.deinit(self.allocator);
     }
 
     pub fn has_variable(self: *@This(), variable_name: []const u8) bool {
@@ -672,7 +709,7 @@ const Context = struct {
     }
 
     pub fn put_variable(self: *@This(), type_node: *TypeNode) !void {
-        try self.variables.put(type_node.vartype.name, type_node);
+        try self.variables.put(self.allocator, type_node.vartype.name, type_node);
     }
 
     pub fn get_or_put_var(self: *@This(), type_node: *TypeNode) !*TypeNode {
@@ -681,6 +718,14 @@ const Context = struct {
         }
         try self.put_variable(type_node);
         return type_node;
+    }
+
+    pub fn bind_to_variable(self: *@This(), type_node: *TypeNode, variable_name: []const u8) !void {
+        var result = try self.bounded_types.getOrPut(self.allocator, variable_name);
+        if (!result.found_existing) {
+            result.value_ptr.* = .{};
+        }
+        try result.value_ptr.append(self.allocator, type_node);
     }
 
     pub fn next_id(self: *Context) u32 {
@@ -692,7 +737,8 @@ const Context = struct {
         return .{
             .next_var_id = self.next_var_id,
             .allocator = self.allocator,
-            .variables = try self.variables.clone(),
+            .bounded_types = try self.bounded_types.clone(self.allocator),
+            .variables = try self.variables.clone(self.allocator),
         };
     }
 };
