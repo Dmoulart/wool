@@ -319,11 +319,21 @@ fn call(self: *@This(), function: FunType, exprs_args: []*const Expr, local_ctx:
     else
         function.return_type;
 
-    return try self.create_record_with_subst(
+    _ = apply_subst(substs, call_return_type);
+
+    var ret_type = try self.create_record_with_subst(
         apply_subst(substs, call_return_type).*,
         substs,
         expr,
     );
+    ret_type.node = call_return_type;
+
+    return ret_type;
+    // return try self.create_record_with_subst(
+    //     apply_subst(substs, call_return_type).*,
+    //     substs,
+    //     expr,
+    // );
 }
 
 pub fn apply_subst(
