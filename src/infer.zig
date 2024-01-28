@@ -216,7 +216,8 @@ pub fn infer(self: *@This(), expr: *const Expr, ctx: *Context) !*Record {
             }
 
             var local_ctx: *Context = try self.contexts.addOne(self.allocator);
-            local_ctx.* = try ctx.clone();
+            local_ctx.* = try self.ctx.clone();
+            // local_ctx.* = try ctx.clone();
 
             const builtin_name = try switch (binary.op.type) {
                 .PLUS => "+",
@@ -263,8 +264,8 @@ pub fn infer(self: *@This(), expr: *const Expr, ctx: *Context) !*Record {
     };
 }
 
-fn call(self: *@This(), function: FunType, args: []*const Expr, local_ctx: *Context, expr: *const Expr) anyerror!*Record {
-    if (function.args.len != args.len) {
+fn call(self: *@This(), function: FunType, exprs_args: []*const Expr, local_ctx: *Context, expr: *const Expr) anyerror!*Record {
+    if (function.args.len != exprs_args.len) {
         return TypeError.WrongArgumentsNumber;
     }
     if (std.mem.eql(u8, function.name, "!=")) {
@@ -274,18 +275,20 @@ fn call(self: *@This(), function: FunType, args: []*const Expr, local_ctx: *Cont
 
     var before_arg: ?*TypeNode = null;
 
-    for (args, 0..) |expr_arg, i| {
-        const arg_global_ref = &function.args[i];
-
-        const arg_local_ref = if (arg_global_ref.is_var()) |var_id| blk: {
+    for (exprs_args, function.args) |expr_arg, *function_arg| {
+        const call_arg = if (function_arg.is_var()) |var_id| blk: {
             if (local_ctx.variables.get(var_id)) |var_type| {
                 break :blk var_type;
             } else {
-                var tn = try self.create_type_node(arg_global_ref.*);
-                try local_ctx.variables.put(local_ctx.allocator, var_id, tn);
+                var tn = try self.create_type_node(function_arg.*);
+                try local_ctx.variables.put(
+                    local_ctx.allocator,
+                    var_id,
+                    tn,
+                );
                 break :blk tn;
             }
-        } else arg_global_ref;
+        } else function_arg;
 
         var record = try self.infer(expr_arg, local_ctx);
 
@@ -294,30 +297,30 @@ fn call(self: *@This(), function: FunType, args: []*const Expr, local_ctx: *Cont
         _ = apply_subst(record.subst, arg_instance);
 
         const arg_subs = try self.unify(
-            arg_local_ref,
+            call_arg,
             arg_instance,
         );
 
-        _ = apply_subst(arg_subs, arg_local_ref);
+        _ = apply_subst(arg_subs, call_arg);
 
         substs = try self.compose_subst(substs, arg_subs);
 
-        if (arg_global_ref.is_var()) |_| {
+        if (function_arg.is_var()) |_| {
             // exchange !
             // @todo:mem destroy old node
-            record.node = arg_local_ref;
+            record.node = call_arg;
         }
         before_arg = record.node;
 
         // try self.log_sems();
     }
-    const return_type = if (function.return_type.is_var()) |_|
+    const call_return_type = if (function.return_type.is_var()) |_|
         try local_ctx.get_var_instance(function.return_type)
     else
         function.return_type;
 
     return try self.create_record_with_subst(
-        apply_subst(substs, return_type).*,
+        apply_subst(substs, call_return_type).*,
         substs,
         expr,
     );
@@ -354,10 +357,10 @@ fn unify(self: *@This(), a: *TypeNode, b: *TypeNode) !*Substitutions {
 }
 
 fn _unify(self: *@This(), a: *TypeNode, b: *TypeNode) !*Substitutions {
-    const s1 = try self.coerce(a, b);
+    // const s1 = try self.coerce(a, b);
     const s2 = try self.substitute(a, b);
-
-    return try self.compose_subst(s1, s2);
+    return s2;
+    // return try self.compose_subst(s1, s2);
 }
 
 fn coerce(self: *@This(), a: *TypeNode, b: *TypeNode) !*Substitutions {
