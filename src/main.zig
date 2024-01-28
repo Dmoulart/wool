@@ -91,5 +91,5 @@ const print = std.debug.print;
 const Lexer = @import("./lexer.zig");
 const Parser = @import("./parser.zig");
 const Semer = @import("./semer.zig");
-const Infer = @import("./infer.zig");
+const Infer = @import("./infer-new.zig");
 const Compiler = @import("./compiler.zig");
