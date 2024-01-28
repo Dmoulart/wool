@@ -165,7 +165,6 @@ pub fn log_sems(self: *@This()) !void {
     var types = std.ArrayList(struct { type: TypeNode, expr: Expr }).init(self.allocator);
 
     var iter = self.sems.iterator();
-    std.debug.print("\nlog sems\n", .{});
     while (iter.next()) |entry| {
         // std.debug.print("\n {any} \n", .{.{ .type = entry.value_ptr.*.*, .expr = entry.key_ptr.*.* }});
         try types.append(.{ .type = entry.value_ptr.*.*.node.*, .expr = entry.key_ptr.*.* });
@@ -198,6 +197,15 @@ pub fn infer(self: *@This(), expr: *const Expr, ctx: *Context) !*Record {
                 expr,
             );
         },
+        .Grouping => |*grouping| {
+            var record = try self.infer(grouping.expr, ctx);
+            _ = apply_subst(record.subst, record.node);
+            return try self.create_record_with_subst(
+                record.node.*,
+                record.subst,
+                expr,
+            );
+        },
         .Binary => |*binary| {
             //@todo:mem clean memory
             var args = try self.allocator.alloc(*const Expr, 2);
@@ -224,7 +232,12 @@ pub fn infer(self: *@This(), expr: *const Expr, ctx: *Context) !*Record {
                 else => TypeError.UnknownBuiltin,
             };
 
-            return try self.call(builtins_types.get(builtin_name).?, args, local_ctx, expr);
+            return try self.call(
+                builtins_types.get(builtin_name).?,
+                args,
+                local_ctx,
+                expr,
+            );
         },
         .Literal => |*literal| {
             const substs = try self.create_subst();
@@ -254,18 +267,14 @@ fn call(self: *@This(), function: FunType, args: []*const Expr, local_ctx: *Cont
     if (function.args.len != args.len) {
         return TypeError.WrongArgumentsNumber;
     }
-
+    if (std.mem.eql(u8, function.name, "!=")) {
+        std.debug.print("hello", .{});
+    }
     var substs = try self.create_subst();
 
     var before_arg: ?*TypeNode = null;
 
     for (args, 0..) |expr_arg, i| {
-        var record = try self.infer(expr_arg, local_ctx);
-
-        var arg_instance = record.node;
-
-        _ = apply_subst(record.subst, arg_instance);
-
         const arg_global_ref = &function.args[i];
 
         const arg_local_ref = if (arg_global_ref.is_var()) |var_id| blk: {
@@ -278,6 +287,12 @@ fn call(self: *@This(), function: FunType, args: []*const Expr, local_ctx: *Cont
             }
         } else arg_global_ref;
 
+        var record = try self.infer(expr_arg, local_ctx);
+
+        var arg_instance = record.node;
+
+        _ = apply_subst(record.subst, arg_instance);
+
         const arg_subs = try self.unify(
             arg_local_ref,
             arg_instance,
@@ -288,8 +303,9 @@ fn call(self: *@This(), function: FunType, args: []*const Expr, local_ctx: *Cont
         substs = try self.compose_subst(substs, arg_subs);
 
         if (arg_global_ref.is_var()) |_| {
+            // exchange !
+            // @todo:mem destroy old node
             record.node = arg_local_ref;
-            _ = apply_subst(substs, arg_local_ref);
         }
         before_arg = record.node;
 
@@ -345,17 +361,21 @@ fn _unify(self: *@This(), a: *TypeNode, b: *TypeNode) !*Substitutions {
 }
 
 fn coerce(self: *@This(), a: *TypeNode, b: *TypeNode) !*Substitutions {
-    const tid_a = a.tid;
-    const tid_b = b.tid;
+    _ = b;
+    _ = a;
+    // const tid_a = a.tid;
+    // _ = tid_a;
+    // const tid_b = b.tid;
+    // _ = tid_b;
 
     const s = try self.create_subst();
 
-    if ((tid_a == .number or tid_a == .float) and (tid_b == .number or tid_b == .float)) {
-        if ((tid_a == .float and tid_b != .float) or (tid_b == .float and tid_a != .float)) {
-            try s.put(self.allocator, a, .float);
-            try s.put(self.allocator, b, .float);
-        }
-    }
+    // if ((tid_a == .number or tid_a == .float) and (tid_b == .number or tid_b == .float)) {
+    //     if ((tid_a == .float and tid_b != .float) or (tid_b == .float and tid_a != .float)) {
+    //         try s.put(self.allocator, a, .float);
+    //         try s.put(self.allocator, b, .float);
+    //     }
+    // }
 
     return s;
 }
