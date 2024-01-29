@@ -22,9 +22,29 @@ pub const TypeID = enum {
 const NodeID = usize;
 const VarID = usize;
 
-pub const TypeNode = struct {
-    var_id: ?VarID,
-    tid: TypeID,
+const MonoType = struct { tid: TypeID };
+const VarType = struct {
+    name: []const u8,
+    ref: *TypeNode,
+};
+pub const TypeNode = union(enum) {
+    type: MonoType,
+    variable: VarType,
+
+    pub fn get_tid(self: TypeNode) TypeID {
+        return switch (self) {
+            .type => |*monotype| {
+                return monotype.tid;
+            },
+            .variable => |*variable| {
+                return variable.ref.get_tid();
+            },
+        };
+    }
+
+    pub fn as_var(self: TypeNode) ?VarType {
+        return if (tag(self) == .variable) self.variable else null;
+    }
 };
 
 pub const FunType = struct {
@@ -81,8 +101,9 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
 
             var type_decl = try self.create_type_node(
                 TypeNode{
-                    .var_id = null,
-                    .tid = if (const_init.type) |ty| try type_from_str(ty.lexeme) else .any,
+                    .type = .{
+                        .tid = if (const_init.type) |ty| try type_from_str(ty.lexeme) else .any,
+                    },
                 },
             );
 
@@ -135,8 +156,9 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
         .Literal => |*literal| {
             var node = try self.create_type_node(
                 .{
-                    .var_id = null,
-                    .tid = type_of(literal.value),
+                    .type = .{
+                        .tid = type_of(literal.value),
+                    },
                 },
             );
             try self.sems.put(self.allocator, expr, node);
@@ -157,7 +179,7 @@ fn call(self: *@This(), function: FunType, exprs_args: []*const Expr, expr: *con
     for (exprs_args, function.args) |expr_arg, *function_arg| {
         var expr_type = try self.infer(expr_arg);
 
-        var arg_type = if (function_arg.var_id) |_|
+        var arg_type = if (function_arg.as_var()) |_|
             try self.create_type_node(function_arg.*)
         else
             function_arg;
@@ -191,11 +213,11 @@ fn get_next_ID(self: *@This()) NodeID {
 fn unify(self: *@This(), a: *TypeNode, b: *TypeNode) !*Constraints {
     // const s = try self._unify(a, b);
     const s = try self.substitute(a, b);
-    
-    if (!types_intersects(a.tid, b.tid)) {
+
+    if (!types_intersects(a.get_tid(), b.get_tid())) {
         std.debug.print(
             "\nType Mismatch --\nExpected : {}\nFound : {}\n",
-            .{ a.tid, b.tid },
+            .{ a.get_tid(), b.get_tid() },
         );
         return TypeError.TypeMismatch;
     }
@@ -204,11 +226,22 @@ fn unify(self: *@This(), a: *TypeNode, b: *TypeNode) !*Constraints {
 }
 
 fn substitute(self: *@This(), a: *TypeNode, b: *TypeNode) !*Constraints {
-    const tid_a = a.tid;
-    const tid_b = b.tid;
+    const tid_a = a.get_tid();
+    const a_is_variable = tag(a.*) == .variable;
+
+    const tid_b = b.get_tid();
+    const b_is_variable = tag(b.*) == .variable;
 
     if (is_narrower(tid_a, tid_b)) {
-        a.tid = b.tid;
+        if (a_is_variable and !b_is_variable) {
+            a.variable.ref = b.variable.ref;
+        } else if (!a_is_variable and b_is_variable) {
+            a.type.tid = b.get_tid();
+        } else if (a_is_variable and b_is_variable) {
+            a.variable.ref = b.variable.ref;
+        } else {
+            a.type.tid = b.get_tid();
+        }
     }
 
     return try self.create_constraint();
@@ -394,58 +427,58 @@ const maxInt = std.math.maxInt;
 const ErrorReporter = @import("./error-reporter.zig").ErrorReporter;
 const tag = std.meta.activeTag;
 
-const Context = struct {
-    next_var_id: u32 = 0,
+// const Context = struct {
+//     next_var_id: u32 = 0,
 
-    variables: std.AutoHashMapUnmanaged(VarID, *TypeNode),
+//     variables: std.AutoHashMapUnmanaged(VarID, *TypeNode),
 
-    //@todo:mem deinit
-    bounded_types: std.StringArrayHashMapUnmanaged(std.ArrayListUnmanaged(*TypeNode)),
+//     //@todo:mem deinit
+//     bounded_types: std.StringArrayHashMapUnmanaged(std.ArrayListUnmanaged(*TypeNode)),
 
-    allocator: std.mem.Allocator,
+//     allocator: std.mem.Allocator,
 
-    pub fn init(allocator: std.mem.Allocator) Context {
-        return .{
-            .variables = .{},
-            .bounded_types = .{},
-            .allocator = allocator,
-        };
-    }
+//     pub fn init(allocator: std.mem.Allocator) Context {
+//         return .{
+//             .variables = .{},
+//             .bounded_types = .{},
+//             .allocator = allocator,
+//         };
+//     }
 
-    pub fn deinit(self: *@This()) void {
-        self.variables.deinit(self.allocator);
-        self.bounded_types.deinit(self.allocator);
-    }
+//     pub fn deinit(self: *@This()) void {
+//         self.variables.deinit(self.allocator);
+//         self.bounded_types.deinit(self.allocator);
+//     }
 
-    pub fn get_var_instance(self: *@This(), type_node: *TypeNode) !*TypeNode {
-        if (type_node.is_var()) |var_id| {
-            if (self.variables.get(var_id)) |type_variable| {
-                return type_variable;
-            }
-            try self.variables.put(self.allocator, var_id, type_node);
-            return type_node;
-        }
-        unreachable;
-    }
+//     pub fn get_var_instance(self: *@This(), type_node: *TypeNode) !*TypeNode {
+//         if (type_node.is_var()) |var_id| {
+//             if (self.variables.get(var_id)) |type_variable| {
+//                 return type_variable;
+//             }
+//             try self.variables.put(self.allocator, var_id, type_node);
+//             return type_node;
+//         }
+//         unreachable;
+//     }
 
-    pub fn has_var_instance(self: *@This(), var_id: VarID) bool {
-        return self.variables.get(var_id) != null;
-    }
+//     pub fn has_var_instance(self: *@This(), var_id: VarID) bool {
+//         return self.variables.get(var_id) != null;
+//     }
 
-    pub fn next_id(self: *Context) u32 {
-        self.next_var_id += 1;
-        return self.next_var_id;
-    }
+//     pub fn next_id(self: *Context) u32 {
+//         self.next_var_id += 1;
+//         return self.next_var_id;
+//     }
 
-    pub fn clone(self: *Context) !Context {
-        return .{
-            .next_var_id = self.next_var_id,
-            .allocator = self.allocator,
-            .bounded_types = try self.bounded_types.clone(self.allocator),
-            .variables = try self.variables.clone(self.allocator),
-        };
-    }
-};
+//     pub fn clone(self: *Context) !Context {
+//         return .{
+//             .next_var_id = self.next_var_id,
+//             .allocator = self.allocator,
+//             .bounded_types = try self.bounded_types.clone(self.allocator),
+//             .variables = try self.variables.clone(self.allocator),
+//         };
+//     }
+// };
 
 fn ComptimeEnumMap(comptime K: type, comptime V: type) type {
     return struct {
@@ -475,154 +508,79 @@ fn ComptimeEnumMap(comptime K: type, comptime V: type) type {
     };
 }
 
+var number_node = TypeNode{ .type = .{ .tid = .number } };
+
+var bool_node = TypeNode{ .type = .{ .tid = .bool } };
+
+var any_node = TypeNode{ .type = .{ .tid = .any } };
+
 var add_args = [_]TypeNode{
-    .{
-        .var_id = 1,
-        .tid = .number,
-    },
-    .{
-        .var_id = 1,
-        .tid = .number,
-    },
+    .{ .variable = .{ .ref = &number_node, .name = "T" } },
+    .{ .variable = .{ .ref = &number_node, .name = "T" } },
 };
-var add_return_type: TypeNode = .{
-    .var_id = 1,
-    .tid = .number,
-};
-var sub_args = [_]TypeNode{
-    .{
-        .var_id = 1,
-        .tid = .number,
-    },
-    .{
-        .var_id = 1,
-        .tid = .number,
-    },
-};
-var sub_return_type: TypeNode = .{
-    .var_id = 1,
-    .tid = .number,
-};
+var add_return_type: TypeNode = .{ .variable = .{ .ref = &number_node, .name = "T" } };
+var sub_args = [_]TypeNode{ .{ .variable = .{ .ref = &number_node, .name = "T" } }, .{ .variable = .{ .ref = &number_node, .name = "T" } } };
+var sub_return_type: TypeNode = .{ .variable = .{ .ref = &number_node, .name = "T" } };
 
 var mul_args = [_]TypeNode{
-    .{
-        .var_id = 1,
-        .tid = .number,
-    },
-    .{
-        .var_id = 1,
-        .tid = .number,
-    },
+    .{ .variable = .{ .ref = &number_node, .name = "T" } },
+    .{ .variable = .{ .ref = &number_node, .name = "T" } },
 };
-var mul_return_type: TypeNode = .{
-    .var_id = 1,
-    .tid = .number,
-};
+var mul_return_type: TypeNode = .{ .variable = .{ .ref = &number_node, .name = "T" } };
 
 var div_args = [_]TypeNode{
-    .{
-        .var_id = 1,
-        .tid = .number,
-    },
-    .{
-        .var_id = 1,
-        .tid = .number,
-    },
+    .{ .variable = .{ .ref = &number_node, .name = "T" } },
+    .{ .variable = .{ .ref = &number_node, .name = "T" } },
 };
-var div_return_type: TypeNode = .{
-    .var_id = 1,
-    .tid = .number,
-};
+var div_return_type: TypeNode = .{ .variable = .{ .ref = &number_node, .name = "T" } };
 
 var equal_equal_args = [_]TypeNode{
-    .{
-        .var_id = 1,
-        .tid = .any,
-    },
-    .{
-        .var_id = 1,
-        .tid = .any,
-    },
+    .{ .variable = .{ .ref = &any_node, .name = "T" } },
+    .{ .variable = .{ .ref = &any_node, .name = "T" } },
 };
-var equal_equal_return_type: TypeNode = .{
-    .var_id = null,
+var equal_equal_return_type: TypeNode = .{ .type = .{
     .tid = .bool,
-};
+} };
 
 var bang_equal_args = [_]TypeNode{
-    .{
-        .var_id = 1,
-        .tid = .any,
-    },
-    .{
-        .var_id = 1,
-        .tid = .any,
-    },
+    .{ .variable = .{ .ref = &any_node, .name = "T" } },
+    .{ .variable = .{ .ref = &any_node, .name = "T" } },
 };
-var bang_equal_return_type: TypeNode = .{
-    .var_id = null,
+var bang_equal_return_type: TypeNode = .{ .type = .{
     .tid = .bool,
-};
+} };
 
 var greater_args = [_]TypeNode{
-    .{
-        .var_id = 1,
-        .tid = .number,
-    },
-    .{
-        .var_id = 1,
-        .tid = .number,
-    },
+    .{ .variable = .{ .ref = &number_node, .name = "T" } },
+    .{ .variable = .{ .ref = &number_node, .name = "T" } },
 };
-var greater_return_type: TypeNode = .{
-    .var_id = null,
+var greater_return_type: TypeNode = .{ .type = .{
     .tid = .bool,
-};
+} };
 
 var greater_equal_args = [_]TypeNode{
-    .{
-        .var_id = 1,
-        .tid = .number,
-    },
-    .{
-        .var_id = 1,
-        .tid = .number,
-    },
+    .{ .variable = .{ .ref = &number_node, .name = "T" } },
+    .{ .variable = .{ .ref = &number_node, .name = "T" } },
 };
-var greater_equal_return_type: TypeNode = .{
-    .var_id = null,
+var greater_equal_return_type: TypeNode = .{ .type = .{
     .tid = .bool,
-};
+} };
 
 var less_args = [_]TypeNode{
-    .{
-        .var_id = 1,
-        .tid = .number,
-    },
-    .{
-        .var_id = 1,
-        .tid = .number,
-    },
+    .{ .variable = .{ .ref = &number_node, .name = "T" } },
+    .{ .variable = .{ .ref = &number_node, .name = "T" } },
 };
-var less_return_type: TypeNode = .{
-    .var_id = null,
+var less_return_type: TypeNode = .{ .type = .{
     .tid = .bool,
-};
+} };
 
 var less_equal_args = [_]TypeNode{
-    .{
-        .var_id = 1,
-        .tid = .number,
-    },
-    .{
-        .var_id = 1,
-        .tid = .number,
-    },
+    .{ .variable = .{ .ref = &number_node, .name = "T" } },
+    .{ .variable = .{ .ref = &number_node, .name = "T" } },
 };
-var less_equal_return_type: TypeNode = .{
-    .var_id = null,
+var less_equal_return_type: TypeNode = .{ .type = .{
     .tid = .bool,
-};
+} };
 
 //   .GREATER => ">",
 //                 .GREATER_EQUAL => ">=",

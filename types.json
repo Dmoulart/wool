@@ -1,35 +1,21 @@
 [
   {
-    "type": { "var_id": null, "tid": "float" },
+    "type": { "type": { "tid": "float" } },
     "expr": { "Literal": { "value": { "Number": 1.5 } } }
   },
   {
-    "type": { "var_id": null, "tid": "number" },
-    "expr": { "Literal": { "value": { "Number": 1.0 } } }
+    "type": { "type": { "tid": "float" } },
+    "expr": { "Literal": { "value": { "Number": 1.5 } } }
   },
   {
-    "type": { "var_id": 1, "tid": "number" },
+    "type": {
+      "variable": { "name": "T", "ref": { "type": { "tid": "number" } } }
+    },
     "expr": {
       "Binary": {
         "left": { "Literal": { "value": { "Number": 1.5 } } },
         "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
-        "right": { "Literal": { "value": { "Number": 1.0 } } }
-      }
-    }
-  },
-  {
-    "type": { "var_id": 1, "tid": "number" },
-    "expr": {
-      "ConstInit": {
-        "name": { "type": { "IDENTIFIER": "a" }, "lexeme": "a", "line": 1 },
-        "initializer": {
-          "Binary": {
-            "left": { "Literal": { "value": { "Number": 1.5 } } },
-            "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
-            "right": { "Literal": { "value": { "Number": 1.0 } } }
-          }
-        },
-        "type": null
+        "right": { "Literal": { "value": { "Number": 1.5 } } }
       }
     }
   }
