@@ -8,6 +8,8 @@ type_nodes: std.ArrayListUnmanaged(TypeNode),
 
 sems: std.AutoArrayHashMapUnmanaged(*const Expr, *TypeNode),
 
+contexts: std.ArrayListUnmanaged(Context),
+
 const Constraints = std.AutoHashMapUnmanaged(*TypeNode, TypeID);
 
 pub const TypeID = enum {
@@ -69,6 +71,7 @@ pub fn init(allocator: std.mem.Allocator, ast: []*Expr) @This() {
         .ast = ast,
         .type_nodes = .{},
         .constraints = .{},
+        .contexts = .{},
         .sems = .{},
     };
 }
@@ -176,19 +179,37 @@ fn call(self: *@This(), function: FunType, exprs_args: []*const Expr, expr: *con
         std.debug.print("hello", .{});
     }
 
+    var local_ctx = try self.contexts.addOne(self.allocator);
+    local_ctx.* = Context.init(self.allocator);
+
     for (exprs_args, function.args) |expr_arg, *function_arg| {
         var expr_type = try self.infer(expr_arg);
 
-        var arg_type = try self.create_type_node(function_arg.*);
+        // var arg_type = try self.create_type_node(function_arg.*);
+        var arg_type = try self.get_local_node(function_arg, local_ctx);
 
-        _ = try self.unify(expr_type, arg_type);
+        _ = try self.unify(
+            arg_type,
+            expr_type,
+        );
+
+        try self.sems.put(self.allocator, expr_arg, arg_type);
     }
 
-    var node = try self.create_type_node(function.return_type.*);
+    var node = try self.get_local_node(function.return_type, local_ctx);
 
     try self.sems.put(self.allocator, expr, node);
 
     return node;
+}
+
+fn get_local_node(self: *@This(), node: *TypeNode, ctx: *Context) !*TypeNode {
+    return if (node.as_var()) |variable| blk: {
+        if (ctx.variables.get(variable.name)) |registered_variable|
+            break :blk registered_variable
+        else
+            break :blk try ctx.create_var_instance((try self.create_type_node(node.*)));
+    } else try self.create_type_node(node.*);
 }
 
 pub fn apply_constraints(
@@ -200,11 +221,6 @@ pub fn apply_constraints(
     }
 
     return type_node;
-}
-
-fn get_next_ID(self: *@This()) NodeID {
-    self.next_id += 1;
-    return self.next_id;
 }
 
 fn unify(self: *@This(), a: *TypeNode, b: *TypeNode) !*Constraints {
@@ -231,7 +247,7 @@ fn substitute(self: *@This(), a: *TypeNode, b: *TypeNode) !*Constraints {
 
     if (is_narrower(tid_a, tid_b)) {
         if (a_is_variable and !b_is_variable) {
-            a.variable.ref = b.variable.ref;
+            a.variable.ref = b;
         } else if (!a_is_variable and b_is_variable) {
             a.type.tid = b.get_tid();
         } else if (a_is_variable and b_is_variable) {
@@ -736,4 +752,39 @@ const type_hierarchy = TypeHierarchy{
         .tid = .any,
         .subtypes = any_subtypes,
     },
+};
+
+const Context = struct {
+    next_var_id: u32 = 0,
+
+    variables: std.StringHashMapUnmanaged(*TypeNode),
+
+    allocator: std.mem.Allocator,
+
+    pub fn init(allocator: std.mem.Allocator) Context {
+        return .{
+            .variables = .{},
+            .allocator = allocator,
+        };
+    }
+
+    pub fn deinit(self: *@This()) void {
+        self.variables.deinit(self.allocator);
+    }
+
+    // pub fn get_var_instance(self: *@This(), variable: *VarType) !*VarType {
+    //     if (self.variables.get(variable.name)) |type_variable| {
+    //         return type_variable;
+    //     }
+    //     try self.variables.put(self.allocator, variable.name, variable);
+    //     return variable;
+    // }
+
+    pub fn create_var_instance(self: *@This(), node: *TypeNode) !*TypeNode {
+        if (self.variables.get(node.variable.name)) |type_variable| {
+            return type_variable;
+        }
+        try self.variables.put(self.allocator, node.variable.name, node);
+        return node;
+    }
 };

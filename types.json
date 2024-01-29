@@ -1,21 +1,71 @@
 [
   {
-    "type": { "type": { "tid": "float" } },
-    "expr": { "Literal": { "value": { "Number": 1.5 } } }
-  },
-  {
-    "type": { "type": { "tid": "float" } },
-    "expr": { "Literal": { "value": { "Number": 1.5 } } }
+    "type": {
+      "variable": { "name": "T", "ref": { "type": { "tid": "number" } } }
+    },
+    "expr": { "Literal": { "value": { "Number": 1.0 } } }
   },
   {
     "type": {
       "variable": { "name": "T", "ref": { "type": { "tid": "number" } } }
     },
+    "expr": { "Literal": { "value": { "Number": 1.0 } } }
+  },
+  {
+    "type": {
+      "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
+    },
     "expr": {
       "Binary": {
-        "left": { "Literal": { "value": { "Number": 1.5 } } },
+        "left": { "Literal": { "value": { "Number": 1.0 } } },
+        "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
+        "right": { "Literal": { "value": { "Number": 1.0 } } }
+      }
+    }
+  },
+  {
+    "type": {
+      "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
+    },
+    "expr": { "Literal": { "value": { "Number": 1.0 } } }
+  },
+  {
+    "type": {
+      "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
+    },
+    "expr": { "Literal": { "value": { "Number": 1.5 } } }
+  },
+  {
+    "type": {
+      "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
+    },
+    "expr": {
+      "Binary": {
+        "left": { "Literal": { "value": { "Number": 1.0 } } },
         "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
         "right": { "Literal": { "value": { "Number": 1.5 } } }
+      }
+    }
+  },
+  {
+    "type": { "type": { "tid": "bool" } },
+    "expr": {
+      "Binary": {
+        "left": {
+          "Binary": {
+            "left": { "Literal": { "value": { "Number": 1.0 } } },
+            "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
+            "right": { "Literal": { "value": { "Number": 1.0 } } }
+          }
+        },
+        "op": { "type": { "EQUAL_EQUAL": {} }, "lexeme": "==", "line": 1 },
+        "right": {
+          "Binary": {
+            "left": { "Literal": { "value": { "Number": 1.0 } } },
+            "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
+            "right": { "Literal": { "value": { "Number": 1.5 } } }
+          }
+        }
       }
     }
   }
