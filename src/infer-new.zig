@@ -2,20 +2,13 @@ allocator: std.mem.Allocator,
 
 ast: []*const Expr,
 
-substs: std.ArrayListUnmanaged(Substitutions),
-
-records: std.ArrayListUnmanaged(Record),
+constraints: std.ArrayListUnmanaged(Constraints),
 
 type_nodes: std.ArrayListUnmanaged(TypeNode),
 
-sems: std.AutoArrayHashMapUnmanaged(*const Expr, *Record),
+sems: std.AutoArrayHashMapUnmanaged(*const Expr, *TypeNode),
 
-const Substitutions = std.AutoHashMapUnmanaged(*TypeNode, TypeID);
-
-const NodeID = usize;
-const VarID = usize;
-
-const TypeNode = MonoType;
+const Constraints = std.AutoHashMapUnmanaged(*TypeNode, TypeID);
 
 pub const TypeID = enum {
     any,
@@ -26,96 +19,18 @@ pub const TypeID = enum {
     string,
 };
 
-pub const MonoType = struct {
-    tid: TypeID,
-    var_id: ?VarID,
+const NodeID = usize;
+const VarID = usize;
 
-    pub fn is_var(self: MonoType) ?VarID {
-        return if (self.var_id) |id| id else null;
-    }
+pub const TypeNode = struct {
+    var_id: ?VarID,
+    tid: TypeID,
 };
 
 pub const FunType = struct {
     name: []const u8,
     args: []TypeNode,
     return_type: *TypeNode,
-};
-
-const Subtypes = std.EnumArray(TypeID, ?*const TypeHierarchy);
-// const Subtypes = ComptimeEnumMap(TypeID, ?*const TypeHierarchy)
-const TypeHierarchy = union(enum) {
-    terminal: struct { tid: TypeID },
-    supertype: struct { tid: TypeID, subtypes: Subtypes },
-
-    pub fn get_type_id(self: *TypeHierarchy) TypeID {
-        return switch (self.*) {
-            .terminal => |terminal| terminal.tid,
-            .supertype => |supertype| supertype.tid,
-        };
-    }
-
-    pub fn get_subtypes(self: *TypeHierarchy) ?*Subtypes {
-        return if (tag(self.*) == .supertype) &self.supertype.subtypes else null;
-    }
-};
-
-const int_type: TypeHierarchy = .{
-    .terminal = .{
-        .tid = .int,
-    },
-};
-const float_type: TypeHierarchy = .{
-    .terminal = .{
-        .tid = .float,
-    },
-};
-const bool_type: TypeHierarchy = .{
-    .terminal = .{
-        .tid = .bool,
-    },
-};
-const string_type: TypeHierarchy = .{
-    .terminal = .{
-        .tid = .string,
-    },
-};
-
-var number_type: TypeHierarchy = .{
-    .supertype = .{
-        .tid = .number,
-        .subtypes = blk: {
-            var number_subtypes = Subtypes.initFill(null);
-            number_subtypes.set(.int, &float_type);
-            number_subtypes.set(.float, &int_type);
-            break :blk number_subtypes;
-        },
-    },
-};
-
-const any_subtypes: Subtypes = blk: {
-    var subtypes = Subtypes.initFill(null);
-
-    subtypes.set(
-        .number,
-        &number_type,
-    );
-    subtypes.set(
-        .bool,
-        &bool_type,
-    );
-    subtypes.set(
-        .string,
-        &string_type,
-    );
-
-    break :blk subtypes;
-};
-
-const type_hierarchy = TypeHierarchy{
-    .supertype = .{
-        .tid = .any,
-        .subtypes = any_subtypes,
-    },
 };
 
 const TypeError = error{
@@ -128,27 +43,19 @@ const TypeError = error{
 
 const Err = ErrorReporter(TypeError);
 
-pub const Record = struct {
-    node: *TypeNode,
-    subst: *Substitutions,
-};
-
 pub fn init(allocator: std.mem.Allocator, ast: []*Expr) @This() {
     return .{
         .allocator = allocator,
         .ast = ast,
-        .records = .{},
         .type_nodes = .{},
-        .substs = .{},
+        .constraints = .{},
         .sems = .{},
-        .contexts = .{},
-        .ctx = Context.init(allocator),
     };
 }
 
-pub fn infer_program(self: *@This()) anyerror!*std.AutoArrayHashMapUnmanaged(*const Expr, *Record) {
+pub fn infer_program(self: *@This()) anyerror!*std.AutoArrayHashMapUnmanaged(*const Expr, *TypeNode) {
     for (self.ast) |expr| {
-        _ = try self.infer(expr, &self.ctx);
+        _ = try self.infer(expr);
     }
 
     try self.log_sems();
@@ -161,44 +68,36 @@ pub fn log_sems(self: *@This()) !void {
     var iter = self.sems.iterator();
     while (iter.next()) |entry| {
         // std.debug.print("\n {any} \n", .{.{ .type = entry.value_ptr.*.*, .expr = entry.key_ptr.*.* }});
-        try types.append(.{ .type = entry.value_ptr.*.*.node.*, .expr = entry.key_ptr.*.* });
+        try types.append(.{ .type = entry.value_ptr.*.*, .expr = entry.key_ptr.*.* });
     }
 
     try jsonPrint(types.items, "./types.json");
 }
 
-pub fn infer(self: *@This(), expr: *const Expr, ctx: *Context) !*Record {
+pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
     return switch (expr.*) {
         .ConstInit => |*const_init| {
-            const record = try self.infer(const_init.initializer, ctx);
-            const infered = apply_subst(record.subst, record.node);
+            var node = try self.infer(const_init.initializer);
 
-            var type_decl = try self.create_type_node(.{
-                .var_id = null,
-                .tid = if (const_init.type) |decl| try type_from_str(decl.lexeme) else .any,
-            });
-
-            const s = try self.unify(type_decl, infered);
-
-            const infered_type = apply_subst(s, infered);
-
-            return try self.create_record_with_subst(
+            var type_decl = try self.create_type_node(
                 TypeNode{
                     .var_id = null,
-                    .tid = infered_type.tid,
+                    .tid = if (const_init.type) |ty| try type_from_str(ty.lexeme) else .any,
                 },
-                s,
-                expr,
             );
+
+            _ = try self.unify(type_decl, node);
+
+            try self.sems.put(self.allocator, expr, node);
+
+            return node;
         },
         .Grouping => |*grouping| {
-            var record = try self.infer(grouping.expr, ctx);
-            _ = apply_subst(record.subst, record.node);
-            return try self.create_record_with_subst(
-                record.node.*,
-                record.subst,
-                expr,
-            );
+            var node = try self.infer(grouping.expr);
+
+            var grouping_node = try self.create_type_node(node.*);
+            try self.sems.put(self.allocator, expr, grouping_node);
+            return grouping_node;
         },
         .Binary => |*binary| {
             //@todo:mem clean memory
@@ -208,10 +107,6 @@ pub fn infer(self: *@This(), expr: *const Expr, ctx: *Context) !*Record {
             defer {
                 self.allocator.free(args);
             }
-
-            var local_ctx: *Context = try self.contexts.addOne(self.allocator);
-            local_ctx.* = try self.ctx.clone();
-            // local_ctx.* = try ctx.clone();
 
             const builtin_name = try switch (binary.op.type) {
                 .PLUS => "+",
@@ -227,111 +122,58 @@ pub fn infer(self: *@This(), expr: *const Expr, ctx: *Context) !*Record {
                 else => TypeError.UnknownBuiltin,
             };
 
-            return try self.call(
+            var node = try self.call(
                 builtins_types.get(builtin_name).?,
                 args,
-                local_ctx,
                 expr,
             );
+
+            try self.sems.put(self.allocator, expr, node);
+
+            return node;
         },
         .Literal => |*literal| {
-            const substs = try self.create_subst();
-
-            var record = try self.create_record_with_subst(
+            var node = try self.create_type_node(
                 .{
                     .var_id = null,
-                    .tid = .any,
+                    .tid = type_of(literal.value),
                 },
-                substs,
-                expr,
             );
-
-            try substs.put(
-                self.allocator,
-                record.node,
-                type_of(literal.value),
-            );
-
-            return record;
+            try self.sems.put(self.allocator, expr, node);
+            return node;
         },
         else => unreachable,
     };
 }
 
-fn call(self: *@This(), function: FunType, exprs_args: []*const Expr, local_ctx: *Context, expr: *const Expr) anyerror!*Record {
+fn call(self: *@This(), function: FunType, exprs_args: []*const Expr, expr: *const Expr) anyerror!*TypeNode {
     if (function.args.len != exprs_args.len) {
         return TypeError.WrongArgumentsNumber;
     }
     if (std.mem.eql(u8, function.name, "!=")) {
         std.debug.print("hello", .{});
     }
-    var substs = try self.create_subst();
-
-    var before_arg: ?*TypeNode = null;
 
     for (exprs_args, function.args) |expr_arg, *function_arg| {
-        const call_arg = if (function_arg.is_var()) |var_id| blk: {
-            if (local_ctx.variables.get(var_id)) |var_type| {
-                break :blk var_type;
-            } else {
-                var tn = try self.create_type_node(function_arg.*);
-                try local_ctx.variables.put(
-                    local_ctx.allocator,
-                    var_id,
-                    tn,
-                );
-                break :blk tn;
-            }
-        } else function_arg;
+        var expr_type = try self.infer(expr_arg);
 
-        var record = try self.infer(expr_arg, local_ctx);
+        var arg_type = if (function_arg.var_id) |_|
+            try self.create_type_node(function_arg.*)
+        else
+            function_arg;
 
-        var arg_instance = record.node;
-
-        _ = apply_subst(record.subst, arg_instance);
-
-        const arg_subs = try self.unify(
-            call_arg,
-            arg_instance,
-        );
-
-        _ = apply_subst(arg_subs, call_arg);
-
-        substs = try self.compose_subst(substs, arg_subs);
-
-        if (function_arg.is_var()) |_| {
-            // exchange !
-            // @todo:mem destroy old node
-            record.node = call_arg;
-        }
-        before_arg = record.node;
-
-        // try self.log_sems();
+        _ = try self.unify(expr_type, arg_type);
     }
-    const call_return_type = if (function.return_type.is_var()) |_|
-        try local_ctx.get_var_instance(function.return_type)
-    else
-        function.return_type;
 
-    _ = apply_subst(substs, call_return_type);
+    var node = try self.create_type_node(function.return_type.*);
 
-    var ret_type = try self.create_record_with_subst(
-        apply_subst(substs, call_return_type).*,
-        substs,
-        expr,
-    );
-    ret_type.node = call_return_type;
+    try self.sems.put(self.allocator, expr, node);
 
-    return ret_type;
-    // return try self.create_record_with_subst(
-    //     apply_subst(substs, call_return_type).*,
-    //     substs,
-    //     expr,
-    // );
+    return node;
 }
 
-pub fn apply_subst(
-    subst: *Substitutions,
+pub fn apply_constraints(
+    subst: *Constraints,
     type_node: *TypeNode,
 ) *TypeNode {
     if (subst.get(type_node)) |tid| {
@@ -346,9 +188,10 @@ fn get_next_ID(self: *@This()) NodeID {
     return self.next_id;
 }
 
-fn unify(self: *@This(), a: *TypeNode, b: *TypeNode) !*Substitutions {
-    const s = try self._unify(a, b);
-
+fn unify(self: *@This(), a: *TypeNode, b: *TypeNode) !*Constraints {
+    // const s = try self._unify(a, b);
+    const s = try self.substitute(a, b);
+    
     if (!types_intersects(a.tid, b.tid)) {
         std.debug.print(
             "\nType Mismatch --\nExpected : {}\nFound : {}\n",
@@ -360,44 +203,15 @@ fn unify(self: *@This(), a: *TypeNode, b: *TypeNode) !*Substitutions {
     return s;
 }
 
-fn _unify(self: *@This(), a: *TypeNode, b: *TypeNode) !*Substitutions {
-    // const s1 = try self.coerce(a, b);
-    const s2 = try self.substitute(a, b);
-    return s2;
-    // return try self.compose_subst(s1, s2);
-}
-
-fn coerce(self: *@This(), a: *TypeNode, b: *TypeNode) !*Substitutions {
-    _ = b;
-    _ = a;
-    // const tid_a = a.tid;
-    // _ = tid_a;
-    // const tid_b = b.tid;
-    // _ = tid_b;
-
-    const s = try self.create_subst();
-
-    // if ((tid_a == .number or tid_a == .float) and (tid_b == .number or tid_b == .float)) {
-    //     if ((tid_a == .float and tid_b != .float) or (tid_b == .float and tid_a != .float)) {
-    //         try s.put(self.allocator, a, .float);
-    //         try s.put(self.allocator, b, .float);
-    //     }
-    // }
-
-    return s;
-}
-
-fn substitute(self: *@This(), a: *TypeNode, b: *TypeNode) !*Substitutions {
+fn substitute(self: *@This(), a: *TypeNode, b: *TypeNode) !*Constraints {
     const tid_a = a.tid;
     const tid_b = b.tid;
 
     if (is_narrower(tid_a, tid_b)) {
-        const s = try self.create_subst();
-        try s.put(self.allocator, a, b.tid);
-        return s;
+        a.tid = b.tid;
     }
 
-    return try self.create_subst();
+    return try self.create_constraint();
 }
 
 fn is_narrower(tid: TypeID, maybe_narrower: TypeID) bool {
@@ -477,8 +291,8 @@ fn types_intersects(a: TypeID, b: TypeID) bool {
     return false;
 }
 
-fn compose_subst(self: *@This(), s1: *Substitutions, s2: *Substitutions) !*Substitutions {
-    const result = try self.create_subst();
+fn compose_subst(self: *@This(), s1: *Constraints, s2: *Constraints) !*Constraints {
+    const result = try self.create_constraint();
 
     var iter_s2 = s2.iterator();
     while (iter_s2.next()) |record| {
@@ -503,43 +317,11 @@ fn create_type_node(self: *@This(), type_node: TypeNode) !*TypeNode {
     return tn_ptr;
 }
 
-fn create_record(self: *@This(), type_node: TypeNode) !*Record {
-    // create node type
-    var type_node_ptr = try self.create_type_node(type_node);
-    // create substituions
-    const subst = try self.create_subst();
-
-    // create record
-    var record = try self.records.addOne();
-    record.* = Record{
-        .type = type_node_ptr,
-        .subst = subst,
-    };
-
-    return record;
-}
-
-fn create_subst(self: *@This()) !*Substitutions {
-    var subst = try self.substs.addOne(self.allocator);
+fn create_constraint(self: *@This()) !*Constraints {
+    var subst = try self.constraints.addOne(self.allocator);
     subst.* = .{};
 
     return subst;
-}
-
-fn create_record_with_subst(self: *@This(), type_node: TypeNode, subst: *Substitutions, expr: *const Expr) !*Record {
-    // create node type
-    var type_node_ptr = try self.create_type_node(type_node);
-
-    // create record
-    var record = try self.records.addOne(self.allocator);
-    record.* = Record{
-        .node = type_node_ptr,
-        .subst = subst,
-    };
-
-    try self.sems.put(self.allocator, expr, record);
-
-    return record;
 }
 
 fn type_of(value: Expr.Literal.Value) TypeID {
@@ -569,6 +351,7 @@ pub fn jsonPrint(value: anytype, file_path: []const u8) !void {
 
     _ = try file.writeAll(try out.toOwnedSlice());
 }
+
 pub fn type_from_str(str: []const u8) !TypeID {
     // use meta functions for enums
     if (std.mem.eql(u8, str, "i32")) {
@@ -923,3 +706,79 @@ const builtins_types = std.ComptimeStringMap(
         },
     },
 );
+
+const Subtypes = std.EnumArray(TypeID, ?*const TypeHierarchy);
+const TypeHierarchy = union(enum) {
+    terminal: struct { tid: TypeID },
+    supertype: struct { tid: TypeID, subtypes: Subtypes },
+
+    pub fn get_type_id(self: *TypeHierarchy) TypeID {
+        return switch (self.*) {
+            .terminal => |terminal| terminal.tid,
+            .supertype => |supertype| supertype.tid,
+        };
+    }
+
+    pub fn get_subtypes(self: *TypeHierarchy) ?*Subtypes {
+        return if (tag(self.*) == .supertype) &self.supertype.subtypes else null;
+    }
+};
+
+const int_type: TypeHierarchy = .{
+    .terminal = .{
+        .tid = .int,
+    },
+};
+const float_type: TypeHierarchy = .{
+    .terminal = .{
+        .tid = .float,
+    },
+};
+const bool_type: TypeHierarchy = .{
+    .terminal = .{
+        .tid = .bool,
+    },
+};
+const string_type: TypeHierarchy = .{
+    .terminal = .{
+        .tid = .string,
+    },
+};
+
+var number_type: TypeHierarchy = .{
+    .supertype = .{
+        .tid = .number,
+        .subtypes = blk: {
+            var number_subtypes = Subtypes.initFill(null);
+            number_subtypes.set(.int, &float_type);
+            number_subtypes.set(.float, &int_type);
+            break :blk number_subtypes;
+        },
+    },
+};
+
+const any_subtypes: Subtypes = blk: {
+    var subtypes = Subtypes.initFill(null);
+
+    subtypes.set(
+        .number,
+        &number_type,
+    );
+    subtypes.set(
+        .bool,
+        &bool_type,
+    );
+    subtypes.set(
+        .string,
+        &string_type,
+    );
+
+    break :blk subtypes;
+};
+
+const type_hierarchy = TypeHierarchy{
+    .supertype = .{
+        .tid = .any,
+        .subtypes = any_subtypes,
+    },
+};
