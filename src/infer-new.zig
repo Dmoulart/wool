@@ -179,10 +179,7 @@ fn call(self: *@This(), function: FunType, exprs_args: []*const Expr, expr: *con
     for (exprs_args, function.args) |expr_arg, *function_arg| {
         var expr_type = try self.infer(expr_arg);
 
-        var arg_type = if (function_arg.as_var()) |_|
-            try self.create_type_node(function_arg.*)
-        else
-            function_arg;
+        var arg_type = try self.create_type_node(function_arg.*);
 
         _ = try self.unify(expr_type, arg_type);
     }
