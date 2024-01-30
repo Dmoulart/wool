@@ -86,12 +86,23 @@ pub fn infer_program(self: *@This()) anyerror!*std.AutoArrayHashMapUnmanaged(*co
     return &self.sems;
 }
 pub fn log_sems(self: *@This()) !void {
-    var types = std.ArrayList(struct { type: TypeNode, expr: Expr }).init(self.allocator);
+    var types = std.ArrayList(struct {
+        type: *TypeNode,
+        expr: *const Expr,
+        ptr: usize,
+    }).init(self.allocator);
 
     var iter = self.sems.iterator();
     while (iter.next()) |entry| {
-        // std.debug.print("\n {any} \n", .{.{ .type = entry.value_ptr.*.*, .expr = entry.key_ptr.*.* }});
-        try types.append(.{ .type = entry.value_ptr.*.*, .expr = entry.key_ptr.*.* });
+        var ptr = switch (entry.value_ptr.*.*) {
+            .variable => entry.value_ptr.*.variable.ref,
+            .type => entry.value_ptr.*,
+        };
+        try types.append(
+            .{ .type = entry.value_ptr.*, .expr = entry.key_ptr.*, .ptr = @intFromPtr(
+                ptr,
+            ) },
+        );
     }
 
     try jsonPrint(types.items, "./types.json");
@@ -175,15 +186,25 @@ fn call(self: *@This(), function: FunType, exprs_args: []*const Expr, expr: *con
     if (function.args.len != exprs_args.len) {
         return TypeError.WrongArgumentsNumber;
     }
-    if (std.mem.eql(u8, function.name, "!=")) {
+    if (std.mem.eql(u8, function.name, "==")) {
         std.debug.print("hello", .{});
     }
+
+    std.debug.print("\n-- CALL --\n", .{});
+    pretty_print(expr);
 
     var local_ctx = try self.contexts.addOne(self.allocator);
     local_ctx.* = Context.init(self.allocator);
 
-    for (exprs_args, function.args) |expr_arg, *function_arg| {
+    for (exprs_args, function.args, 0..) |expr_arg, *function_arg, i| {
+        std.debug.print("\n-- EVALUATE CALL ARGUMENT {} --\n", .{i});
+        std.debug.print("\n-- expr arg {} \n", .{i});
+        pretty_print(expr_arg);
+
         var expr_type = try self.infer(expr_arg);
+
+        std.debug.print("\n-- expr type {} \n", .{i});
+        pretty_print(expr_type);
 
         // var arg_type = try self.create_type_node(function_arg.*);
         var arg_type = try self.get_local_node(function_arg, local_ctx);
@@ -193,12 +214,20 @@ fn call(self: *@This(), function: FunType, exprs_args: []*const Expr, expr: *con
             expr_type,
         );
 
+        std.debug.print("\n-- infered arg {} \n", .{i});
+        pretty_print(arg_type);
+
         try self.sems.put(self.allocator, expr_arg, arg_type);
     }
 
     var node = try self.get_local_node(function.return_type, local_ctx);
 
+    std.debug.print("\n-- return type  \n", .{});
+    pretty_print(node);
+
     try self.sems.put(self.allocator, expr, node);
+
+    try self.log_sems();
 
     return node;
 }
@@ -244,10 +273,16 @@ fn substitute(self: *@This(), a: *TypeNode, b: *TypeNode) !*Constraints {
 
     const tid_b = b.get_tid();
     const b_is_variable = tag(b.*) == .variable;
-
+    std.debug.print("\n----> Subtitute <----\n", .{});
+    std.debug.print("\n----------- Before\n", .{});
+    std.debug.print("\n a: \n", .{});
+    pretty_print(a);
+    std.debug.print("\n b: \n", .{});
+    pretty_print(b);
     if (is_narrower(tid_a, tid_b)) {
         if (a_is_variable and !b_is_variable) {
-            a.variable.ref = b;
+            // Assign the variable
+            a.variable.ref.* = b.*;
         } else if (!a_is_variable and b_is_variable) {
             a.type.tid = b.get_tid();
         } else if (a_is_variable and b_is_variable) {
@@ -256,6 +291,12 @@ fn substitute(self: *@This(), a: *TypeNode, b: *TypeNode) !*Constraints {
             a.type.tid = b.get_tid();
         }
     }
+
+    std.debug.print("\n----------- After \n", .{});
+    std.debug.print("\n a: \n", .{});
+    pretty_print(a);
+    std.debug.print("\n b: \n", .{});
+    pretty_print(b);
 
     return try self.create_constraint();
 }
@@ -440,6 +481,35 @@ const maxInt = std.math.maxInt;
 const ErrorReporter = @import("./error-reporter.zig").ErrorReporter;
 const tag = std.meta.activeTag;
 
+fn pretty_print(data: anytype) void {
+    switch (@TypeOf(data)) {
+        *const Expr => switch (data.*) {
+            .Literal => |lit| {
+                std.debug.print("\n Lit: {} \n", .{lit.value});
+            },
+            .Binary => |bin| {
+                std.debug.print("\n Bin: {s}\n", .{bin.op.lexeme});
+                pretty_print(bin.left);
+                pretty_print(bin.right);
+                std.debug.print("\n", .{});
+            },
+            else => unreachable,
+        },
+        *TypeNode => switch (data.*) {
+            .type => |ty| {
+                std.debug.print("\n [MonoType]: {} \n", .{ty});
+            },
+            .variable => |variable| {
+                std.debug.print("\n [Variable]: {s}\n", .{variable.name});
+                std.debug.print("\n $VAR_PTR {}\n", .{@intFromPtr(data)});
+                std.debug.print("\n $REF_PTR {}\n", .{@intFromPtr(variable.ref)});
+                pretty_print(variable.ref);
+                std.debug.print("\n", .{});
+            },
+        },
+        else => @compileError("Wrong type in pretty print"),
+    }
+}
 // const Context = struct {
 //     next_var_id: u32 = 0,
 
