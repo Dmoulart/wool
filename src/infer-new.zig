@@ -157,11 +157,9 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
         .Grouping => |*grouping| {
             var node = try self.infer(grouping.expr);
 
-            var grouping_node = try self.create_type_node(node.*);
+            try self.sems.put(self.allocator, expr, node);
 
-            try self.sems.put(self.allocator, expr, grouping_node);
-
-            return grouping_node;
+            return node;
         },
         .Binary => |*binary| {
             //@todo:mem clean memory
@@ -185,9 +183,9 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
                 .BANG_EQUAL => "!=",
                 else => TypeError.UnknownBuiltin,
             };
-
+            var builtin = builtins_types.get(builtin_name).?;
             var node = try self.call(
-                builtins_types.get(builtin_name).?,
+                builtin,
                 args,
                 expr,
             );
@@ -564,6 +562,7 @@ fn pretty_print(data: anytype) void {
             .variable => |variable| {
                 std.debug.print("\n [Variable]: {s}\n", .{variable.name});
                 std.debug.print("\n TID: {} \n", .{variable.tid});
+                std.debug.print("\n $PTR: {} \n", .{@intFromPtr(data)});
 
                 std.debug.print("\n", .{});
             },

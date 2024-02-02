@@ -1,67 +1,28 @@
 [
   {
-    "type": { "variable": { "name": "T", "tid": "float" } },
+    "type": { "variable": { "name": "T", "tid": "number" } },
     "expr": { "Literal": { "value": { "Number": 1.0 } } },
-    "ptr": 4374347776
+    "ptr": 4338499584
   },
   {
-    "type": { "variable": { "name": "T", "tid": "float" } },
+    "type": { "variable": { "name": "T", "tid": "number" } },
     "expr": { "Literal": { "value": { "Number": 1.0 } } },
-    "ptr": 4374347776
+    "ptr": 4338499616
   },
   {
-    "type": { "variable": { "name": "T", "tid": "float" } },
+    "type": { "variable": { "name": "T", "tid": "number" } },
+    "expr": { "Literal": { "value": { "Number": 1.0 } } },
+    "ptr": 4338499616
+  },
+  {
+    "type": { "variable": { "name": "T", "tid": "number" } },
     "expr": {
       "Binary": {
         "left": { "Literal": { "value": { "Number": 1.0 } } },
-        "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
+        "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 21 },
         "right": { "Literal": { "value": { "Number": 1.0 } } }
       }
     },
-    "ptr": 4374347776
-  },
-  {
-    "type": { "variable": { "name": "T", "tid": "float" } },
-    "expr": { "Literal": { "value": { "Number": 1.0 } } },
-    "ptr": 4374347840
-  },
-  {
-    "type": { "variable": { "name": "T", "tid": "float" } },
-    "expr": { "Literal": { "value": { "Number": 1.5 } } },
-    "ptr": 4374347840
-  },
-  {
-    "type": { "variable": { "name": "T", "tid": "float" } },
-    "expr": {
-      "Binary": {
-        "left": { "Literal": { "value": { "Number": 1.0 } } },
-        "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
-        "right": { "Literal": { "value": { "Number": 1.5 } } }
-      }
-    },
-    "ptr": 4374347776
-  },
-  {
-    "type": { "variable": { "name": "R", "tid": "bool" } },
-    "expr": {
-      "Binary": {
-        "left": {
-          "Binary": {
-            "left": { "Literal": { "value": { "Number": 1.0 } } },
-            "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
-            "right": { "Literal": { "value": { "Number": 1.0 } } }
-          }
-        },
-        "op": { "type": { "EQUAL_EQUAL": {} }, "lexeme": "==", "line": 1 },
-        "right": {
-          "Binary": {
-            "left": { "Literal": { "value": { "Number": 1.0 } } },
-            "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
-            "right": { "Literal": { "value": { "Number": 1.5 } } }
-          }
-        }
-      }
-    },
-    "ptr": 4374347904
+    "ptr": 4338499616
   }
 ]
