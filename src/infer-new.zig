@@ -44,16 +44,16 @@ pub const TypeNode = union(enum) {
         };
     }
 
-    // pub fn clone(self: TypeNode) TypeNode {
-    //     return switch (self) {
-    //         .type => |*monotype| {
-    //             return .{ .type = .{ .tid = monotype.tid } };
-    //         },
-    //         .variable => |*variable| {
-    //             return .{ .variable = .{ .name = variable.name, .ref = variable.ref.*.clone() } };
-    //         },
-    //     };
-    // }
+    pub fn clone(self: TypeNode) TypeNode {
+        return switch (self) {
+            .type => |*monotype| {
+                return .{ .type = .{ .tid = monotype.tid } };
+            },
+            .variable => |*variable| {
+                return .{ .variable = .{ .name = variable.name, .ref = variable.ref.*.clone() } };
+            },
+        };
+    }
 
     pub fn as_var(self: TypeNode) ?VarType {
         return if (tag(self) == .variable) self.variable else null;
@@ -183,8 +183,13 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
         .Literal => |*literal| {
             var node = try self.create_type_node(
                 .{
-                    .type = .{
-                        .tid = type_of(literal.value),
+                    .variable = .{
+                        .name = "Lit",
+                        .ref = try self.create_type_node(
+                            .{
+                                .type = .{ .tid = type_of(literal.value) },
+                            },
+                        ),
                     },
                 },
             );
@@ -199,7 +204,7 @@ fn call(self: *@This(), function: FunType, exprs_args: []*const Expr, expr: *con
     if (function.args.len != exprs_args.len) {
         return TypeError.WrongArgumentsNumber;
     }
-    if (std.mem.eql(u8, function.name, "!=")) {
+    if (std.mem.eql(u8, function.name, "==")) {
         std.debug.print("hello", .{});
     }
 
@@ -219,23 +224,23 @@ fn call(self: *@This(), function: FunType, exprs_args: []*const Expr, expr: *con
         std.debug.print("\n-- expr arg {} \n", .{i});
         pretty_print(expr_arg);
 
-        var expr_type = try self.infer(expr_arg);
+        var call_arg = try self.infer(expr_arg);
 
         std.debug.print("\n-- expr type {} \n", .{i});
-        pretty_print(expr_type);
+        pretty_print(call_arg);
 
         // var arg_type = try self.create_type_node(function_arg.*);
-        var arg_type = try self.get_local_node(function_arg, local_ctx);
+        var func_arg = try self.get_local_node(function_arg, local_ctx);
 
         _ = try self.unify(
-            arg_type,
-            expr_type,
+            func_arg,
+            call_arg,
         );
 
         std.debug.print("\n-- infered arg {} \n", .{i});
-        pretty_print(arg_type);
+        pretty_print(func_arg);
 
-        try self.sems.put(self.allocator, expr_arg, arg_type);
+        try self.sems.put(self.allocator, expr_arg, func_arg);
     }
 
     var node = try self.get_local_node(function.return_type, local_ctx);
@@ -251,12 +256,38 @@ fn call(self: *@This(), function: FunType, exprs_args: []*const Expr, expr: *con
 }
 
 fn get_local_node(self: *@This(), node: *TypeNode, ctx: *Context) !*TypeNode {
-    return if (node.as_var()) |variable| blk: {
-        if (ctx.variables.get(variable.name)) |registered_variable|
-            break :blk registered_variable
-        else
-            break :blk try ctx.create_var_instance((try self.create_type_node(node.*)));
-    } else try self.create_type_node(node.*);
+    if (node.as_var()) |variable| {
+        if (ctx.variables.get(variable.name)) |registered_variable| {
+            return registered_variable;
+        } else {
+            // return try ctx.create_var_instance(node);
+            // //@todo recursive cloning
+            // var ref = try self.create_type_node(variable.ref.*);
+            // _ = ref;
+
+            return try ctx.create_var_instance(try self.create_type_node(node.*));
+        }
+    }
+    return try self.create_type_node(node.*);
+}
+
+fn set_local_node(self: *@This(), node: *TypeNode, ctx: *Context) !void {
+    if (node.as_var()) |variable| {
+        try ctx.variables.put(self.allocator, variable.name, node);
+
+        // //@todo recursive cloning
+        // var ref = try self.create_type_node(variable.ref.*);
+
+        // return try ctx.create_var_instance(try self.create_type_node(
+        //     .{
+        //         .variable = .{
+        //             .name = variable.name,
+        //             .ref = ref,
+        //         },
+        //     },
+        // ));
+    }
+    return;
 }
 
 pub fn apply_constraints(
@@ -286,18 +317,16 @@ fn unify(self: *@This(), subject: *TypeNode, with: *TypeNode) !*Constraints {
 }
 
 fn substitute(self: *@This(), subject: *TypeNode, with: *TypeNode) !*Constraints {
-    const tid_a = subject.get_tid();
     const a_is_variable = tag(subject.*) == .variable;
-
-    const tid_b = with.get_tid();
     const b_is_variable = tag(with.*) == .variable;
+
     std.debug.print("\n----> Subtitute <----\n", .{});
     std.debug.print("\n----------- Before\n", .{});
     std.debug.print("\n a: \n", .{});
     pretty_print(subject);
     std.debug.print("\n b: \n", .{});
     pretty_print(with);
-    if (is_narrower(tid_a, tid_b)) {
+    if (is_narrower(subject.get_tid(), with.get_tid())) {
         if (a_is_variable and !b_is_variable) {
             // Assign the variable (this will mutate original function def... lol)
             subject.variable.ref.* = with.*;
@@ -307,6 +336,10 @@ fn substitute(self: *@This(), subject: *TypeNode, with: *TypeNode) !*Constraints
             subject.variable.ref = with.variable.ref;
         } else {
             subject.type.tid = with.get_tid();
+        }
+    } else if (subject.get_tid() == with.get_tid()) {
+        if (a_is_variable and b_is_variable) {
+            subject.variable.ref = with.variable.ref;
         }
     }
 
