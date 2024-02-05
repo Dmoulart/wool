@@ -218,45 +218,43 @@ fn call(self: *@This(), function: FunType, exprs_args: []*const Expr, expr: *con
         std.debug.print("hello", .{});
     }
 
-    std.debug.print("\n-- CALL --\n", .{});
-    pretty_print(expr);
+    // pretty_print(expr);
 
     var local_ctx = try self.contexts.addOne(self.allocator);
     local_ctx.* = Context.init(self.allocator);
 
-    std.debug.print("\n----function args \n", .{});
     for (function.args) |*a| {
-        pretty_print(a);
+        _ = a;
+        // pretty_print(a);
     }
 
     for (exprs_args, function.args, 0..) |expr_arg, *function_arg, i| {
-        std.debug.print("\n-- EVALUATE CALL ARGUMENT {} --\n", .{i});
-        std.debug.print("\n-- expr arg {} \n", .{i});
-        pretty_print(expr_arg);
+        _ = i;
+        // pretty_print(expr_arg);
 
         var call_arg = try self.infer(expr_arg);
 
-        std.debug.print("\n-- expr type {} \n", .{i});
-        pretty_print(call_arg);
+        // pretty_print(call_arg);
 
         // var arg_type = try self.create_type_node(function_arg.*);
         var func_arg = try self.get_or_create_local_node(function_arg, call_arg, local_ctx);
+
+        pretty_print(expr_arg);
 
         _ = try self.unify(
             func_arg,
             call_arg,
         );
 
-        std.debug.print("\n-- infered arg {} \n", .{i});
-        pretty_print(func_arg);
+        // pretty_print(func_arg);
 
         try self.sems.put(self.allocator, expr_arg, func_arg);
     }
 
     var node = try self.get_local_node(function.return_type, local_ctx);
 
-    std.debug.print("\n-- return type  \n", .{});
-    pretty_print(node);
+    std.debug.print("\n-- return type {} {}  \n", .{ @intFromPtr(node), node.get_tid() });
+    // pretty_print(node);
 
     try self.sems.put(self.allocator, expr, node);
 
@@ -336,21 +334,25 @@ fn unify(self: *@This(), subject: *TypeNode, with: *TypeNode) !*Constraints {
 }
 
 fn substitute(self: *@This(), subject: *TypeNode, with: *TypeNode) !*Constraints {
-    std.debug.print("\n----> Subtitute <----\n", .{});
-    std.debug.print("\n----------- Before\n", .{});
-    std.debug.print("\n a: \n", .{});
-    pretty_print(subject);
-    std.debug.print("\n b: \n", .{});
-    pretty_print(with);
+    std.debug.print("\n Before Substitution {}: {} with {}: {}\n", .{
+        @intFromPtr(subject),
+        subject.get_tid(),
+        @intFromPtr(with),
+        with.get_tid(),
+    });
+
     if (is_narrower(subject.get_tid(), with.get_tid())) {
         subject.set_tid(with.get_tid());
+    } else if (is_narrower(with.get_tid(), subject.get_tid())) {
+        with.set_tid(subject.get_tid());
     }
 
-    std.debug.print("\n----------- After \n", .{});
-    std.debug.print("\n a: \n", .{});
-    pretty_print(subject);
-    std.debug.print("\n b: \n", .{});
-    pretty_print(with);
+    std.debug.print("\n After Substitution {}: {} with {}: {}\n", .{
+        @intFromPtr(subject),
+        subject.get_tid(),
+        @intFromPtr(with),
+        with.get_tid(),
+    });
 
     return try self.create_constraint();
 }
@@ -569,6 +571,7 @@ fn pretty_print(data: anytype) void {
         },
         else => @compileError("Wrong type in pretty print"),
     }
+    std.debug.print("\n", .{});
 }
 
 fn ComptimeEnumMap(comptime K: type, comptime V: type) type {
