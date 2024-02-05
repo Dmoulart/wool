@@ -122,7 +122,7 @@ pub fn log_sems(self: *@This()) !void {
     var iter = self.sems.iterator();
     while (iter.next()) |entry| {
         var ptr = switch (entry.value_ptr.*.*) {
-            .variable => entry.value_ptr.*,
+            .variable => |variable| variable.ref,
             .type => entry.value_ptr.*,
         };
         try types.append(
@@ -213,7 +213,7 @@ fn call(self: *@This(), function: FunType, exprs_args: []*const Expr, expr: *con
     if (function.args.len != exprs_args.len) {
         return TypeError.WrongArgumentsNumber;
     }
-    if (std.mem.eql(u8, function.name, "==")) {
+    if (std.mem.eql(u8, function.name, "-")) {
         std.debug.print("hello", .{});
     }
 
@@ -221,11 +221,6 @@ fn call(self: *@This(), function: FunType, exprs_args: []*const Expr, expr: *con
 
     var local_ctx = try self.contexts.addOne(self.allocator);
     local_ctx.* = Context.init(self.allocator);
-
-    for (function.args) |*a| {
-        _ = a;
-        // pretty_print(a);
-    }
 
     for (exprs_args, function.args, 0..) |expr_arg, *function_arg, i| {
         _ = i;
@@ -238,26 +233,39 @@ fn call(self: *@This(), function: FunType, exprs_args: []*const Expr, expr: *con
         // var arg_type = try self.create_type_node(function_arg.*);
         var call_arg = try self.get_or_create_local_node(function_arg, arg, local_ctx);
 
-        pretty_print(expr_arg);
+        // pretty_print(expr_arg);
 
         _ = try self.unify(
             call_arg,
             arg,
         );
+        if (tag(call_arg.*) == .variable and tag(arg.*) == .variable) {
+            if (std.mem.eql(u8, function_arg.variable.name, call_arg.variable.name)) {
+                arg.variable.ref = call_arg.variable.ref;
+            }
+        }
 
         // pretty_print(func_arg);
 
+        // try self.sems.put(self.allocator, expr_arg, switch (call_arg.*) {
+        //     .variable => |vari| vari.ref,
+        //     .type => call_arg,
+        // });
+        if (tag(call_arg.*) == .variable) {
+            pretty_print(expr_arg);
+            std.debug.print("\nPUT ptr:{} in ", .{@intFromPtr(call_arg.variable.ref)});
+        }
         try self.sems.put(self.allocator, expr_arg, call_arg);
     }
 
     var node = try self.get_local_node(function.return_type, local_ctx);
 
-    std.debug.print("\n-- return type {} {}  \n", .{ @intFromPtr(node), node.get_tid() });
+    // std.debug.print("\n-- return type {} {}  \n", .{ @intFromPtr(node), node.get_tid() });
     // pretty_print(node);
 
     try self.sems.put(self.allocator, expr, node);
 
-    try self.log_sems();
+    // try self.log_sems();
 
     return node;
 }
@@ -340,25 +348,36 @@ fn unify(self: *@This(), subject: *TypeNode, with: *TypeNode) !*Constraints {
 }
 
 fn substitute(self: *@This(), subject: *TypeNode, with: *TypeNode) !*Constraints {
-    std.debug.print("\n Before Substitution {}: {} with {}: {}\n", .{
-        @intFromPtr(subject),
-        subject.get_tid(),
-        @intFromPtr(with),
-        with.get_tid(),
-    });
+    // std.debug.print("\n Before Substitution {}: {} with {}: {}\n", .{
+    //     @intFromPtr(subject),
+    //     subject.get_tid(),
+    //     @intFromPtr(with),
+    //     with.get_tid(),
+    // });
+
+    // const subject_is_var = tag(subject.*) == .variable;
+    // const with_is_var = tag(with.*) == .variable;
 
     if (is_narrower(subject.get_tid(), with.get_tid())) {
         subject.set_tid(with.get_tid());
+        // if (subject_is_var) {
+        //     subject.variable.ref = if (with_is_var) with.variable.ref else with;
+        //     // subject.variable.ref.* = if (with_is_var) with.variable.ref.* else with.*;
+        // }
     } else if (is_narrower(with.get_tid(), subject.get_tid())) {
         with.set_tid(subject.get_tid());
+        // if (with_is_var) {
+        //     with.variable.ref = if (subject_is_var) subject.variable.ref else subject;
+        //     // with.variable.ref.* = if (subject_is_var) subject.variable.ref.* else subject.*;
+        // }
     }
 
-    std.debug.print("\n After Substitution {}: {} with {}: {}\n", .{
-        @intFromPtr(subject),
-        subject.get_tid(),
-        @intFromPtr(with),
-        with.get_tid(),
-    });
+    // std.debug.print("\n After Substitution {}: {} with {}: {}\n", .{
+    //     @intFromPtr(subject),
+    //     subject.get_tid(),
+    //     @intFromPtr(with),
+    //     with.get_tid(),
+    // });
 
     return try self.create_constraint();
 }
