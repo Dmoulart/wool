@@ -29,7 +29,7 @@ const VarID = usize;
 const MonoType = struct { tid: TypeID };
 const VarType = struct {
     name: []const u8,
-    tid: TypeID,
+    ref: *TypeNode,
 };
 pub const TypeNode = union(enum) {
     type: MonoType,
@@ -41,7 +41,7 @@ pub const TypeNode = union(enum) {
                 self.type.tid = tid;
             },
             .variable => {
-                self.variable.tid = tid;
+                self.variable.ref.type.tid = tid;
             },
         }
     }
@@ -52,7 +52,7 @@ pub const TypeNode = union(enum) {
                 return monotype.tid;
             },
             .variable => |*variable| {
-                return variable.tid;
+                return variable.ref.type.tid;
             },
         };
     }
@@ -63,7 +63,7 @@ pub const TypeNode = union(enum) {
                 return .{ .type = .{ .tid = monotype.tid } };
             },
             .variable => |*variable| {
-                return .{ .variable = .{ .name = variable.name, .tid = variable.tid } };
+                return .{ .variable = .{ .name = variable.name, .ref = variable.ref } };
             },
         };
     }
@@ -197,8 +197,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
         .Literal => |*literal| {
             var node = try self.create_type_node(
                 .{
-                    .variable = .{
-                        .name = "Lit",
+                    .type = .{
                         .tid = type_of(literal.value),
                     },
                 },
@@ -232,23 +231,23 @@ fn call(self: *@This(), function: FunType, exprs_args: []*const Expr, expr: *con
         _ = i;
         // pretty_print(expr_arg);
 
-        var call_arg = try self.infer(expr_arg);
+        var arg = try self.infer(expr_arg);
 
         // pretty_print(call_arg);
 
         // var arg_type = try self.create_type_node(function_arg.*);
-        var func_arg = try self.get_or_create_local_node(function_arg, call_arg, local_ctx);
+        var call_arg = try self.get_or_create_local_node(function_arg, arg, local_ctx);
 
         pretty_print(expr_arg);
 
         _ = try self.unify(
-            func_arg,
             call_arg,
+            arg,
         );
 
         // pretty_print(func_arg);
 
-        try self.sems.put(self.allocator, expr_arg, func_arg);
+        try self.sems.put(self.allocator, expr_arg, call_arg);
     }
 
     var node = try self.get_local_node(function.return_type, local_ctx);
@@ -268,12 +267,19 @@ fn get_or_create_local_node(self: *@This(), node: *TypeNode, or_node: *TypeNode,
         if (ctx.variables.get(variable.name)) |registered_variable| {
             return registered_variable;
         } else {
-            // return try ctx.create_var_instance(node);
-            // //@todo recursive cloning
-            // var ref = try self.create_type_node(variable.ref.*);
-            // _ = ref;
-            or_node.variable.name = node.variable.name;
-            return try ctx.create_var_instance(or_node);
+            var new_var = switch (or_node.*) {
+                .variable => or_node,
+                .type => try self.create_type_node(
+                    .{
+                        .variable = .{
+                            .name = node.variable.name,
+                            .ref = or_node,
+                        },
+                    },
+                ),
+            };
+
+            return try ctx.create_var_instance(new_var);
         }
     }
     return try self.create_type_node(node.*);
@@ -609,66 +615,66 @@ var bool_node = TypeNode{ .type = .{ .tid = .bool } };
 var any_node = TypeNode{ .type = .{ .tid = .any } };
 
 var add_args = [_]TypeNode{
-    .{ .variable = .{ .tid = .number, .name = "T" } },
-    .{ .variable = .{ .tid = .number, .name = "T" } },
+    .{ .variable = .{ .ref = &number_node, .name = "T" } },
+    .{ .variable = .{ .ref = &number_node, .name = "T" } },
 };
-var add_return_type: TypeNode = .{ .variable = .{ .tid = .number, .name = "T" } };
-var sub_args = [_]TypeNode{ .{ .variable = .{ .tid = .number, .name = "T" } }, .{ .variable = .{ .tid = .number, .name = "T" } } };
-var sub_return_type: TypeNode = .{ .variable = .{ .tid = .number, .name = "T" } };
+var add_return_type: TypeNode = .{ .variable = .{ .ref = &number_node, .name = "T" } };
+var sub_args = [_]TypeNode{ .{ .variable = .{ .ref = &number_node, .name = "T" } }, .{ .variable = .{ .ref = &number_node, .name = "T" } } };
+var sub_return_type: TypeNode = .{ .variable = .{ .ref = &number_node, .name = "T" } };
 
 var mul_args = [_]TypeNode{
-    .{ .variable = .{ .tid = .number, .name = "T" } },
-    .{ .variable = .{ .tid = .number, .name = "T" } },
+    .{ .variable = .{ .ref = &number_node, .name = "T" } },
+    .{ .variable = .{ .ref = &number_node, .name = "T" } },
 };
-var mul_return_type: TypeNode = .{ .variable = .{ .tid = .number, .name = "T" } };
+var mul_return_type: TypeNode = .{ .variable = .{ .ref = &number_node, .name = "T" } };
 
 var div_args = [_]TypeNode{
-    .{ .variable = .{ .tid = .number, .name = "T" } },
-    .{ .variable = .{ .tid = .number, .name = "T" } },
+    .{ .variable = .{ .ref = &number_node, .name = "T" } },
+    .{ .variable = .{ .ref = &number_node, .name = "T" } },
 };
-var div_return_type: TypeNode = .{ .variable = .{ .tid = .number, .name = "T" } };
+var div_return_type: TypeNode = .{ .variable = .{ .ref = &number_node, .name = "T" } };
 
 var equal_equal_args = [_]TypeNode{
-    .{ .variable = .{ .tid = .any, .name = "T" } },
-    .{ .variable = .{ .tid = .any, .name = "T" } },
+    .{ .variable = .{ .ref = &any_node, .name = "T" } },
+    .{ .variable = .{ .ref = &any_node, .name = "T" } },
 };
-var equal_equal_return_type: TypeNode = .{ .variable = .{ .tid = .bool, .name = "R" } };
+var equal_equal_return_type: TypeNode = .{ .variable = .{ .ref = &bool_node, .name = "R" } };
 
 var bang_equal_args = [_]TypeNode{
-    .{ .variable = .{ .tid = .any, .name = "T" } },
-    .{ .variable = .{ .tid = .any, .name = "T" } },
+    .{ .variable = .{ .ref = &any_node, .name = "T" } },
+    .{ .variable = .{ .ref = &any_node, .name = "T" } },
 };
 var bang_equal_return_type: TypeNode = .{ .type = .{
     .tid = .bool,
 } };
 
 var greater_args = [_]TypeNode{
-    .{ .variable = .{ .tid = .number, .name = "T" } },
-    .{ .variable = .{ .tid = .number, .name = "T" } },
+    .{ .variable = .{ .ref = &number_node, .name = "T" } },
+    .{ .variable = .{ .ref = &number_node, .name = "T" } },
 };
 var greater_return_type: TypeNode = .{ .type = .{
     .tid = .bool,
 } };
 
 var greater_equal_args = [_]TypeNode{
-    .{ .variable = .{ .tid = .number, .name = "T" } },
-    .{ .variable = .{ .tid = .number, .name = "T" } },
+    .{ .variable = .{ .ref = &number_node, .name = "T" } },
+    .{ .variable = .{ .ref = &number_node, .name = "T" } },
 };
 var greater_equal_return_type: TypeNode = .{ .type = .{
     .tid = .bool,
 } };
 
 var less_args = [_]TypeNode{
-    .{ .variable = .{ .tid = .number, .name = "T" } },
-    .{ .variable = .{ .tid = .number, .name = "T" } },
+    .{ .variable = .{ .ref = &number_node, .name = "T" } },
+    .{ .variable = .{ .ref = &number_node, .name = "T" } },
 };
 var less_return_type: TypeNode = .{ .type = .{
     .tid = .bool,
 } };
 
 var less_equal_args = [_]TypeNode{
-    .{ .variable = .{ .tid = .number, .name = "T" } },
-    .{ .variable = .{ .tid = .number, .name = "T" } },
+    .{ .variable = .{ .ref = &number_node, .name = "T" } },
+    .{ .variable = .{ .ref = &number_node, .name = "T" } },
 };
 var less_equal_return_type: TypeNode = .{ .type = .{
     .tid = .bool,
