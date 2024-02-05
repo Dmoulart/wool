@@ -4,56 +4,14 @@
       "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
     },
     "expr": { "Literal": { "value": { "Number": 1.0 } } },
-    "ptr": 4338892800
+    "ptr": 4336730112
   },
   {
     "type": {
       "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
     },
     "expr": { "Literal": { "value": { "Number": 1.0 } } },
-    "ptr": 4338892800
-  },
-  {
-    "type": {
-      "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
-    },
-    "expr": { "Literal": { "value": { "Number": 1.0 } } },
-    "ptr": 4338892864
-  },
-  {
-    "type": {
-      "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
-    },
-    "expr": { "Literal": { "value": { "Number": 1.0 } } },
-    "ptr": 4338892928
-  },
-  {
-    "type": {
-      "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
-    },
-    "expr": { "Literal": { "value": { "Number": 1.0 } } },
-    "ptr": 4338892992
-  },
-  {
-    "type": {
-      "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
-    },
-    "expr": { "Literal": { "value": { "Number": 1.0 } } },
-    "ptr": 4338893056
-  },
-  {
-    "type": {
-      "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
-    },
-    "expr": { "Literal": { "value": { "Number": 1.0 } } },
-    "ptr": 4338893120
-  },
-  {
-    "type": {
-      "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
-    },
-    "expr": { "Literal": { "value": { "Number": 1.5 } } },
-    "ptr": 4338893120
+    "ptr": 4336730112
   },
   {
     "type": {
@@ -63,10 +21,98 @@
       "Binary": {
         "left": { "Literal": { "value": { "Number": 1.0 } } },
         "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
+        "right": { "Literal": { "value": { "Number": 1.0 } } }
+      }
+    },
+    "ptr": 4336730112
+  },
+  {
+    "type": {
+      "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
+    },
+    "expr": { "Literal": { "value": { "Number": 1.0 } } },
+    "ptr": 4336730112
+  },
+  {
+    "type": {
+      "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
+    },
+    "expr": { "Literal": { "value": { "Number": 1.0 } } },
+    "ptr": 4336730208
+  },
+  {
+    "type": {
+      "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
+    },
+    "expr": { "Literal": { "value": { "Number": 1.0 } } },
+    "ptr": 4336730272
+  },
+  {
+    "type": {
+      "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
+    },
+    "expr": { "Literal": { "value": { "Number": 1.0 } } },
+    "ptr": 4336730272
+  },
+  {
+    "type": {
+      "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
+    },
+    "expr": {
+      "Binary": {
+        "left": { "Literal": { "value": { "Number": 1.0 } } },
+        "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
+        "right": { "Literal": { "value": { "Number": 1.0 } } }
+      }
+    },
+    "ptr": 4336730272
+  },
+  {
+    "type": {
+      "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
+    },
+    "expr": {
+      "Grouping": {
+        "expr": {
+          "Binary": {
+            "left": { "Literal": { "value": { "Number": 1.0 } } },
+            "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
+            "right": { "Literal": { "value": { "Number": 1.0 } } }
+          }
+        }
+      }
+    },
+    "ptr": 4336730272
+  },
+  {
+    "type": {
+      "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
+    },
+    "expr": { "Literal": { "value": { "Number": 1.5 } } },
+    "ptr": 4336730272
+  },
+  {
+    "type": {
+      "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
+    },
+    "expr": {
+      "Binary": {
+        "left": {
+          "Grouping": {
+            "expr": {
+              "Binary": {
+                "left": { "Literal": { "value": { "Number": 1.0 } } },
+                "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
+                "right": { "Literal": { "value": { "Number": 1.0 } } }
+              }
+            }
+          }
+        },
+        "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
         "right": { "Literal": { "value": { "Number": 1.5 } } }
       }
     },
-    "ptr": 4338893056
+    "ptr": 4336730208
   },
   {
     "type": {
@@ -78,14 +124,24 @@
         "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
         "right": {
           "Binary": {
-            "left": { "Literal": { "value": { "Number": 1.0 } } },
+            "left": {
+              "Grouping": {
+                "expr": {
+                  "Binary": {
+                    "left": { "Literal": { "value": { "Number": 1.0 } } },
+                    "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
+                    "right": { "Literal": { "value": { "Number": 1.0 } } }
+                  }
+                }
+              }
+            },
             "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
             "right": { "Literal": { "value": { "Number": 1.5 } } }
           }
         }
       }
     },
-    "ptr": 4338892992
+    "ptr": 4336730112
   },
   {
     "type": {
@@ -101,7 +157,21 @@
             "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
             "right": {
               "Binary": {
-                "left": { "Literal": { "value": { "Number": 1.0 } } },
+                "left": {
+                  "Grouping": {
+                    "expr": {
+                      "Binary": {
+                        "left": { "Literal": { "value": { "Number": 1.0 } } },
+                        "op": {
+                          "type": { "PLUS": {} },
+                          "lexeme": "+",
+                          "line": 1
+                        },
+                        "right": { "Literal": { "value": { "Number": 1.0 } } }
+                      }
+                    }
+                  }
+                },
                 "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
                 "right": { "Literal": { "value": { "Number": 1.5 } } }
               }
@@ -110,17 +180,15 @@
         }
       }
     },
-    "ptr": 4338892928
+    "ptr": 4336730112
   },
   {
     "type": {
       "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
     },
     "expr": {
-      "Binary": {
-        "left": { "Literal": { "value": { "Number": 1.0 } } },
-        "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
-        "right": {
+      "Grouping": {
+        "expr": {
           "Binary": {
             "left": { "Literal": { "value": { "Number": 1.0 } } },
             "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
@@ -130,7 +198,25 @@
                 "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
                 "right": {
                   "Binary": {
-                    "left": { "Literal": { "value": { "Number": 1.0 } } },
+                    "left": {
+                      "Grouping": {
+                        "expr": {
+                          "Binary": {
+                            "left": {
+                              "Literal": { "value": { "Number": 1.0 } }
+                            },
+                            "op": {
+                              "type": { "PLUS": {} },
+                              "lexeme": "+",
+                              "line": 1
+                            },
+                            "right": {
+                              "Literal": { "value": { "Number": 1.0 } }
+                            }
+                          }
+                        }
+                      }
+                    },
                     "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
                     "right": { "Literal": { "value": { "Number": 1.5 } } }
                   }
@@ -141,21 +227,25 @@
         }
       }
     },
-    "ptr": 4338892864
+    "ptr": 4336730112
   },
   {
     "type": {
-      "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
+      "variable": { "name": "R", "ref": { "type": { "tid": "bool" } } }
     },
     "expr": {
       "Binary": {
-        "left": { "Literal": { "value": { "Number": 1.0 } } },
-        "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
-        "right": {
+        "left": {
           "Binary": {
             "left": { "Literal": { "value": { "Number": 1.0 } } },
             "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
-            "right": {
+            "right": { "Literal": { "value": { "Number": 1.0 } } }
+          }
+        },
+        "op": { "type": { "EQUAL_EQUAL": {} }, "lexeme": "==", "line": 1 },
+        "right": {
+          "Grouping": {
+            "expr": {
               "Binary": {
                 "left": { "Literal": { "value": { "Number": 1.0 } } },
                 "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
@@ -165,7 +255,25 @@
                     "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
                     "right": {
                       "Binary": {
-                        "left": { "Literal": { "value": { "Number": 1.0 } } },
+                        "left": {
+                          "Grouping": {
+                            "expr": {
+                              "Binary": {
+                                "left": {
+                                  "Literal": { "value": { "Number": 1.0 } }
+                                },
+                                "op": {
+                                  "type": { "PLUS": {} },
+                                  "lexeme": "+",
+                                  "line": 1
+                                },
+                                "right": {
+                                  "Literal": { "value": { "Number": 1.0 } }
+                                }
+                              }
+                            }
+                          }
+                        },
                         "op": {
                           "type": { "PLUS": {} },
                           "lexeme": "+",
@@ -182,128 +290,6 @@
         }
       }
     },
-    "ptr": 4338892800
-  },
-  {
-    "type": {
-      "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
-    },
-    "expr": {
-      "Binary": {
-        "left": { "Literal": { "value": { "Number": 1.0 } } },
-        "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
-        "right": {
-          "Binary": {
-            "left": { "Literal": { "value": { "Number": 1.0 } } },
-            "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
-            "right": {
-              "Binary": {
-                "left": { "Literal": { "value": { "Number": 1.0 } } },
-                "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
-                "right": {
-                  "Binary": {
-                    "left": { "Literal": { "value": { "Number": 1.0 } } },
-                    "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
-                    "right": {
-                      "Binary": {
-                        "left": { "Literal": { "value": { "Number": 1.0 } } },
-                        "op": {
-                          "type": { "PLUS": {} },
-                          "lexeme": "+",
-                          "line": 1
-                        },
-                        "right": {
-                          "Binary": {
-                            "left": {
-                              "Literal": { "value": { "Number": 1.0 } }
-                            },
-                            "op": {
-                              "type": { "PLUS": {} },
-                              "lexeme": "+",
-                              "line": 1
-                            },
-                            "right": {
-                              "Literal": { "value": { "Number": 1.5 } }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "ptr": 4338892800
-  },
-  {
-    "type": {
-      "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
-    },
-    "expr": {
-      "Binary": {
-        "left": { "Literal": { "value": { "Number": 1.0 } } },
-        "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
-        "right": {
-          "Binary": {
-            "left": { "Literal": { "value": { "Number": 1.0 } } },
-            "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
-            "right": {
-              "Binary": {
-                "left": { "Literal": { "value": { "Number": 1.0 } } },
-                "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
-                "right": {
-                  "Binary": {
-                    "left": { "Literal": { "value": { "Number": 1.0 } } },
-                    "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
-                    "right": {
-                      "Binary": {
-                        "left": { "Literal": { "value": { "Number": 1.0 } } },
-                        "op": {
-                          "type": { "PLUS": {} },
-                          "lexeme": "+",
-                          "line": 1
-                        },
-                        "right": {
-                          "Binary": {
-                            "left": {
-                              "Literal": { "value": { "Number": 1.0 } }
-                            },
-                            "op": {
-                              "type": { "PLUS": {} },
-                              "lexeme": "+",
-                              "line": 1
-                            },
-                            "right": {
-                              "Binary": {
-                                "left": {
-                                  "Literal": { "value": { "Number": 1.0 } }
-                                },
-                                "op": {
-                                  "type": { "PLUS": {} },
-                                  "lexeme": "+",
-                                  "line": 1
-                                },
-                                "right": {
-                                  "Literal": { "value": { "Number": 1.5 } }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "ptr": 4338892800
+    "ptr": 4335339016
   }
 ]

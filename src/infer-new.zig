@@ -2,8 +2,6 @@ allocator: std.mem.Allocator,
 
 ast: []*const Expr,
 
-constraints: std.ArrayListUnmanaged(Constraints),
-
 type_nodes: std.ArrayListUnmanaged(TypeNode),
 
 sems: std.AutoArrayHashMapUnmanaged(*const Expr, *TypeNode),
@@ -11,8 +9,6 @@ sems: std.AutoArrayHashMapUnmanaged(*const Expr, *TypeNode),
 contexts: std.ArrayListUnmanaged(Context),
 
 ctx: *Context,
-
-const Constraints = std.AutoHashMapUnmanaged(*TypeNode, TypeID);
 
 pub const TypeID = enum {
     any,
@@ -96,7 +92,6 @@ pub fn init(allocator: std.mem.Allocator, ast: []*Expr) @This() {
         .allocator = allocator,
         .ast = ast,
         .type_nodes = .{},
-        .constraints = .{},
         .contexts = contexts,
         .ctx = context,
         .sems = .{},
@@ -141,14 +136,17 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
             var node = try self.infer(const_init.initializer);
 
             var type_decl = try self.create_type_node(
-                TypeNode{
+                .{
                     .type = .{
-                        .tid = if (const_init.type) |ty| try type_from_str(ty.lexeme) else .any,
+                        .tid = if (const_init.type) |ty|
+                            try type_from_str(ty.lexeme)
+                        else
+                            .any,
                     },
                 },
             );
 
-            _ = try self.unify(type_decl, node);
+            try unify(type_decl, node);
 
             try self.sems.put(self.allocator, expr, node);
 
@@ -183,8 +181,10 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
                 .BANG_EQUAL => "!=",
                 else => TypeError.UnknownBuiltin,
             };
-            var builtin = builtins_types.get(builtin_name).?;
-            var node = try self.call(
+
+            const builtin = builtins_types.get(builtin_name).?;
+
+            const node = try self.call(
                 builtin,
                 args,
                 expr,
@@ -213,59 +213,38 @@ fn call(self: *@This(), function: FunType, exprs_args: []*const Expr, expr: *con
     if (function.args.len != exprs_args.len) {
         return TypeError.WrongArgumentsNumber;
     }
-    if (std.mem.eql(u8, function.name, "-")) {
-        std.debug.print("hello", .{});
-    }
 
-    // pretty_print(expr);
-
-    var local_ctx = try self.contexts.addOne(self.allocator);
+    const local_ctx = try self.contexts.addOne(self.allocator);
     local_ctx.* = Context.init(self.allocator);
+    defer local_ctx.deinit();
 
-    for (exprs_args, function.args, 0..) |expr_arg, *function_arg, i| {
-        _ = i;
-        // pretty_print(expr_arg);
+    for (exprs_args, function.args) |expr_arg, *function_arg| {
+        const arg = try self.infer(expr_arg);
 
-        var arg = try self.infer(expr_arg);
+        const call_arg = try self.get_or_create_local_node(function_arg, arg, local_ctx);
 
-        // pretty_print(call_arg);
-
-        // var arg_type = try self.create_type_node(function_arg.*);
-        var call_arg = try self.get_or_create_local_node(function_arg, arg, local_ctx);
-
-        // pretty_print(expr_arg);
-
-        _ = try self.unify(
+        try unify(
             call_arg,
             arg,
         );
+
+        // Variable binding !
         if (tag(call_arg.*) == .variable and tag(arg.*) == .variable) {
             if (std.mem.eql(u8, function_arg.variable.name, call_arg.variable.name)) {
                 arg.variable.ref = call_arg.variable.ref;
             }
         }
 
-        // pretty_print(func_arg);
-
-        // try self.sems.put(self.allocator, expr_arg, switch (call_arg.*) {
-        //     .variable => |vari| vari.ref,
-        //     .type => call_arg,
-        // });
-        if (tag(call_arg.*) == .variable) {
-            pretty_print(expr_arg);
-            std.debug.print("\nPUT ptr:{} in ", .{@intFromPtr(call_arg.variable.ref)});
-        }
-        try self.sems.put(self.allocator, expr_arg, call_arg);
+        try self.sems.put(
+            self.allocator,
+            expr_arg,
+            call_arg,
+        );
     }
 
-    var node = try self.get_local_node(function.return_type, local_ctx);
-
-    // std.debug.print("\n-- return type {} {}  \n", .{ @intFromPtr(node), node.get_tid() });
-    // pretty_print(node);
+    const node = try self.get_local_node(function.return_type, local_ctx);
 
     try self.sems.put(self.allocator, expr, node);
-
-    // try self.log_sems();
 
     return node;
 }
@@ -302,84 +281,20 @@ fn get_local_node(self: *@This(), node: *TypeNode, ctx: *Context) !*TypeNode {
     return try self.create_type_node(node.*);
 }
 
-fn set_local_node(self: *@This(), node: *TypeNode, ctx: *Context) !void {
-    if (node.as_var()) |variable| {
-        try ctx.variables.put(self.allocator, variable.name, node);
-
-        // //@todo recursive cloning
-        // var ref = try self.create_type_node(variable.ref.*);
-
-        // return try ctx.create_var_instance(try self.create_type_node(
-        //     .{
-        //         .variable = .{
-        //             .name = variable.name,
-        //             .ref = ref,
-        //         },
-        //     },
-        // ));
-    }
-    return;
-}
-
-pub fn apply_constraints(
-    subst: *Constraints,
-    type_node: *TypeNode,
-) *TypeNode {
-    if (subst.get(type_node)) |tid| {
-        type_node.tid = tid;
+fn unify(a: *TypeNode, b: *TypeNode) !void {
+    if (is_narrower(a.get_tid(), b.get_tid())) {
+        a.set_tid(b.get_tid());
+    } else if (is_narrower(b.get_tid(), a.get_tid())) {
+        b.set_tid(a.get_tid());
     }
 
-    return type_node;
-}
-
-fn unify(self: *@This(), subject: *TypeNode, with: *TypeNode) !*Constraints {
-    // const s = try self._unify(a, b);
-    const s = try self.substitute(subject, with);
-
-    if (!types_intersects(subject.get_tid(), with.get_tid())) {
+    if (!types_intersects(a.get_tid(), b.get_tid())) {
         std.debug.print(
             "\nType Mismatch --\nExpected : {}\nFound : {}\n",
-            .{ subject.get_tid(), with.get_tid() },
+            .{ a.get_tid(), b.get_tid() },
         );
         return TypeError.TypeMismatch;
     }
-
-    return s;
-}
-
-fn substitute(self: *@This(), subject: *TypeNode, with: *TypeNode) !*Constraints {
-    // std.debug.print("\n Before Substitution {}: {} with {}: {}\n", .{
-    //     @intFromPtr(subject),
-    //     subject.get_tid(),
-    //     @intFromPtr(with),
-    //     with.get_tid(),
-    // });
-
-    // const subject_is_var = tag(subject.*) == .variable;
-    // const with_is_var = tag(with.*) == .variable;
-
-    if (is_narrower(subject.get_tid(), with.get_tid())) {
-        subject.set_tid(with.get_tid());
-        // if (subject_is_var) {
-        //     subject.variable.ref = if (with_is_var) with.variable.ref else with;
-        //     // subject.variable.ref.* = if (with_is_var) with.variable.ref.* else with.*;
-        // }
-    } else if (is_narrower(with.get_tid(), subject.get_tid())) {
-        with.set_tid(subject.get_tid());
-        // if (with_is_var) {
-        //     with.variable.ref = if (subject_is_var) subject.variable.ref else subject;
-        //     // with.variable.ref.* = if (subject_is_var) subject.variable.ref.* else subject.*;
-        // }
-    }
-
-    // std.debug.print("\n After Substitution {}: {} with {}: {}\n", .{
-    //     @intFromPtr(subject),
-    //     subject.get_tid(),
-    //     @intFromPtr(with),
-    //     with.get_tid(),
-    // });
-
-    return try self.create_constraint();
 }
 
 fn is_narrower(tid: TypeID, maybe_narrower: TypeID) bool {
@@ -459,37 +374,10 @@ fn types_intersects(a: TypeID, b: TypeID) bool {
     return false;
 }
 
-fn compose_subst(self: *@This(), s1: *Constraints, s2: *Constraints) !*Constraints {
-    const result = try self.create_constraint();
-
-    var iter_s2 = s2.iterator();
-    while (iter_s2.next()) |record| {
-        try result.put(
-            self.allocator,
-            record.key_ptr.*,
-            record.value_ptr.*,
-        );
-    }
-
-    var iter_s1 = s1.iterator();
-    while (iter_s1.next()) |record| {
-        try result.put(self.allocator, record.key_ptr.*, record.value_ptr.*);
-    }
-
-    return result;
-}
-
 fn create_type_node(self: *@This(), type_node: TypeNode) !*TypeNode {
     var tn_ptr = try self.type_nodes.addOne(self.allocator);
     tn_ptr.* = type_node;
     return tn_ptr;
-}
-
-fn create_constraint(self: *@This()) !*Constraints {
-    var subst = try self.constraints.addOne(self.allocator);
-    subst.* = .{};
-
-    return subst;
 }
 
 fn type_of(value: Expr.Literal.Value) TypeID {
@@ -538,18 +426,6 @@ pub fn type_from_str(str: []const u8) !TypeID {
         return TypeError.UnknwownType;
     }
 }
-// fn to_type_node(self: *@This(), @"type": Type, expr: *const Expr) !*TypeNode {
-//     if (@"type".is_number()) {
-//         return try self.create_type_node(TypeNode{ .named = .{ .expr = expr, .id = switch (@"type") {
-//             .i32, .i64 => I32_ID,
-//             .f32, .f64 => F32_ID,
-//             else => unreachable,
-//         } } });
-//     } else {
-//         return try self.create_type_node(TypeNode{ .named = .{ .expr = expr, .id = BOOL_ID } });
-//     }
-// }
-
 const Env = std.StringArrayHashMap(*TypeNode);
 
 const std = @import("std");
@@ -597,34 +473,6 @@ fn pretty_print(data: anytype) void {
         else => @compileError("Wrong type in pretty print"),
     }
     std.debug.print("\n", .{});
-}
-
-fn ComptimeEnumMap(comptime K: type, comptime V: type) type {
-    return struct {
-        const Self = ComptimeEnumMap(K, V);
-
-        values: [std.meta.fields(K).len]?V,
-        indicies: [std.meta.fields(K).len]bool,
-
-        pub fn init() Self {
-            var self: Self = undefined;
-            @memset(&self.values, null);
-            @memset(&self.indicies, false);
-            return self;
-        }
-
-        pub fn put(self: *Self, comptime key: K, comptime value: V) void {
-            self.indicies[@intFromEnum(key)] = true;
-            self.values[@intFromEnum(key)] = value;
-        }
-
-        pub fn get(self: *Self, comptime key: K) ?V {
-            if (self.indicies[@intFromEnum(key)]) {
-                return self.values[@intFromEnum(key)];
-            }
-            return null;
-        }
-    };
 }
 
 var number_node = TypeNode{ .type = .{ .tid = .number } };
@@ -859,8 +707,6 @@ const type_hierarchy = TypeHierarchy{
 };
 
 const Context = struct {
-    next_var_id: u32 = 0,
-
     variables: std.StringHashMapUnmanaged(*TypeNode),
 
     allocator: std.mem.Allocator,
@@ -876,24 +722,8 @@ const Context = struct {
         self.variables.deinit(self.allocator);
     }
 
-    // pub fn get_var_instance(self: *@This(), variable: *VarType) !*VarType {
-    //     if (self.variables.get(variable.name)) |type_variable| {
-    //         return type_variable;
-    //     }
-    //     try self.variables.put(self.allocator, variable.name, variable);
-    //     return variable;
-    // }
-
     pub fn create_var_instance(self: *@This(), node: *TypeNode) !*TypeNode {
         try self.variables.put(self.allocator, node.variable.name, node);
         return node;
     }
 };
-
-// fn get_token(expr: *const Expr)*const Token{
-//     return switch (expr.*) {
-//         .Grouping => |group| get_token(group.expr),
-//         .Literal => |lit| lit.
-//         else => unreachable
-//     };
-// }
