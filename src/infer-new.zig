@@ -6,9 +6,9 @@ type_nodes: std.ArrayListUnmanaged(TypeNode),
 
 sems: std.AutoArrayHashMapUnmanaged(*const Expr, *TypeNode),
 
-contexts: std.ArrayListUnmanaged(Context),
+global_context: *Context,
 
-ctx: *Context,
+contexts: std.ArrayListUnmanaged(Context),
 
 pub const TypeID = enum {
     any,
@@ -64,7 +64,7 @@ pub const TypeNode = union(enum) {
         };
     }
 
-    pub fn as_var(self: TypeNode) ?VarType {
+    pub fn get_var_id(self: TypeNode) ?VarType {
         return if (tag(self) == .variable) self.variable else null;
     }
 };
@@ -87,13 +87,13 @@ const Err = ErrorReporter(TypeError);
 
 pub fn init(allocator: std.mem.Allocator, ast: []*Expr) @This() {
     var contexts: std.ArrayListUnmanaged(Context) = .{};
-    var context = contexts.addOne(allocator) catch unreachable;
+    const global_context = contexts.addOne(allocator) catch unreachable;
     return .{
         .allocator = allocator,
         .ast = ast,
         .type_nodes = .{},
         .contexts = contexts,
-        .ctx = context,
+        .global_context = global_context,
         .sems = .{},
     };
 }
@@ -106,28 +106,6 @@ pub fn infer_program(self: *@This()) anyerror!*std.AutoArrayHashMapUnmanaged(*co
     try self.log_sems();
 
     return &self.sems;
-}
-pub fn log_sems(self: *@This()) !void {
-    var types = std.ArrayList(struct {
-        type: *TypeNode,
-        expr: *const Expr,
-        ptr: usize,
-    }).init(self.allocator);
-
-    var iter = self.sems.iterator();
-    while (iter.next()) |entry| {
-        var ptr = switch (entry.value_ptr.*.*) {
-            .variable => |variable| variable.ref,
-            .type => entry.value_ptr.*,
-        };
-        try types.append(
-            .{ .type = entry.value_ptr.*, .expr = entry.key_ptr.*, .ptr = @intFromPtr(
-                ptr,
-            ) },
-        );
-    }
-
-    try jsonPrint(types.items, "./types.json");
 }
 
 pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
@@ -214,6 +192,10 @@ fn call(self: *@This(), function: FunType, exprs_args: []*const Expr, expr: *con
         return TypeError.WrongArgumentsNumber;
     }
 
+    if (std.mem.eql(u8, function.name, "=")) {
+        pretty_print(expr);
+    }
+
     const local_ctx = try self.contexts.addOne(self.allocator);
     local_ctx.* = Context.init(self.allocator);
     defer local_ctx.deinit();
@@ -221,7 +203,11 @@ fn call(self: *@This(), function: FunType, exprs_args: []*const Expr, expr: *con
     for (exprs_args, function.args) |expr_arg, *function_arg| {
         const arg = try self.infer(expr_arg);
 
-        const call_arg = try self.get_or_create_local_node(function_arg, arg, local_ctx);
+        const call_arg = try self.get_or_create_local_node(
+            function_arg,
+            arg,
+            local_ctx,
+        );
 
         try unify(
             call_arg,
@@ -249,18 +235,18 @@ fn call(self: *@This(), function: FunType, exprs_args: []*const Expr, expr: *con
     return node;
 }
 
-fn get_or_create_local_node(self: *@This(), node: *TypeNode, or_node: *TypeNode, ctx: *Context) !*TypeNode {
-    if (node.as_var()) |variable| {
+fn get_or_create_local_node(self: *@This(), base_node: *TypeNode, local_node: *TypeNode, ctx: *Context) !*TypeNode {
+    if (base_node.get_var_id()) |variable| {
         if (ctx.variables.get(variable.name)) |registered_variable| {
             return registered_variable;
         } else {
-            var new_var = switch (or_node.*) {
-                .variable => or_node,
+            const new_var = switch (local_node.*) {
+                .variable => local_node,
                 .type => try self.create_type_node(
                     .{
                         .variable = .{
-                            .name = node.variable.name,
-                            .ref = or_node,
+                            .name = base_node.variable.name,
+                            .ref = local_node,
                         },
                     },
                 ),
@@ -269,11 +255,11 @@ fn get_or_create_local_node(self: *@This(), node: *TypeNode, or_node: *TypeNode,
             return try ctx.create_var_instance(new_var);
         }
     }
-    return try self.create_type_node(node.*);
+    return try self.create_type_node(base_node.*);
 }
 
 fn get_local_node(self: *@This(), node: *TypeNode, ctx: *Context) !*TypeNode {
-    if (node.as_var()) |variable| {
+    if (node.get_var_id()) |variable| {
         if (ctx.variables.get(variable.name)) |registered_variable| {
             return registered_variable;
         }
@@ -727,3 +713,25 @@ const Context = struct {
         return node;
     }
 };
+pub fn log_sems(self: *@This()) !void {
+    var types = std.ArrayList(struct {
+        type: *TypeNode,
+        expr: *const Expr,
+        ptr: usize,
+    }).init(self.allocator);
+
+    var iter = self.sems.iterator();
+    while (iter.next()) |entry| {
+        var ptr = switch (entry.value_ptr.*.*) {
+            .variable => |variable| variable.ref,
+            .type => entry.value_ptr.*,
+        };
+        try types.append(
+            .{ .type = entry.value_ptr.*, .expr = entry.key_ptr.*, .ptr = @intFromPtr(
+                ptr,
+            ) },
+        );
+    }
+
+    try jsonPrint(types.items, "./types.json");
+}
