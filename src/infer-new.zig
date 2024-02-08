@@ -192,7 +192,7 @@ fn call(self: *@This(), function: FunType, exprs_args: []*const Expr, expr: *con
         return TypeError.WrongArgumentsNumber;
     }
 
-    if (std.mem.eql(u8, function.name, "=")) {
+    if (std.mem.eql(u8, function.name, "-")) {
         pretty_print(expr);
     }
 
@@ -230,8 +230,6 @@ fn call(self: *@This(), function: FunType, exprs_args: []*const Expr, expr: *con
 
     const node = try self.get_local_node(function.return_type, local_ctx);
 
-    try self.sems.put(self.allocator, expr, node);
-
     return node;
 }
 
@@ -255,6 +253,19 @@ fn get_or_create_local_node(self: *@This(), base_node: *TypeNode, local_node: *T
             return try ctx.create_var_instance(new_var);
         }
     }
+    // const new_var = switch (local_node.*) {
+    //     .variable => local_node,
+    //     .type => try self.create_type_node(
+    //         .{
+    //             .variable = .{
+    //                 .name = base_node.variable.name,
+    //                 .ref = local_node,
+    //             },
+    //         },
+    //     ),
+    // };
+
+    // return try ctx.create_var_instance(new_var);
     return try self.create_type_node(base_node.*);
 }
 
@@ -472,7 +483,20 @@ var add_args = [_]TypeNode{
     .{ .variable = .{ .ref = &number_node, .name = "T" } },
 };
 var add_return_type: TypeNode = .{ .variable = .{ .ref = &number_node, .name = "T" } };
-var sub_args = [_]TypeNode{ .{ .variable = .{ .ref = &number_node, .name = "T" } }, .{ .variable = .{ .ref = &number_node, .name = "T" } } };
+var sub_args = [_]TypeNode{
+    .{
+        .variable = .{
+            .ref = &number_node,
+            .name = "T",
+        },
+    },
+    .{
+        .variable = .{
+            .ref = &number_node,
+            .name = "T",
+        },
+    },
+};
 var sub_return_type: TypeNode = .{ .variable = .{ .ref = &number_node, .name = "T" } };
 
 var mul_args = [_]TypeNode{
