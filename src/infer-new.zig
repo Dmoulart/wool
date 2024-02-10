@@ -234,11 +234,11 @@ fn call(self: *@This(), function: FunType, exprs_args: []*const Expr, _: *const 
 
         try log_sems(self);
 
-        // try self.sems.put(
-        //     self.allocator,
-        //     expr_arg,
-        //     call_arg,
-        // );
+        try self.sems.put(
+            self.allocator,
+            expr_arg,
+            call_arg,
+        );
     }
 
     const node = try self.get_local_node(function.return_type, local_ctx);
