@@ -103,7 +103,7 @@ pub fn infer_program(self: *@This()) anyerror!*std.AutoArrayHashMapUnmanaged(*co
         _ = try self.infer(expr);
     }
 
-    try self.log_sems();
+    try self.write_sems_to_file();
 
     return &self.sems;
 }
@@ -173,28 +173,23 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
             return node;
         },
         .Literal => |*literal| {
-            var node = try self.create_type_node(
-                .{
-                    .type = .{
-                        .tid = type_of(literal.value),
-                    },
-                },
-            );
-            try self.sems.put(self.allocator, expr, node);
-            return node;
+            var node = try self.create_type_node(.{ .type = .{ .tid = type_of(literal.value) } });
+            var variable = try self.create_type_node(TypeNode{ .variable = .{ .name = "T", .ref = node } });
+            try self.sems.put(self.allocator, expr, variable);
+            return variable;
         },
         else => unreachable,
     };
 }
 
-fn call(self: *@This(), function: FunType, exprs_args: []*const Expr, expr: *const Expr) anyerror!*TypeNode {
+fn call(self: *@This(), function: FunType, exprs_args: []*const Expr, _: *const Expr) anyerror!*TypeNode {
     if (function.args.len != exprs_args.len) {
         return TypeError.WrongArgumentsNumber;
     }
 
-    if (std.mem.eql(u8, function.name, "-")) {
-        pretty_print(expr);
-    }
+    // if (std.mem.eql(u8, function.name, "-")) {
+    //     pretty_print(expr);
+    // }
 
     const local_ctx = try self.contexts.addOne(self.allocator);
     local_ctx.* = Context.init(self.allocator);
@@ -215,20 +210,39 @@ fn call(self: *@This(), function: FunType, exprs_args: []*const Expr, expr: *con
         );
 
         // Variable binding !
-        if (tag(call_arg.*) == .variable and tag(arg.*) == .variable) {
+        if (tag(call_arg.*) == .variable and tag(arg.*) == .variable and call_arg != arg) {
             if (std.mem.eql(u8, function_arg.variable.name, call_arg.variable.name)) {
+                std.debug.print("\n---- Bind Variables\n", .{});
+                std.debug.print("\n- Expr \n\n", .{});
+                pretty_print(expr_arg);
+                std.debug.print("\n- Arg \n\n", .{});
+                pretty_print(arg);
+                std.debug.print("\n- Call Arg \n\n", .{});
+                pretty_print(call_arg);
+
                 arg.variable.ref = call_arg.variable.ref;
+
+                // var sem = self.sems.getPtr(
+                //     expr_arg,
+                // ).?;
+
+                // sem.*.variable.ref.* = call_arg.variable.ref.*;
+
+                // sem.* = call_arg;
             }
         }
 
-        try self.sems.put(
-            self.allocator,
-            expr_arg,
-            call_arg,
-        );
+        try log_sems(self);
+
+        // try self.sems.put(
+        //     self.allocator,
+        //     expr_arg,
+        //     call_arg,
+        // );
     }
 
     const node = try self.get_local_node(function.return_type, local_ctx);
+    std.debug.print("\nreturn node ptr {}", .{@intFromPtr(node.variable.ref)});
 
     return node;
 }
@@ -240,14 +254,15 @@ fn get_or_create_local_node(self: *@This(), base_node: *TypeNode, local_node: *T
         } else {
             const new_var = switch (local_node.*) {
                 .variable => local_node,
-                .type => try self.create_type_node(
-                    .{
-                        .variable = .{
-                            .name = base_node.variable.name,
-                            .ref = local_node,
-                        },
-                    },
-                ),
+                else => unreachable,
+                // .type => try self.create_type_node(
+                //     .{
+                //         .variable = .{
+                //             .name = base_node.variable.name,
+                //             .ref = local_node,
+                //         },
+                //     },
+                // ),
             };
 
             return try ctx.create_var_instance(new_var);
@@ -461,8 +476,8 @@ fn pretty_print(data: anytype) void {
             },
             .variable => |variable| {
                 std.debug.print("\n [Variable]: {s}\n", .{variable.name});
-                std.debug.print("\n TID: {} \n", .{variable.tid});
-                std.debug.print("\n $PTR: {} \n", .{@intFromPtr(data)});
+                std.debug.print("\n TID: {} \n", .{variable.ref.type.tid});
+                std.debug.print("\n $REF_PTR: {} \n", .{@intFromPtr(variable.ref)});
 
                 std.debug.print("\n", .{});
             },
@@ -737,7 +752,26 @@ const Context = struct {
         return node;
     }
 };
+
 pub fn log_sems(self: *@This()) !void {
+    std.debug.print("\n#####SEMS-STATE\n", .{});
+    var iter = self.sems.iterator();
+    while (iter.next()) |entry| {
+        var ptr = switch (entry.value_ptr.*.*) {
+            .variable => |variable| variable.ref,
+            .type => entry.value_ptr.*,
+        };
+        pretty_print(entry.key_ptr.*);
+        std.debug.print("\nREF_PTR: {}\n", .{@intFromPtr(
+            ptr,
+        )});
+        std.debug.print("\nNODE_PTR: {}\n\n", .{@intFromPtr(
+            entry.value_ptr.*,
+        )});
+    }
+}
+
+pub fn write_sems_to_file(self: *@This()) !void {
     var types = std.ArrayList(struct {
         type: *TypeNode,
         expr: *const Expr,
