@@ -187,9 +187,9 @@ fn call(self: *@This(), function: FunType, exprs_args: []*const Expr, _: *const 
         return TypeError.WrongArgumentsNumber;
     }
 
-    // if (std.mem.eql(u8, function.name, "-")) {
-    //     pretty_print(expr);
-    // }
+    if (std.mem.eql(u8, function.name, "-")) {
+        std.debug.print("hello", .{});
+    }
 
     const local_ctx = try self.contexts.addOne(self.allocator);
     local_ctx.* = Context.init(self.allocator);
@@ -212,23 +212,7 @@ fn call(self: *@This(), function: FunType, exprs_args: []*const Expr, _: *const 
         // Variable binding !
         if (tag(call_arg.*) == .variable and tag(arg.*) == .variable and call_arg != arg) {
             if (std.mem.eql(u8, function_arg.variable.name, call_arg.variable.name)) {
-                std.debug.print("\n---- Bind Variables\n", .{});
-                std.debug.print("\n- Expr \n\n", .{});
-                pretty_print(expr_arg);
-                std.debug.print("\n- Arg \n\n", .{});
-                pretty_print(arg);
-                std.debug.print("\n- Call Arg \n\n", .{});
-                pretty_print(call_arg);
-
-                arg.variable.ref = call_arg.variable.ref;
-
-                // var sem = self.sems.getPtr(
-                //     expr_arg,
-                // ).?;
-
-                // sem.*.variable.ref.* = call_arg.variable.ref.*;
-
-                // sem.* = call_arg;
+                arg.variable.ref = call_arg;
             }
         }
 
