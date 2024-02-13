@@ -37,7 +37,7 @@ pub const TypeNode = union(enum) {
                 self.type.tid = tid;
             },
             .variable => {
-                self.variable.ref.type.tid = tid;
+                self.variable.ref.set_tid(tid);
             },
         }
     }
@@ -47,19 +47,8 @@ pub const TypeNode = union(enum) {
             .type => |*monotype| {
                 return monotype.tid;
             },
-            .variable => |*variable| {
-                return variable.ref.type.tid;
-            },
-        };
-    }
-
-    pub fn clone(self: TypeNode) TypeNode {
-        return switch (self) {
-            .type => |*monotype| {
-                return .{ .type = .{ .tid = monotype.tid } };
-            },
-            .variable => |*variable| {
-                return .{ .variable = .{ .name = variable.name, .ref = variable.ref } };
+            .variable => |variable| {
+                return variable.ref.get_tid();
             },
         };
     }
