@@ -6,6 +6,8 @@ type_nodes: std.ArrayListUnmanaged(TypeNode),
 
 sems: std.AutoArrayHashMapUnmanaged(*const Expr, *TypeNode),
 
+values: std.StringArrayHashMapUnmanaged(*TypeNode),
+
 global_context: *Context,
 
 contexts: std.ArrayListUnmanaged(Context),
@@ -70,6 +72,7 @@ const TypeError = error{
     UnknownBuiltin,
     WrongArgumentsNumber,
     AllocError,
+    UnknownVariable,
 };
 
 const Err = ErrorReporter(TypeError);
@@ -77,14 +80,7 @@ const Err = ErrorReporter(TypeError);
 pub fn init(allocator: std.mem.Allocator, ast: []*Expr) @This() {
     var contexts: std.ArrayListUnmanaged(Context) = .{};
     const global_context = contexts.addOne(allocator) catch unreachable;
-    return .{
-        .allocator = allocator,
-        .ast = ast,
-        .type_nodes = .{},
-        .contexts = contexts,
-        .global_context = global_context,
-        .sems = .{},
-    };
+    return .{ .allocator = allocator, .ast = ast, .type_nodes = .{}, .contexts = contexts, .global_context = global_context, .sems = .{}, .values = .{} };
 }
 
 pub fn infer_program(self: *@This()) anyerror!*std.AutoArrayHashMapUnmanaged(*const Expr, *TypeNode) {
@@ -114,7 +110,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
             );
 
             try unify(type_decl, node);
-
+            try self.values.put(self.allocator, const_init.name.lexeme, node);
             try self.sems.put(self.allocator, expr, node);
 
             return node;
@@ -131,9 +127,8 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
             var args = try self.allocator.alloc(*const Expr, 2);
             args[0] = binary.left;
             args[1] = binary.right;
-            defer {
-                self.allocator.free(args);
-            }
+
+            defer self.allocator.free(args);
 
             const builtin_name = try switch (binary.op.type) {
                 .PLUS => "+",
@@ -162,10 +157,38 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
             return node;
         },
         .Literal => |*literal| {
-            var node = try self.create_type_node(.{ .type = .{ .tid = type_of(literal.value) } });
-            var variable = try self.create_type_node(TypeNode{ .variable = .{ .name = "T", .ref = node } });
+            const node = try self.create_type_node(
+                .{
+                    .type = .{
+                        .tid = type_of(literal.value),
+                    },
+                },
+            );
+            const variable = try self.create_type_node(
+                .{
+                    .variable = .{ .name = "T", .ref = node },
+                },
+            );
+
             try self.sems.put(self.allocator, expr, variable);
+
             return variable;
+        },
+        .Variable => |*variable| {
+            const ref = self.values.get(variable.name.lexeme) orelse return TypeError.UnknownVariable;
+
+            const node = try self.create_type_node(
+                .{
+                    .variable = .{
+                        .name = "var",
+                        .ref = ref,
+                    },
+                },
+            );
+
+            try self.sems.put(self.allocator, expr, node);
+
+            return node;
         },
         else => unreachable,
     };
