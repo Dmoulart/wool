@@ -19,6 +19,7 @@ pub const TypeID = enum {
     int,
     bool,
     string,
+    void,
 };
 
 const NodeID = usize;
@@ -115,6 +116,26 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
 
             return node;
         },
+        .VarInit => |*var_init| {
+            var node = try self.infer(var_init.initializer);
+
+            var type_decl = try self.create_type_node(
+                .{
+                    .type = .{
+                        .tid = if (var_init.type) |ty|
+                            try type_from_str(ty.lexeme)
+                        else
+                            .any,
+                    },
+                },
+            );
+
+            try unify(type_decl, node);
+            try self.values.put(self.allocator, var_init.name.lexeme, node);
+            try self.sems.put(self.allocator, expr, node);
+
+            return node;
+        },
         .Grouping => |*grouping| {
             var node = try self.infer(grouping.expr);
 
@@ -166,7 +187,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
             );
             const variable = try self.create_type_node(
                 .{
-                    .variable = .{ .name = "T", .ref = node },
+                    .variable = .{ .name = "T", .ref = node }, // @todo make name other than T does not work in binary
                 },
             );
 
@@ -180,7 +201,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
             const node = try self.create_type_node(
                 .{
                     .variable = .{
-                        .name = "var",
+                        .name = "T",
                         .ref = ref,
                     },
                 },
@@ -189,6 +210,56 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
             try self.sems.put(self.allocator, expr, node);
 
             return node;
+        },
+        // .Function => |*function| {},
+        .If => |*if_expr| {
+            const condition = try self.infer(if_expr.condition);
+            const bool_condition = try self.create_type_node(
+                .{
+                    .type = .{ .tid = .bool },
+                },
+            );
+
+            try unify(condition, bool_condition);
+            try self.sems.put(self.allocator, if_expr.condition, condition);
+
+            const then_branch = try self.infer(if_expr.then_branch);
+
+            if (if_expr.else_branch) |else_branch| {
+                const else_branch_type = try self.infer(else_branch);
+                try unify(then_branch, else_branch_type);
+                try self.sems.put(self.allocator, else_branch, else_branch_type);
+            }
+
+            try self.sems.put(self.allocator, if_expr.then_branch, then_branch);
+
+            const node = try self.create_type_node(
+                .{
+                    .variable = .{
+                        .name = "if",
+                        .ref = then_branch,
+                    },
+                },
+            );
+
+            try self.sems.put(self.allocator, expr, node);
+
+            return node;
+        },
+        .Block => |*block| {
+            var return_node: ?*TypeNode = null;
+
+            for (block.exprs) |block_expr| {
+                return_node = try self.infer(block_expr);
+            }
+
+            if (return_node == null) {
+                return_node = try self.create_type_node(.{ .type = .{ .tid = .void } });
+            }
+
+            try self.sems.put(self.allocator, expr, return_node.?);
+
+            return return_node.?;
         },
         else => unreachable,
     };
@@ -199,16 +270,15 @@ fn call(self: *@This(), function: FunType, exprs_args: []*const Expr, _: *const 
         return TypeError.WrongArgumentsNumber;
     }
 
-    if (std.mem.eql(u8, function.name, "-")) {
-        std.debug.print("hello", .{});
-    }
-
     const local_ctx = try self.contexts.addOne(self.allocator);
     local_ctx.* = Context.init(self.allocator);
     defer local_ctx.deinit();
 
     for (exprs_args, function.args) |expr_arg, *function_arg| {
         const arg = try self.infer(expr_arg);
+
+        // @warning: watch this crap
+        arg.variable.name = function_arg.variable.name;
 
         const call_arg = try self.get_or_create_local_node(
             function_arg,
@@ -264,17 +334,6 @@ fn get_or_create_local_node(self: *@This(), base_node: *TypeNode, local_node: *T
             return try ctx.create_var_instance(new_var);
         }
     }
-    // const new_var = switch (local_node.*) {
-    //     .variable => local_node,
-    //     .type => try self.create_type_node(
-    //         .{
-    //             .variable = .{
-    //                 .name = base_node.variable.name,
-    //                 .ref = local_node,
-    //             },
-    //         },
-    //     ),
-    // };
 
     // return try ctx.create_var_instance(new_var);
     return try self.create_type_node(base_node.*);
@@ -464,7 +523,7 @@ fn pretty_print(data: anytype) void {
                 pretty_print(group.expr);
                 std.debug.print("\n", .{});
             },
-            else => unreachable,
+            else => {},
         },
         *TypeNode => switch (data.*) {
             .type => |ty| {
@@ -567,13 +626,6 @@ var less_equal_args = [_]TypeNode{
 var less_equal_return_type: TypeNode = .{ .type = .{
     .tid = .bool,
 } };
-
-//   .GREATER => ">",
-//                 .GREATER_EQUAL => ">=",
-//                 .LESS => "<",
-//                 .LESS_EQUAL => "<=",
-//                 .EQUAL_EQUAL => "==",
-//                 .BANG_EQUAL => "!=",
 
 const builtins_types = std.ComptimeStringMap(
     FunType,
