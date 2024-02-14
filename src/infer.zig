@@ -33,6 +33,7 @@ const VarType = struct {
 pub const TypeNode = union(enum) {
     type: MonoType,
     variable: VarType,
+    function: FunType,
 
     pub fn set_tid(self: *TypeNode, tid: TypeID) void {
         switch (self.*) {
@@ -42,6 +43,9 @@ pub const TypeNode = union(enum) {
             .variable => {
                 self.variable.ref.set_tid(tid);
             },
+            .function => {
+                self.function.return_type.set_tid(tid);
+            },
         }
     }
 
@@ -50,8 +54,11 @@ pub const TypeNode = union(enum) {
             .type => |*monotype| {
                 return monotype.tid;
             },
-            .variable => |variable| {
+            .variable => |*variable| {
                 return variable.ref.get_tid();
+            },
+            .function => |*function| {
+                return function.return_type.get_tid();
             },
         };
     }
@@ -74,6 +81,7 @@ const TypeError = error{
     WrongArgumentsNumber,
     AllocError,
     UnknownVariable,
+    AnonymousFunctionsNotImplemented,
 };
 
 const Err = ErrorReporter(TypeError);
@@ -261,6 +269,16 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
 
             return return_node.?;
         },
+        // .Function => |*function| {
+        //     if (function.name == null) {
+        //         return TypeError.AnonymousFunctionsNotImplemented;
+        //     }
+        //     if (function.args) |args| {
+        //         for (args) |arg| {
+        //             arg.
+        //         }
+        //     }
+        // },
         else => unreachable,
     };
 }
@@ -470,7 +488,7 @@ pub fn jsonPrint(value: anytype, file_path: []const u8) !void {
 }
 
 pub fn type_from_str(str: []const u8) !TypeID {
-    // use meta functions for enums
+    // use meta functions for enums ?
     if (std.mem.eql(u8, str, "i32")) {
         return .int;
     } else if (std.mem.eql(u8, str, "i64")) {
@@ -483,6 +501,10 @@ pub fn type_from_str(str: []const u8) !TypeID {
         return .void;
     } else if (std.mem.eql(u8, str, "bool")) {
         return .bool;
+    } else if (std.mem.eql(u8, str, "Number")) {
+        return .number;
+    } else if (std.mem.eql(u8, str, "Float")) {
+        return .float;
     } else {
         return TypeError.UnknwownType;
     }
@@ -825,11 +847,16 @@ pub fn write_sems_to_file(self: *@This()) !void {
         var ptr = switch (entry.value_ptr.*.*) {
             .variable => |variable| variable.ref,
             .type => entry.value_ptr.*,
+            .function => |function| function.return_type,
         };
         try types.append(
-            .{ .type = entry.value_ptr.*, .expr = entry.key_ptr.*, .ptr = @intFromPtr(
-                ptr,
-            ) },
+            .{
+                .type = entry.value_ptr.*,
+                .expr = entry.key_ptr.*,
+                .ptr = @intFromPtr(
+                    ptr,
+                ),
+            },
         );
     }
 
