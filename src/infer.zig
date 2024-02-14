@@ -298,8 +298,6 @@ fn call(self: *@This(), function: FunType, exprs_args: []*const Expr, _: *const 
             }
         }
 
-        try log_sems(self);
-
         try self.sems.put(
             self.allocator,
             expr_arg,
@@ -307,10 +305,7 @@ fn call(self: *@This(), function: FunType, exprs_args: []*const Expr, _: *const 
         );
     }
 
-    const node = try self.get_local_node(function.return_type, local_ctx);
-    std.debug.print("\nreturn node ptr {}", .{@intFromPtr(node.variable.ref)});
-
-    return node;
+    return try self.get_local_node(function.return_type, local_ctx);
 }
 
 fn get_or_create_local_node(self: *@This(), base_node: *TypeNode, local_node: *TypeNode, ctx: *Context) !*TypeNode {
@@ -428,12 +423,11 @@ fn types_intersects(a: TypeID, b: TypeID) bool {
     }
 
     const a_is_terminal = find_subtypes(a, &type_hierarchy) == null;
-    const b_is_terminal = find_subtypes(b, &type_hierarchy) == null;
-
     if (!a_is_terminal and is_subtype(a, b)) {
         return true;
     }
 
+    const b_is_terminal = find_subtypes(b, &type_hierarchy) == null;
     if (!b_is_terminal and is_subtype(b, a)) {
         return true;
     }
@@ -486,7 +480,7 @@ pub fn type_from_str(str: []const u8) !TypeID {
     } else if (std.mem.eql(u8, str, "f64")) {
         return .float;
     } else if (std.mem.eql(u8, str, "void")) {
-        unreachable;
+        return .void;
     } else if (std.mem.eql(u8, str, "bool")) {
         return .bool;
     } else {
