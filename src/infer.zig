@@ -74,22 +74,22 @@ pub const FunType = struct {
     return_type: *TypeNode,
 };
 
-const TypeError = error{
-    TypeMismatch,
-    UnknwownType,
-    UnknownBuiltin,
-    WrongArgumentsNumber,
-    AllocError,
-    UnknownVariable,
-    AnonymousFunctionsNotImplemented,
-};
+const TypeError = error{ TypeMismatch, UnknwownType, UnknownBuiltin, WrongArgumentsNumber, AllocError, UnknownVariable, AnonymousFunctionsNotImplemented, FunctionArgumentsCanOnlyBeIdentifiers };
 
 const Err = ErrorReporter(TypeError);
 
 pub fn init(allocator: std.mem.Allocator, ast: []*Expr) @This() {
     var contexts: std.ArrayListUnmanaged(Context) = .{};
     const global_context = contexts.addOne(allocator) catch unreachable;
-    return .{ .allocator = allocator, .ast = ast, .type_nodes = .{}, .contexts = contexts, .global_context = global_context, .sems = .{}, .values = .{} };
+    return .{
+        .allocator = allocator,
+        .ast = ast,
+        .type_nodes = .{},
+        .contexts = contexts,
+        .global_context = global_context,
+        .sems = .{},
+        .values = .{},
+    };
 }
 
 pub fn infer_program(self: *@This()) anyerror!*std.AutoArrayHashMapUnmanaged(*const Expr, *TypeNode) {
@@ -105,9 +105,9 @@ pub fn infer_program(self: *@This()) anyerror!*std.AutoArrayHashMapUnmanaged(*co
 pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
     return switch (expr.*) {
         .ConstInit => |*const_init| {
-            var node = try self.infer(const_init.initializer);
+            const node = try self.infer(const_init.initializer);
 
-            var type_decl = try self.create_type_node(
+            const type_decl = try self.create_type_node(
                 .{
                     .type = .{
                         .tid = if (const_init.type) |ty|
@@ -119,15 +119,16 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
             );
 
             try unify(type_decl, node);
+
             try self.values.put(self.allocator, const_init.name.lexeme, node);
             try self.sems.put(self.allocator, expr, node);
 
             return node;
         },
         .VarInit => |*var_init| {
-            var node = try self.infer(var_init.initializer);
+            const node = try self.infer(var_init.initializer);
 
-            var type_decl = try self.create_type_node(
+            const type_decl = try self.create_type_node(
                 .{
                     .type = .{
                         .tid = if (var_init.type) |ty|
@@ -139,6 +140,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
             );
 
             try unify(type_decl, node);
+
             try self.values.put(self.allocator, var_init.name.lexeme, node);
             try self.sems.put(self.allocator, expr, node);
 
@@ -269,16 +271,74 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
 
             return return_node.?;
         },
-        // .Function => |*function| {
-        //     if (function.name == null) {
-        //         return TypeError.AnonymousFunctionsNotImplemented;
-        //     }
-        //     if (function.args) |args| {
-        //         for (args) |arg| {
-        //             arg.
-        //         }
-        //     }
-        // },
+        .Function => |*function| {
+            if (function.name == null) {
+                return TypeError.AnonymousFunctionsNotImplemented;
+            }
+
+            const return_type = try self.create_type_node(
+                .{
+                    .type = .{ .tid = try type_from_str(function.type.lexeme) },
+                },
+            );
+
+            var function_type: FunType = .{
+                .name = function.name.?.lexeme,
+                .args = if (function.args) |args|
+                    try self.allocator.alloc(TypeNode, args.len)
+                else
+                    &[_]TypeNode{},
+                .return_type = return_type,
+            };
+
+            if (function.args) |args| {
+                for (args, 0..) |arg, i| {
+                    const node = try self.create_type_node(
+                        .{
+                            .variable = .{
+                                .ref = try self.create_type_node(
+                                    .{
+                                        .type = .{
+                                            .tid = if (arg.type) |ty|
+                                                try type_from_str(ty.lexeme)
+                                            else
+                                                .any,
+                                        },
+                                    },
+                                ),
+                                .name = "Arg",
+                            },
+                        },
+                    );
+
+                    // const node = try self.infer(arg.expr);
+
+                    // if (tag(node.*) != .variable) {
+                    //     return TypeError.FunctionArgumentsCanOnlyBeIdentifiers; // for now : )
+                    // }
+
+                    // try unify(node, type_decl);
+
+                    try self.values.put(
+                        self.allocator,
+                        arg.expr.Variable.name.lexeme,
+                        node,
+                    );
+
+                    function_type.args[i] = node.*;
+                }
+            }
+
+            const body_type = try self.infer(function.body);
+
+            try unify(return_type, body_type);
+
+            const node = try self.create_type_node(.{ .function = function_type });
+
+            try self.sems.put(self.allocator, expr, node);
+
+            return node;
+        },
         else => unreachable,
     };
 }
@@ -351,6 +411,26 @@ fn get_or_create_local_node(self: *@This(), base_node: *TypeNode, local_node: *T
     // return try ctx.create_var_instance(new_var);
     return try self.create_type_node(base_node.*);
 }
+
+// fn create_value(self: *@This(), name: []const u8, expr: *const Expr, type_token: *Token) !*TypeNode {
+//     const node = try self.infer(expr);
+//     const type_decl = try self.create_type_node(
+//         .{
+//             .type = .{
+//                 .tid = if (type_token) |ty|
+//                     try type_from_str(ty.lexeme)
+//                 else
+//                     .any,
+//             },
+//         },
+//     );
+
+//     try unify(type_decl, node);
+
+//     try self.values.put(self.allocator, name, node);
+
+//     return node;
+// }
 
 fn get_local_node(self: *@This(), node: *TypeNode, ctx: *Context) !*TypeNode {
     if (node.get_var_id()) |variable| {
@@ -505,6 +585,8 @@ pub fn type_from_str(str: []const u8) !TypeID {
         return .number;
     } else if (std.mem.eql(u8, str, "Float")) {
         return .float;
+    } else if (std.mem.eql(u8, str, "Any")) {
+        return .any;
     } else {
         return TypeError.UnknwownType;
     }
@@ -516,7 +598,6 @@ const std = @import("std");
 const Expr = @import("./ast/expr.zig").Expr;
 const Type = @import("./types.zig").Type;
 const Token = @import("./token.zig");
-// const Context = @import("./context.zig").Context;
 const floatMax = std.math.floatMax;
 const maxInt = std.math.maxInt;
 const ErrorReporter = @import("./error-reporter.zig").ErrorReporter;

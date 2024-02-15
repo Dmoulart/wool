@@ -1,6 +1,10 @@
+add :: first Any, second Any -> Number first + second
+
+/*
 test_float_coercion :: {
   b := 1 
   c := 2
 
   if (c == 1.5) c else b // should coerce b and c to float !
 }
+*/

@@ -265,25 +265,14 @@ fn function(self: *Self) ParserError!*Expr {
 
     if (is_function) {
         const args_declaration = current == .IDENTIFIER;
-        var args: ?std.ArrayList(Expr.Function.Arg) = null;
+        var args: ?std.ArrayList(Expr.Arg) = null;
 
         if (args_declaration) {
-            args = std.ArrayList(Expr.Function.Arg).init(self.allocator);
+            args = std.ArrayList(Expr.Arg).init(self.allocator);
+
             errdefer args.?.deinit();
 
-            const first_identifier = try self.consume(
-                .IDENTIFIER,
-                ParserError.MissingParameterName,
-                "Expect parameter name.",
-            );
-
-            const first_type = try self.consume(
-                .IDENTIFIER,
-                ParserError.MissingParameterType,
-                "Expect parameter type.",
-            );
-
-            args.?.append(.{ .name = first_identifier, .type = first_type }) catch return ParserError.OutOfMemory;
+            args.?.append(try self.argument()) catch return ParserError.OutOfMemory;
 
             while (self.match(&.{.COMMA})) {
                 // @todo: do while would have been great in this case
@@ -295,19 +284,7 @@ fn function(self: *Self) ParserError!*Expr {
                     );
                 }
 
-                const identifier = try self.consume(
-                    .IDENTIFIER,
-                    ParserError.MissingParameterName,
-                    "Expect parameter name.",
-                );
-
-                const @"type" = try self.consume(
-                    .IDENTIFIER,
-                    ParserError.MissingParameterType,
-                    "Expect parameter type.",
-                );
-
-                args.?.append(.{ .name = identifier, .type = @"type" }) catch return ParserError.OutOfMemory;
+                args.?.append(try self.argument()) catch return ParserError.OutOfMemory;
             }
         }
         var peek_token = self.peek();
@@ -366,6 +343,25 @@ fn function(self: *Self) ParserError!*Expr {
     }
 
     return try self.const_init();
+}
+
+fn argument(self: *Self) ParserError!Expr.Arg {
+    const identifier = try self.consume(
+        .IDENTIFIER,
+        ParserError.MissingParameterName,
+        "Expect parameter name.",
+    );
+
+    const type_decl = self.optional(.IDENTIFIER);
+
+    return .{
+        .expr = try self.create_expr(
+            .{
+                .Variable = .{ .name = identifier },
+            },
+        ),
+        .type = type_decl,
+    };
 }
 
 fn const_init(self: *Self) ParserError!*Expr {
@@ -842,6 +838,13 @@ fn consume(self: *Self, token_type: Token.Types, comptime parser_error: ParserEr
         return self.advance();
     }
     return Err.raise(self.peek(), parser_error, msg);
+}
+
+fn optional(self: *Self, token_type: Token.Types) ?*Token {
+    if (self.check(token_type)) {
+        return self.advance();
+    }
+    return null;
 }
 
 fn is_at_end(self: *Self) bool {

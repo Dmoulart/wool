@@ -6,6 +6,7 @@ pub const Expr = union(enum) {
     Binary: Binary,
     Call: Call,
     Function: Function,
+    Arg: Arg,
     Grouping: Grouping,
     Block: Block,
     Literal: Literal,
@@ -47,12 +48,15 @@ pub const Expr = union(enum) {
 
     pub const Function = struct {
         args: ?[]Arg,
-        body: ?*const Expr,
+        body: *const Expr,
         name: ?*const Token,
         type: *const Token, // @todo type expression
 
-        // @todo Should this be an expression ?
-        pub const Arg = struct { name: *const Token, type: *const Token };
+    };
+
+    pub const Arg = struct {
+        expr: *const Expr, // @todo limit this to Variables ?
+        type: ?*const Token,
     };
 
     pub const Block = struct {
