@@ -22,14 +22,21 @@ pub const TypeID = enum {
     void,
 };
 
-const NodeID = usize;
-const VarID = usize;
+const MonoType = struct {
+    tid: TypeID,
+};
 
-const MonoType = struct { tid: TypeID };
 const VarType = struct {
     name: []const u8,
     ref: *TypeNode,
 };
+
+pub const FunType = struct {
+    name: []const u8,
+    args: []*TypeNode,
+    return_type: *TypeNode,
+};
+
 pub const TypeNode = union(enum) {
     type: MonoType,
     variable: VarType,
@@ -66,12 +73,6 @@ pub const TypeNode = union(enum) {
     pub fn get_var_id(self: TypeNode) ?VarType {
         return if (tag(self) == .variable) self.variable else null;
     }
-};
-
-pub const FunType = struct {
-    name: []const u8,
-    args: []TypeNode,
-    return_type: *TypeNode,
 };
 
 const TypeError = error{ TypeMismatch, UnknwownType, UnknownBuiltin, WrongArgumentsNumber, AllocError, UnknownVariable, AnonymousFunctionsNotImplemented, FunctionArgumentsCanOnlyBeIdentifiers };
@@ -285,9 +286,9 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
             var function_type: FunType = .{
                 .name = function.name.?.lexeme,
                 .args = if (function.args) |args|
-                    try self.allocator.alloc(TypeNode, args.len)
+                    try self.allocator.alloc(*TypeNode, args.len)
                 else
-                    &[_]TypeNode{},
+                    &[_]*TypeNode{},
                 .return_type = return_type,
             };
 
@@ -325,7 +326,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
                         node,
                     );
 
-                    function_type.args[i] = node.*;
+                    function_type.args[i] = node;
                 }
             }
 
@@ -352,7 +353,7 @@ fn call(self: *@This(), function: FunType, exprs_args: []*const Expr, _: *const 
     local_ctx.* = Context.init(self.allocator);
     defer local_ctx.deinit();
 
-    for (exprs_args, function.args) |expr_arg, *function_arg| {
+    for (exprs_args, function.args) |expr_arg, function_arg| {
         const arg = try self.infer(expr_arg);
 
         // @warning: watch this crap
@@ -639,90 +640,138 @@ fn pretty_print(data: anytype) void {
     std.debug.print("\n", .{});
 }
 
-var number_node = TypeNode{ .type = .{ .tid = .number } };
+const BaseTypes = blk: {
+    var map: std.EnumMap(TypeID, TypeNode) = .{};
 
-var bool_node = TypeNode{ .type = .{ .tid = .bool } };
+    inline for (std.meta.fields(TypeID)) |tid| {
+        map.put(
+            @enumFromInt(tid.value),
+            TypeNode{
+                .type = .{
+                    .tid = @enumFromInt(tid.value),
+                },
+            },
+        );
+    }
 
-var any_node = TypeNode{ .type = .{ .tid = .any } };
-
-var add_args = [_]TypeNode{
-    .{ .variable = .{ .ref = &number_node, .name = "T" } },
-    .{ .variable = .{ .ref = &number_node, .name = "T" } },
+    break :blk map;
 };
-var add_return_type: TypeNode = .{ .variable = .{ .ref = &number_node, .name = "T" } };
-var sub_args = [_]TypeNode{
-    .{
+
+// const BaseTypesPtr = blk: {
+//     var map: std.EnumMap(TypeID, *TypeNode) = .{};
+
+//     inline for (std.meta.fields(TypeID)) |tid| {
+//         map.put(
+//             @enumFromInt(tid.value),
+//             BaseTypes.getPtr(
+//                 @enumFromInt(tid.value),
+//             ),
+//         );
+//     }
+
+//     break :blk map;
+// };
+
+fn make_type(tid: TypeID) TypeNode {
+    return BaseTypes.get(tid).?;
+}
+
+const BaseVarTypes = blk: {
+    var map: std.EnumMap(TypeID, TypeNode) = .{};
+    inline for (std.meta.fields(TypeID)) |tid| {
+        map.put(
+            tid,
+            TypeNode{
+                .variable = .{
+                    .name = "Base",
+                    .ref = make_type(tid),
+                },
+            },
+        );
+    }
+
+    break :blk map;
+};
+
+fn make_vartype(
+    name: []const u8,
+    ref: *TypeNode,
+) TypeNode {
+    return TypeNode{
         .variable = .{
-            .ref = &number_node,
-            .name = "T",
+            .name = name,
+            .ref = ref,
         },
-    },
-    .{
-        .variable = .{
-            .ref = &number_node,
-            .name = "T",
-        },
-    },
-};
-var sub_return_type: TypeNode = .{ .variable = .{ .ref = &number_node, .name = "T" } };
+    };
+}
 
-var mul_args = [_]TypeNode{
-    .{ .variable = .{ .ref = &number_node, .name = "T" } },
-    .{ .variable = .{ .ref = &number_node, .name = "T" } },
-};
-var mul_return_type: TypeNode = .{ .variable = .{ .ref = &number_node, .name = "T" } };
+var number_node = make_type(.number);
+var number_var = make_vartype("T", &number_node);
 
-var div_args = [_]TypeNode{
-    .{ .variable = .{ .ref = &number_node, .name = "T" } },
-    .{ .variable = .{ .ref = &number_node, .name = "T" } },
-};
-var div_return_type: TypeNode = .{ .variable = .{ .ref = &number_node, .name = "T" } };
+var bool_node = make_type(.bool);
 
-var equal_equal_args = [_]TypeNode{
-    .{ .variable = .{ .ref = &any_node, .name = "T" } },
-    .{ .variable = .{ .ref = &any_node, .name = "T" } },
-};
-var equal_equal_return_type: TypeNode = .{ .variable = .{ .ref = &bool_node, .name = "R" } };
+var any_node = make_type(.any);
+var any_var = make_vartype("T", &any_node);
 
-var bang_equal_args = [_]TypeNode{
-    .{ .variable = .{ .ref = &any_node, .name = "T" } },
-    .{ .variable = .{ .ref = &any_node, .name = "T" } },
+var add_args: [2]*TypeNode = .{
+    &number_var,
+    &number_var,
 };
-var bang_equal_return_type: TypeNode = .{ .type = .{
-    .tid = .bool,
-} };
+var add_return_type = make_vartype("T", &number_node);
 
-var greater_args = [_]TypeNode{
-    .{ .variable = .{ .ref = &number_node, .name = "T" } },
-    .{ .variable = .{ .ref = &number_node, .name = "T" } },
+var sub_args: [2]*TypeNode = .{
+    &number_var,
+    &number_var,
 };
-var greater_return_type: TypeNode = .{ .type = .{
-    .tid = .bool,
-} };
+var sub_return_type = make_vartype("T", &number_node);
 
-var greater_equal_args = [_]TypeNode{
-    .{ .variable = .{ .ref = &number_node, .name = "T" } },
-    .{ .variable = .{ .ref = &number_node, .name = "T" } },
+var mul_args: [2]*TypeNode = .{
+    &number_var,
+    &number_var,
 };
-var greater_equal_return_type: TypeNode = .{ .type = .{
-    .tid = .bool,
-} };
+var mul_return_type = make_vartype("T", &number_node);
 
-var less_args = [_]TypeNode{
-    .{ .variable = .{ .ref = &number_node, .name = "T" } },
-    .{ .variable = .{ .ref = &number_node, .name = "T" } },
+var div_args: [2]*TypeNode = .{
+    &number_var,
+    &number_var,
 };
-var less_return_type: TypeNode = .{ .type = .{
-    .tid = .bool,
-} };
+var div_return_type = make_vartype("T", &number_node);
 
-var less_equal_args = [_]TypeNode{
-    .{ .variable = .{ .ref = &number_node, .name = "T" } },
-    .{ .variable = .{ .ref = &number_node, .name = "T" } },
+var equal_equal_args: [2]*TypeNode = .{
+    &any_var,
+    &any_var,
 };
-var less_equal_return_type: TypeNode = .{ .type = .{
-    .tid = .bool,
-} };
+var equal_equal_return_type = make_type(.bool);
+
+var bang_equal_args: [2]*TypeNode = .{
+    &any_var,
+    &any_var,
+};
+var bang_equal_return_type: TypeNode = make_type(.bool);
+
+var greater_args: [2]*TypeNode = .{
+    &number_var,
+    &number_var,
+};
+var greater_return_type: TypeNode = make_type(.bool);
+
+var greater_equal_args: [2]*TypeNode = .{
+    &number_var,
+    &number_var,
+};
+var greater_equal_return_type: TypeNode = make_type(.bool);
+
+var less_args: [2]*TypeNode = .{
+    &number_var,
+    &number_var,
+};
+var less_return_type: TypeNode = make_type(.bool);
+
+var less_equal_args: [2]*TypeNode = .{
+    &number_var,
+    &number_var,
+};
+var less_equal_return_type: TypeNode = make_type(.bool);
 
 const builtins_types = std.ComptimeStringMap(
     FunType,

@@ -1,4 +1,4 @@
-add :: first Any, second Any -> Number first + second
+// add :: first Any, second Any -> Number first + second
 
 /*
 test_float_coercion :: {
@@ -8,3 +8,6 @@ test_float_coercion :: {
   if (c == 1.5) c else b // should coerce b and c to float !
 }
 */
+
+
+a := 1 + 1 + 1 + 1 >= 1 + 1 + 1 + 1 + 1.5
