@@ -657,41 +657,9 @@ const BaseTypes = blk: {
     break :blk map;
 };
 
-// const BaseTypesPtr = blk: {
-//     var map: std.EnumMap(TypeID, *TypeNode) = .{};
-
-//     inline for (std.meta.fields(TypeID)) |tid| {
-//         map.put(
-//             @enumFromInt(tid.value),
-//             BaseTypes.getPtr(
-//                 @enumFromInt(tid.value),
-//             ),
-//         );
-//     }
-
-//     break :blk map;
-// };
-
 fn make_type(tid: TypeID) TypeNode {
     return BaseTypes.get(tid).?;
 }
-
-const BaseVarTypes = blk: {
-    var map: std.EnumMap(TypeID, TypeNode) = .{};
-    inline for (std.meta.fields(TypeID)) |tid| {
-        map.put(
-            tid,
-            TypeNode{
-                .variable = .{
-                    .name = "Base",
-                    .ref = make_type(tid),
-                },
-            },
-        );
-    }
-
-    break :blk map;
-};
 
 fn make_vartype(
     name: []const u8,

@@ -9,5 +9,6 @@ test_float_coercion :: {
 }
 */
 
+// the problematic case
+// a := 1.5 + (2 + 3 + (4 - 5))
 
-a := 1 + 1 + 1 + 1 >= 1 + 1 + 1 + 1 + 1.5
