@@ -879,10 +879,10 @@ const number_type: TypeHierarchy = .{
     .supertype = .{
         .tid = .number,
         .subtypes = blk: {
-            var number_subtypes = Subtypes.initFill(null);
-            number_subtypes.set(.int, &float_type);
-            number_subtypes.set(.float, &int_type);
-            break :blk number_subtypes;
+            var subtypes = Subtypes.initFill(null);
+            subtypes.set(.int, &int_type);
+            subtypes.set(.float, &float_type);
+            break :blk subtypes;
         },
     },
 };

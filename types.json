@@ -12,7 +12,7 @@
         }
       }
     },
-    "ptr": 4310417504
+    "ptr": 4344135776
   },
   {
     "type": {
@@ -32,7 +32,7 @@
         }
       }
     },
-    "ptr": 4310417552
+    "ptr": 4344135824
   },
   {
     "type": {
@@ -43,8 +43,8 @@
         }
       }
     },
-    "expr": { "Literal": { "value": { "Number": 1.0 } } },
-    "ptr": 4310417552
+    "expr": { "Literal": { "value": { "Number": 1.5 } } },
+    "ptr": 4344135824
   },
   {
     "type": {
@@ -62,10 +62,10 @@
           }
         },
         "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 3 },
-        "right": { "Literal": { "value": { "Number": 1.0 } } }
+        "right": { "Literal": { "value": { "Number": 1.5 } } }
       }
     },
-    "ptr": 4310417504
+    "ptr": 4344135776
   },
   {
     "type": {
@@ -95,12 +95,12 @@
               }
             },
             "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 3 },
-            "right": { "Literal": { "value": { "Number": 1.0 } } }
+            "right": { "Literal": { "value": { "Number": 1.5 } } }
           }
         }
       }
     },
-    "ptr": 4310417504
+    "ptr": 4344135776
   },
   {
     "type": {
@@ -133,7 +133,7 @@
                     }
                   },
                   "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 3 },
-                  "right": { "Literal": { "value": { "Number": 1.0 } } }
+                  "right": { "Literal": { "value": { "Number": 1.5 } } }
                 }
               }
             }
@@ -141,7 +141,7 @@
         ]
       }
     },
-    "ptr": 4310417504
+    "ptr": 4344135776
   },
   {
     "type": {
@@ -230,7 +230,7 @@
                         "lexeme": "+",
                         "line": 3
                       },
-                      "right": { "Literal": { "value": { "Number": 1.0 } } }
+                      "right": { "Literal": { "value": { "Number": 1.5 } } }
                     }
                   }
                 }
@@ -243,10 +243,10 @@
           "lexeme": "second",
           "line": 1
         },
-        "type": { "type": { "IDENTIFIER": "f32" }, "lexeme": "f32", "line": 1 }
+        "type": null
       }
     },
-    "ptr": 4310417888
+    "ptr": 4344136160
   },
   {
     "type": {
@@ -342,7 +342,7 @@
                             "lexeme": "+",
                             "line": 3
                           },
-                          "right": { "Literal": { "value": { "Number": 1.0 } } }
+                          "right": { "Literal": { "value": { "Number": 1.5 } } }
                         }
                       }
                     }
@@ -355,16 +355,12 @@
               "lexeme": "second",
               "line": 1
             },
-            "type": {
-              "type": { "IDENTIFIER": "f32" },
-              "lexeme": "f32",
-              "line": 1
-            }
+            "type": null
           }
         },
         "type": null
       }
     },
-    "ptr": 4310417888
+    "ptr": 4344136160
   }
 ]

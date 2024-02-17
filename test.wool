@@ -1,7 +1,25 @@
-add :: first, second -> f32
+log :: from console import log
+
+
+add :: first, second -> 
 { 
   first + second + 1.5
 }
+
+main :: -> void {
+  sum :: add(1, 1.5)
+
+  log(sum)
+}
+
+
+
+
+
+
+
+
+
 
 /*
 test_float_coercion :: {
@@ -18,21 +36,27 @@ a := 1.5 + (2 + 3 + (4 - 5))
 */
 
 /*
-a :: 1
+a :: 1 // <- Number
 
-b :: 2
+b :: 2 // <- Number
 
-// (add is a virtual (generic) function as long as it contains a non terminal type)
+
+
+// (add is a virtual/abstract (generic) function as long as it contains a non terminal type)
 add :: first, second ->
 { 
   first + second 
 }
 
-// (main is always an actual function)
+// (main is always an "concrete" (non-generic) function)
 main :: -> {
+
+  // <- Number
   sum := add(a, b)
 
-  sum
+  // <- Float
+  sum + 1.5 
+
 }
 
 // (an actual function types should always be resolved to terminal types)
