@@ -15,7 +15,11 @@ contexts: std.ArrayListUnmanaged(Context),
 pub const TypeID = enum {
     any,
     number,
+    i32,
+    i64,
     float,
+    f32,
+    f64,
     int,
     bool,
     string,
@@ -552,13 +556,13 @@ pub fn jsonPrint(value: anytype, file_path: []const u8) !void {
 pub fn type_from_str(str: []const u8) !TypeID {
     // use meta functions for enums ?
     if (std.mem.eql(u8, str, "i32")) {
-        return .int;
+        return .i32;
     } else if (std.mem.eql(u8, str, "i64")) {
-        return .int;
+        return .i64;
     } else if (std.mem.eql(u8, str, "f32")) {
-        return .float;
+        return .f32;
     } else if (std.mem.eql(u8, str, "f64")) {
-        return .float;
+        return .f64;
     } else if (std.mem.eql(u8, str, "void")) {
         return .void;
     } else if (std.mem.eql(u8, str, "bool")) {
@@ -815,14 +819,25 @@ const TypeHierarchy = union(enum) {
     }
 };
 
-const int_type: TypeHierarchy = .{
+const i32_type: TypeHierarchy = .{
     .terminal = .{
-        .tid = .int,
+        .tid = .i32,
     },
 };
-const float_type: TypeHierarchy = .{
+const i64_type: TypeHierarchy = .{
     .terminal = .{
-        .tid = .float,
+        .tid = .i64,
+    },
+};
+
+const f32_type: TypeHierarchy = .{
+    .terminal = .{
+        .tid = .f32,
+    },
+};
+const f64_type: TypeHierarchy = .{
+    .terminal = .{
+        .tid = .f64,
     },
 };
 const bool_type: TypeHierarchy = .{
@@ -836,7 +851,31 @@ const string_type: TypeHierarchy = .{
     },
 };
 
-var number_type: TypeHierarchy = .{
+const int_type: TypeHierarchy = .{
+    .supertype = .{
+        .tid = .int,
+        .subtypes = blk: {
+            var subtypes = Subtypes.initFill(null);
+            subtypes.set(.i32, &i32_type);
+            subtypes.set(.i64, &i64_type);
+            break :blk subtypes;
+        },
+    },
+};
+
+const float_type: TypeHierarchy = .{
+    .supertype = .{
+        .tid = .float,
+        .subtypes = blk: {
+            var subtypes = Subtypes.initFill(null);
+            subtypes.set(.f32, &f32_type);
+            subtypes.set(.f32, &f64_type);
+            break :blk subtypes;
+        },
+    },
+};
+
+const number_type: TypeHierarchy = .{
     .supertype = .{
         .tid = .number,
         .subtypes = blk: {
