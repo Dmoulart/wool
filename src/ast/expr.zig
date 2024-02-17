@@ -50,7 +50,7 @@ pub const Expr = union(enum) {
         args: ?[]Arg,
         body: *const Expr,
         name: ?*const Token,
-        type: *const Token, // @todo type expression
+        type: ?*const Token, // @todo type expression
 
     };
 

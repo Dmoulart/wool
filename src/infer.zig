@@ -108,7 +108,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
         .ConstInit => |*const_init| {
             const node = try self.infer(const_init.initializer);
 
-            const type_decl = try self.create_type_node(
+            const type_decl = try self.new_type_node(
                 .{
                     .type = .{
                         .tid = if (const_init.type) |ty|
@@ -129,7 +129,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
         .VarInit => |*var_init| {
             const node = try self.infer(var_init.initializer);
 
-            const type_decl = try self.create_type_node(
+            const type_decl = try self.new_type_node(
                 .{
                     .type = .{
                         .tid = if (var_init.type) |ty|
@@ -189,14 +189,14 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
             return node;
         },
         .Literal => |*literal| {
-            const node = try self.create_type_node(
+            const node = try self.new_type_node(
                 .{
                     .type = .{
                         .tid = type_of(literal.value),
                     },
                 },
             );
-            const variable = try self.create_type_node(
+            const variable = try self.new_type_node(
                 .{
                     .variable = .{ .name = "T", .ref = node }, // @todo make name other than T does not work in binary
                 },
@@ -207,16 +207,16 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
             return variable;
         },
         .Variable => |*variable| {
-            const ref = self.values.get(variable.name.lexeme) orelse return TypeError.UnknownVariable;
+            const node = self.values.get(variable.name.lexeme) orelse return TypeError.UnknownVariable;
 
-            const node = try self.create_type_node(
-                .{
-                    .variable = .{
-                        .name = "T",
-                        .ref = ref,
-                    },
-                },
-            );
+            // const node = try self.new_type_node(
+            //     .{
+            //         .variable = .{
+            //             .name = "T",
+            //             .ref = ref,
+            //         },
+            //     },
+            // );
 
             try self.sems.put(self.allocator, expr, node);
 
@@ -225,7 +225,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
         // .Function => |*function| {},
         .If => |*if_expr| {
             const condition = try self.infer(if_expr.condition);
-            const bool_condition = try self.create_type_node(
+            const bool_condition = try self.new_type_node(
                 .{
                     .type = .{ .tid = .bool },
                 },
@@ -244,7 +244,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
 
             try self.sems.put(self.allocator, if_expr.then_branch, then_branch);
 
-            const node = try self.create_type_node(
+            const node = try self.new_type_node(
                 .{
                     .variable = .{
                         .name = "if",
@@ -265,7 +265,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
             }
 
             if (return_node == null) {
-                return_node = try self.create_type_node(.{ .type = .{ .tid = .void } });
+                return_node = try self.new_type_node(.{ .type = .{ .tid = .void } });
             }
 
             try self.sems.put(self.allocator, expr, return_node.?);
@@ -277,11 +277,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
                 return TypeError.AnonymousFunctionsNotImplemented;
             }
 
-            const return_type = try self.create_type_node(
-                .{
-                    .type = .{ .tid = try type_from_str(function.type.lexeme) },
-                },
-            );
+            const return_type = try self.new_type_from_token(function.type);
 
             var function_type: FunType = .{
                 .name = function.name.?.lexeme,
@@ -294,31 +290,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
 
             if (function.args) |args| {
                 for (args, 0..) |arg, i| {
-                    const node = try self.create_type_node(
-                        .{
-                            .variable = .{
-                                .ref = try self.create_type_node(
-                                    .{
-                                        .type = .{
-                                            .tid = if (arg.type) |ty|
-                                                try type_from_str(ty.lexeme)
-                                            else
-                                                .any,
-                                        },
-                                    },
-                                ),
-                                .name = "Arg",
-                            },
-                        },
-                    );
-
-                    // const node = try self.infer(arg.expr);
-
-                    // if (tag(node.*) != .variable) {
-                    //     return TypeError.FunctionArgumentsCanOnlyBeIdentifiers; // for now : )
-                    // }
-
-                    // try unify(node, type_decl);
+                    const node = try self.new_var_from_token("Arg", arg.type);
 
                     try self.values.put(
                         self.allocator,
@@ -334,7 +306,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
 
             try unify(return_type, body_type);
 
-            const node = try self.create_type_node(.{ .function = function_type });
+            const node = try self.new_type_node(.{ .function = function_type });
 
             try self.sems.put(self.allocator, expr, node);
 
@@ -410,7 +382,7 @@ fn get_or_create_local_node(self: *@This(), base_node: *TypeNode, local_node: *T
     }
 
     // return try ctx.create_var_instance(new_var);
-    return try self.create_type_node(base_node.*);
+    return try self.new_type_node(base_node.*);
 }
 
 // fn create_value(self: *@This(), name: []const u8, expr: *const Expr, type_token: *Token) !*TypeNode {
@@ -439,7 +411,7 @@ fn get_local_node(self: *@This(), node: *TypeNode, ctx: *Context) !*TypeNode {
             return registered_variable;
         }
     }
-    return try self.create_type_node(node.*);
+    return try self.new_type_node(node.*);
 }
 
 fn unify(a: *TypeNode, b: *TypeNode) !void {
@@ -534,10 +506,34 @@ fn types_intersects(a: TypeID, b: TypeID) bool {
     return false;
 }
 
-fn create_type_node(self: *@This(), type_node: TypeNode) !*TypeNode {
+fn new_type_node(self: *@This(), type_node: TypeNode) !*TypeNode {
     var tn_ptr = try self.type_nodes.addOne(self.allocator);
     tn_ptr.* = type_node;
     return tn_ptr;
+}
+
+fn new_type_from_token(self: *@This(), maybe_token: ?*const Token) !*TypeNode {
+    return try self.new_type_node(
+        .{
+            .type = .{
+                .tid = if (maybe_token) |token|
+                    try type_from_str(token.lexeme)
+                else
+                    .any,
+            },
+        },
+    );
+}
+
+fn new_var_from_token(self: *@This(), name: []const u8, maybe_token: ?*const Token) !*TypeNode {
+    return try self.new_type_node(
+        .{
+            .variable = .{
+                .ref = try self.new_type_from_token(maybe_token),
+                .name = name,
+            },
+        },
+    );
 }
 
 fn type_of(value: Expr.Literal.Value) TypeID {

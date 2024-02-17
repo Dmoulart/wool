@@ -257,11 +257,26 @@ fn from(self: *Self) ParserError!*Expr {
 fn function(self: *Self) ParserError!*Expr {
     const current = self.peek().type;
 
-    const is_function = self.check(.MINUS_ARROW) or
-        (self.check(.IDENTIFIER) and
+    const no_arg = self.check(.MINUS_ARROW);
+
+    const arg_with_type = self.check(.IDENTIFIER) and
         self.check_next(1, .IDENTIFIER) and
-        (self.check_next(2, .MINUS_ARROW) or
-        self.check_next(2, .COMMA)));
+        (self.check_next(2, .COMMA) or
+        self.check_next(2, .MINUS_ARROW));
+
+    const arg_without_type = self.check(.IDENTIFIER) and
+        (self.check_next(1, .COMMA) or
+        self.check_next(1, .MINUS_ARROW));
+
+    const is_function = no_arg or
+        arg_with_type or
+        arg_without_type;
+
+    // const is_function = no_arg or
+    //     (self.check(.IDENTIFIER) and
+    //     self.check_next(1, .IDENTIFIER) and
+    //     (self.check_next(2, .MINUS_ARROW) or
+    //     self.check_next(2, .COMMA)));
 
     if (is_function) {
         const args_declaration = current == .IDENTIFIER;
@@ -296,10 +311,14 @@ fn function(self: *Self) ParserError!*Expr {
                 "Expect -> before declaring function body.",
             );
 
-            const func_type = try self.consume(
+            // const func_type = try self.consume(
+            //     .IDENTIFIER,
+            //     ParserError.MissingFunctionType,
+            //     "Expect type after '->'.",
+            // );
+
+            const func_type = self.optional(
                 .IDENTIFIER,
-                ParserError.MissingFunctionType,
-                "Expect type after '->'.",
             );
 
             const maybe_last_expr = self.last_expr();

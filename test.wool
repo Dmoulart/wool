@@ -1,4 +1,4 @@
-// add :: first Any, second Any -> Number first + second
+add :: first, second -> f32 first + second
 
 /*
 test_float_coercion :: {
@@ -9,6 +9,6 @@ test_float_coercion :: {
 }
 */
 
-// the problematic case
+// the problematic propagation case
 // a := 1.5 + (2 + 3 + (4 - 5))
 
