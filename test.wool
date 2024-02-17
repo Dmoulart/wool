@@ -1,4 +1,7 @@
-add :: first, second -> f32 first + second
+add :: first, second -> 
+{ 
+  first + second
+}
 
 /*
 test_float_coercion :: {

@@ -70,7 +70,7 @@ pub const TypeNode = union(enum) {
         };
     }
 
-    pub fn get_var_id(self: TypeNode) ?VarType {
+    pub fn as_var(self: TypeNode) ?VarType {
         return if (tag(self) == .variable) self.variable else null;
     }
 };
@@ -122,7 +122,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
             try unify(type_decl, node);
 
             try self.values.put(self.allocator, const_init.name.lexeme, node);
-            try self.sems.put(self.allocator, expr, node);
+            self.put_sem(expr, node);
 
             return node;
         },
@@ -143,14 +143,14 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
             try unify(type_decl, node);
 
             try self.values.put(self.allocator, var_init.name.lexeme, node);
-            try self.sems.put(self.allocator, expr, node);
+            self.put_sem(expr, node);
 
             return node;
         },
         .Grouping => |*grouping| {
             var node = try self.infer(grouping.expr);
 
-            try self.sems.put(self.allocator, expr, node);
+            self.put_sem(expr, node);
 
             return node;
         },
@@ -184,7 +184,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
                 expr,
             );
 
-            try self.sems.put(self.allocator, expr, node);
+            self.put_sem(expr, node);
 
             return node;
         },
@@ -202,47 +202,34 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
                 },
             );
 
-            try self.sems.put(self.allocator, expr, variable);
+            self.put_sem(expr, variable);
 
             return variable;
         },
         .Variable => |*variable| {
             const node = self.values.get(variable.name.lexeme) orelse return TypeError.UnknownVariable;
 
-            // const node = try self.new_type_node(
-            //     .{
-            //         .variable = .{
-            //             .name = "T",
-            //             .ref = ref,
-            //         },
-            //     },
-            // );
-
-            try self.sems.put(self.allocator, expr, node);
+            self.put_sem(expr, node);
 
             return node;
         },
         // .Function => |*function| {},
         .If => |*if_expr| {
             const condition = try self.infer(if_expr.condition);
-            const bool_condition = try self.new_type_node(
-                .{
-                    .type = .{ .tid = .bool },
-                },
-            );
+            const bool_condition = try self.new_type(.bool);
 
             try unify(condition, bool_condition);
-            try self.sems.put(self.allocator, if_expr.condition, condition);
+            self.put_sem(if_expr.condition, condition);
 
             const then_branch = try self.infer(if_expr.then_branch);
 
             if (if_expr.else_branch) |else_branch| {
                 const else_branch_type = try self.infer(else_branch);
                 try unify(then_branch, else_branch_type);
-                try self.sems.put(self.allocator, else_branch, else_branch_type);
+                self.put_sem(else_branch, else_branch_type);
             }
 
-            try self.sems.put(self.allocator, if_expr.then_branch, then_branch);
+            self.put_sem(if_expr.then_branch, then_branch);
 
             const node = try self.new_type_node(
                 .{
@@ -253,7 +240,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
                 },
             );
 
-            try self.sems.put(self.allocator, expr, node);
+            self.put_sem(expr, node);
 
             return node;
         },
@@ -265,10 +252,10 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
             }
 
             if (return_node == null) {
-                return_node = try self.new_type_node(.{ .type = .{ .tid = .void } });
+                return_node = try self.new_type(.void);
             }
 
-            try self.sems.put(self.allocator, expr, return_node.?);
+            self.put_sem(expr, return_node.?);
 
             return return_node.?;
         },
@@ -277,7 +264,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
                 return TypeError.AnonymousFunctionsNotImplemented;
             }
 
-            const return_type = try self.new_type_from_token(function.type);
+            const return_type = try self.new_var_from_token("FuncRet", function.type);
 
             var function_type: FunType = .{
                 .name = function.name.?.lexeme,
@@ -308,7 +295,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
 
             const node = try self.new_type_node(.{ .function = function_type });
 
-            try self.sems.put(self.allocator, expr, node);
+            self.put_sem(expr, node);
 
             return node;
         },
@@ -349,8 +336,7 @@ fn call(self: *@This(), function: FunType, exprs_args: []*const Expr, _: *const 
             }
         }
 
-        try self.sems.put(
-            self.allocator,
+        self.put_sem(
             expr_arg,
             call_arg,
         );
@@ -360,12 +346,12 @@ fn call(self: *@This(), function: FunType, exprs_args: []*const Expr, _: *const 
 }
 
 fn get_or_create_local_node(self: *@This(), base_node: *TypeNode, local_node: *TypeNode, ctx: *Context) !*TypeNode {
-    if (base_node.get_var_id()) |variable| {
+    if (base_node.as_var()) |variable| {
         if (ctx.variables.get(variable.name)) |registered_variable| {
             return registered_variable;
         } else {
             const new_var = switch (local_node.*) {
-                .variable => local_node,
+                .variable => local_node, // unify here ?
                 else => unreachable,
                 // .type => try self.create_type_node(
                 //     .{
@@ -376,6 +362,11 @@ fn get_or_create_local_node(self: *@This(), base_node: *TypeNode, local_node: *T
                 //     },
                 // ),
             };
+            // Maybe the local node is not of the base node type.
+            // so let's clone it and unify
+            const base_node_copy = try self.new_type_node(base_node.*);
+
+            try unify(new_var, base_node_copy);
 
             return try ctx.create_var_instance(new_var);
         }
@@ -385,28 +376,8 @@ fn get_or_create_local_node(self: *@This(), base_node: *TypeNode, local_node: *T
     return try self.new_type_node(base_node.*);
 }
 
-// fn create_value(self: *@This(), name: []const u8, expr: *const Expr, type_token: *Token) !*TypeNode {
-//     const node = try self.infer(expr);
-//     const type_decl = try self.create_type_node(
-//         .{
-//             .type = .{
-//                 .tid = if (type_token) |ty|
-//                     try type_from_str(ty.lexeme)
-//                 else
-//                     .any,
-//             },
-//         },
-//     );
-
-//     try unify(type_decl, node);
-
-//     try self.values.put(self.allocator, name, node);
-
-//     return node;
-// }
-
 fn get_local_node(self: *@This(), node: *TypeNode, ctx: *Context) !*TypeNode {
-    if (node.get_var_id()) |variable| {
+    if (node.as_var()) |variable| {
         if (ctx.variables.get(variable.name)) |registered_variable| {
             return registered_variable;
         }
@@ -512,6 +483,14 @@ fn new_type_node(self: *@This(), type_node: TypeNode) !*TypeNode {
     return tn_ptr;
 }
 
+fn new_type(self: *@This(), tid: TypeID) !*TypeNode {
+    return try self.new_type_node(
+        .{
+            .type = .{ .tid = tid },
+        },
+    );
+}
+
 fn new_type_from_token(self: *@This(), maybe_token: ?*const Token) !*TypeNode {
     return try self.new_type_node(
         .{
@@ -545,7 +524,13 @@ fn type_of(value: Expr.Literal.Value) TypeID {
     };
 }
 
+fn put_sem(self: *@This(), expr: *const Expr, node: *TypeNode) void {
+    // @todo:err try to find a way to handle the allocations error
+    self.sems.put(self.allocator, expr, node) catch unreachable;
+}
+
 inline fn is_float_value(number: f64) bool {
+    // this is stupid, number should be a string and just check if it has a dot in it
     return @rem(number, 1) != 0;
 }
 

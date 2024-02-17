@@ -1,37 +1,37 @@
 [
   {
     "type": {
-      "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
+      "variable": { "name": "T", "ref": { "type": { "tid": "number" } } }
     },
     "expr": {
       "Variable": {
         "name": {
           "type": { "IDENTIFIER": "first" },
           "lexeme": "first",
-          "line": 1
+          "line": 3
         }
       }
     },
-    "ptr": 4367302704
+    "ptr": 4337795168
   },
   {
     "type": {
-      "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
+      "variable": { "name": "T", "ref": { "type": { "tid": "number" } } }
     },
     "expr": {
       "Variable": {
         "name": {
           "type": { "IDENTIFIER": "second" },
           "lexeme": "second",
-          "line": 1
+          "line": 3
         }
       }
     },
-    "ptr": 4367302704
+    "ptr": 4337795168
   },
   {
     "type": {
-      "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
+      "variable": { "name": "T", "ref": { "type": { "tid": "number" } } }
     },
     "expr": {
       "Binary": {
@@ -40,23 +40,58 @@
             "name": {
               "type": { "IDENTIFIER": "first" },
               "lexeme": "first",
-              "line": 1
+              "line": 3
             }
           }
         },
-        "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
+        "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 3 },
         "right": {
           "Variable": {
             "name": {
               "type": { "IDENTIFIER": "second" },
               "lexeme": "second",
-              "line": 1
+              "line": 3
             }
           }
         }
       }
     },
-    "ptr": 4367302704
+    "ptr": 4337795168
+  },
+  {
+    "type": {
+      "variable": { "name": "T", "ref": { "type": { "tid": "number" } } }
+    },
+    "expr": {
+      "Block": {
+        "exprs": [
+          {
+            "Binary": {
+              "left": {
+                "Variable": {
+                  "name": {
+                    "type": { "IDENTIFIER": "first" },
+                    "lexeme": "first",
+                    "line": 3
+                  }
+                }
+              },
+              "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 3 },
+              "right": {
+                "Variable": {
+                  "name": {
+                    "type": { "IDENTIFIER": "second" },
+                    "lexeme": "second",
+                    "line": 3
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "ptr": 4337795168
   },
   {
     "type": {
@@ -64,7 +99,7 @@
         "name": "second",
         "args": [
           {
-            "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
+            "variable": { "name": "T", "ref": { "type": { "tid": "number" } } }
           },
           {
             "variable": {
@@ -72,13 +107,18 @@
               "ref": {
                 "variable": {
                   "name": "T",
-                  "ref": { "type": { "tid": "float" } }
+                  "ref": { "type": { "tid": "number" } }
                 }
               }
             }
           }
         ],
-        "return_type": { "type": { "tid": "float" } }
+        "return_type": {
+          "variable": {
+            "name": "FuncRet",
+            "ref": { "type": { "tid": "number" } }
+          }
+        }
       }
     },
     "expr": {
@@ -110,26 +150,32 @@
           }
         ],
         "body": {
-          "Binary": {
-            "left": {
-              "Variable": {
-                "name": {
-                  "type": { "IDENTIFIER": "first" },
-                  "lexeme": "first",
-                  "line": 1
+          "Block": {
+            "exprs": [
+              {
+                "Binary": {
+                  "left": {
+                    "Variable": {
+                      "name": {
+                        "type": { "IDENTIFIER": "first" },
+                        "lexeme": "first",
+                        "line": 3
+                      }
+                    }
+                  },
+                  "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 3 },
+                  "right": {
+                    "Variable": {
+                      "name": {
+                        "type": { "IDENTIFIER": "second" },
+                        "lexeme": "second",
+                        "line": 3
+                      }
+                    }
+                  }
                 }
               }
-            },
-            "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
-            "right": {
-              "Variable": {
-                "name": {
-                  "type": { "IDENTIFIER": "second" },
-                  "lexeme": "second",
-                  "line": 1
-                }
-              }
-            }
+            ]
           }
         },
         "name": {
@@ -137,10 +183,10 @@
           "lexeme": "second",
           "line": 1
         },
-        "type": { "type": { "IDENTIFIER": "f32" }, "lexeme": "f32", "line": 1 }
+        "type": null
       }
     },
-    "ptr": 4367302656
+    "ptr": 4337795120
   },
   {
     "type": {
@@ -148,7 +194,7 @@
         "name": "second",
         "args": [
           {
-            "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
+            "variable": { "name": "T", "ref": { "type": { "tid": "number" } } }
           },
           {
             "variable": {
@@ -156,13 +202,18 @@
               "ref": {
                 "variable": {
                   "name": "T",
-                  "ref": { "type": { "tid": "float" } }
+                  "ref": { "type": { "tid": "number" } }
                 }
               }
             }
           }
         ],
-        "return_type": { "type": { "tid": "float" } }
+        "return_type": {
+          "variable": {
+            "name": "FuncRet",
+            "ref": { "type": { "tid": "number" } }
+          }
+        }
       }
     },
     "expr": {
@@ -197,26 +248,36 @@
               }
             ],
             "body": {
-              "Binary": {
-                "left": {
-                  "Variable": {
-                    "name": {
-                      "type": { "IDENTIFIER": "first" },
-                      "lexeme": "first",
-                      "line": 1
+              "Block": {
+                "exprs": [
+                  {
+                    "Binary": {
+                      "left": {
+                        "Variable": {
+                          "name": {
+                            "type": { "IDENTIFIER": "first" },
+                            "lexeme": "first",
+                            "line": 3
+                          }
+                        }
+                      },
+                      "op": {
+                        "type": { "PLUS": {} },
+                        "lexeme": "+",
+                        "line": 3
+                      },
+                      "right": {
+                        "Variable": {
+                          "name": {
+                            "type": { "IDENTIFIER": "second" },
+                            "lexeme": "second",
+                            "line": 3
+                          }
+                        }
+                      }
                     }
                   }
-                },
-                "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
-                "right": {
-                  "Variable": {
-                    "name": {
-                      "type": { "IDENTIFIER": "second" },
-                      "lexeme": "second",
-                      "line": 1
-                    }
-                  }
-                }
+                ]
               }
             },
             "name": {
@@ -224,16 +285,12 @@
               "lexeme": "second",
               "line": 1
             },
-            "type": {
-              "type": { "IDENTIFIER": "f32" },
-              "lexeme": "f32",
-              "line": 1
-            }
+            "type": null
           }
         },
         "type": null
       }
     },
-    "ptr": 4367302656
+    "ptr": 4337795120
   }
 ]
