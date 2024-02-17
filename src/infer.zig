@@ -75,7 +75,7 @@ pub const TypeNode = union(enum) {
     }
 };
 
-const TypeError = error{ TypeMismatch, UnknwownType, UnknownBuiltin, WrongArgumentsNumber, AllocError, UnknownVariable, AnonymousFunctionsNotImplemented, FunctionArgumentsCanOnlyBeIdentifiers };
+const TypeError = error{ TypeMismatch, UnknownType, UnknownBuiltin, WrongArgumentsNumber, AllocError, UnknownVariable, AnonymousFunctionsNotImplemented, FunctionArgumentsCanOnlyBeIdentifiers };
 
 const Err = ErrorReporter(TypeError);
 
@@ -570,7 +570,7 @@ pub fn type_from_str(str: []const u8) !TypeID {
     } else if (std.mem.eql(u8, str, "Any")) {
         return .any;
     } else {
-        return TypeError.UnknwownType;
+        return TypeError.UnknownType;
     }
 }
 const Env = std.StringArrayHashMap(*TypeNode);
@@ -925,8 +925,7 @@ pub fn write_sems_to_file(self: *@This()) !void {
     while (iter.next()) |entry| {
         var ptr = switch (entry.value_ptr.*.*) {
             .variable => |variable| variable.ref,
-            .type => entry.value_ptr.*,
-            .function => |function| function.return_type,
+            .type, .function => entry.value_ptr.*,
         };
         try types.append(
             .{

@@ -1,7 +1,7 @@
 [
   {
     "type": {
-      "variable": { "name": "T", "ref": { "type": { "tid": "number" } } }
+      "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
     },
     "expr": {
       "Variable": {
@@ -12,11 +12,16 @@
         }
       }
     },
-    "ptr": 4337795168
+    "ptr": 4338483296
   },
   {
     "type": {
-      "variable": { "name": "T", "ref": { "type": { "tid": "number" } } }
+      "variable": {
+        "name": "T",
+        "ref": {
+          "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
+        }
+      }
     },
     "expr": {
       "Variable": {
@@ -27,11 +32,44 @@
         }
       }
     },
-    "ptr": 4337795168
+    "ptr": 4338483344
   },
   {
     "type": {
-      "variable": { "name": "T", "ref": { "type": { "tid": "number" } } }
+      "variable": {
+        "name": "T",
+        "ref": {
+          "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
+        }
+      }
+    },
+    "expr": { "Literal": { "value": { "Number": 1.0 } } },
+    "ptr": 4338483344
+  },
+  {
+    "type": {
+      "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
+    },
+    "expr": {
+      "Binary": {
+        "left": {
+          "Variable": {
+            "name": {
+              "type": { "IDENTIFIER": "second" },
+              "lexeme": "second",
+              "line": 3
+            }
+          }
+        },
+        "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 3 },
+        "right": { "Literal": { "value": { "Number": 1.0 } } }
+      }
+    },
+    "ptr": 4338483296
+  },
+  {
+    "type": {
+      "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
     },
     "expr": {
       "Binary": {
@@ -46,21 +84,27 @@
         },
         "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 3 },
         "right": {
-          "Variable": {
-            "name": {
-              "type": { "IDENTIFIER": "second" },
-              "lexeme": "second",
-              "line": 3
-            }
+          "Binary": {
+            "left": {
+              "Variable": {
+                "name": {
+                  "type": { "IDENTIFIER": "second" },
+                  "lexeme": "second",
+                  "line": 3
+                }
+              }
+            },
+            "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 3 },
+            "right": { "Literal": { "value": { "Number": 1.0 } } }
           }
         }
       }
     },
-    "ptr": 4337795168
+    "ptr": 4338483296
   },
   {
     "type": {
-      "variable": { "name": "T", "ref": { "type": { "tid": "number" } } }
+      "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
     },
     "expr": {
       "Block": {
@@ -78,12 +122,18 @@
               },
               "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 3 },
               "right": {
-                "Variable": {
-                  "name": {
-                    "type": { "IDENTIFIER": "second" },
-                    "lexeme": "second",
-                    "line": 3
-                  }
+                "Binary": {
+                  "left": {
+                    "Variable": {
+                      "name": {
+                        "type": { "IDENTIFIER": "second" },
+                        "lexeme": "second",
+                        "line": 3
+                      }
+                    }
+                  },
+                  "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 3 },
+                  "right": { "Literal": { "value": { "Number": 1.0 } } }
                 }
               }
             }
@@ -91,7 +141,7 @@
         ]
       }
     },
-    "ptr": 4337795168
+    "ptr": 4338483296
   },
   {
     "type": {
@@ -99,7 +149,7 @@
         "name": "second",
         "args": [
           {
-            "variable": { "name": "T", "ref": { "type": { "tid": "number" } } }
+            "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
           },
           {
             "variable": {
@@ -107,7 +157,7 @@
               "ref": {
                 "variable": {
                   "name": "T",
-                  "ref": { "type": { "tid": "number" } }
+                  "ref": { "type": { "tid": "float" } }
                 }
               }
             }
@@ -116,7 +166,7 @@
         "return_type": {
           "variable": {
             "name": "FuncRet",
-            "ref": { "type": { "tid": "number" } }
+            "ref": { "type": { "tid": "float" } }
           }
         }
       }
@@ -165,12 +215,22 @@
                   },
                   "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 3 },
                   "right": {
-                    "Variable": {
-                      "name": {
-                        "type": { "IDENTIFIER": "second" },
-                        "lexeme": "second",
+                    "Binary": {
+                      "left": {
+                        "Variable": {
+                          "name": {
+                            "type": { "IDENTIFIER": "second" },
+                            "lexeme": "second",
+                            "line": 3
+                          }
+                        }
+                      },
+                      "op": {
+                        "type": { "PLUS": {} },
+                        "lexeme": "+",
                         "line": 3
-                      }
+                      },
+                      "right": { "Literal": { "value": { "Number": 1.0 } } }
                     }
                   }
                 }
@@ -183,10 +243,10 @@
           "lexeme": "second",
           "line": 1
         },
-        "type": null
+        "type": { "type": { "IDENTIFIER": "f32" }, "lexeme": "f32", "line": 1 }
       }
     },
-    "ptr": 4337795120
+    "ptr": 4338483680
   },
   {
     "type": {
@@ -194,7 +254,7 @@
         "name": "second",
         "args": [
           {
-            "variable": { "name": "T", "ref": { "type": { "tid": "number" } } }
+            "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
           },
           {
             "variable": {
@@ -202,7 +262,7 @@
               "ref": {
                 "variable": {
                   "name": "T",
-                  "ref": { "type": { "tid": "number" } }
+                  "ref": { "type": { "tid": "float" } }
                 }
               }
             }
@@ -211,7 +271,7 @@
         "return_type": {
           "variable": {
             "name": "FuncRet",
-            "ref": { "type": { "tid": "number" } }
+            "ref": { "type": { "tid": "float" } }
           }
         }
       }
@@ -267,12 +327,22 @@
                         "line": 3
                       },
                       "right": {
-                        "Variable": {
-                          "name": {
-                            "type": { "IDENTIFIER": "second" },
-                            "lexeme": "second",
+                        "Binary": {
+                          "left": {
+                            "Variable": {
+                              "name": {
+                                "type": { "IDENTIFIER": "second" },
+                                "lexeme": "second",
+                                "line": 3
+                              }
+                            }
+                          },
+                          "op": {
+                            "type": { "PLUS": {} },
+                            "lexeme": "+",
                             "line": 3
-                          }
+                          },
+                          "right": { "Literal": { "value": { "Number": 1.0 } } }
                         }
                       }
                     }
@@ -285,12 +355,16 @@
               "lexeme": "second",
               "line": 1
             },
-            "type": null
+            "type": {
+              "type": { "IDENTIFIER": "f32" },
+              "lexeme": "f32",
+              "line": 1
+            }
           }
         },
         "type": null
       }
     },
-    "ptr": 4337795120
+    "ptr": 4338483680
   }
 ]

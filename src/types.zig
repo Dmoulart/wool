@@ -5,7 +5,7 @@ pub const c = @cImport({
 });
 
 pub const TypeError = error{
-    UnknwownType,
+    UnknownType,
 };
 
 pub const Type = enum {
@@ -33,7 +33,7 @@ pub const Type = enum {
         } else if (std.mem.eql(u8, str, "bool")) {
             return .bool;
         } else {
-            return TypeError.UnknwownType;
+            return TypeError.UnknownType;
         }
     }
 

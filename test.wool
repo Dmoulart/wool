@@ -1,6 +1,6 @@
-add :: first, second -> 
+add :: first, second -> f32
 { 
-  first + second
+  first + second + 1 
 }
 
 /*
@@ -12,6 +12,28 @@ test_float_coercion :: {
 }
 */
 
+/*
 // the problematic propagation case
-// a := 1.5 + (2 + 3 + (4 - 5))
+a := 1.5 + (2 + 3 + (4 - 5))
+*/
 
+/*
+a :: 1
+
+b :: 2
+
+// (add is a virtual (generic) function as long as it contains a non terminal type)
+add :: first, second ->
+{ 
+  first + second 
+}
+
+// (main is always an actual function)
+main :: -> {
+  sum := add(a, b)
+
+  sum
+}
+
+// (an actual function types should always be resolved to terminal types)
+*/
