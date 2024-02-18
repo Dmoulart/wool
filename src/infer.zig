@@ -12,18 +12,22 @@ global_context: *Context,
 
 contexts: std.ArrayListUnmanaged(Context),
 
-pub const TypeID = enum {
-    any,
-    number,
-    i32,
-    i64,
-    float,
-    f32,
-    f64,
-    int,
-    bool,
-    string,
-    void,
+pub const TypeID = enum(TypeBit) {
+    any = ANY_TYPE,
+    number = NUMBER_TYPE,
+    int = INT_TYPE,
+    i32 = I32_TYPE,
+    i64 = I64_TYPE,
+    float = FLOAT_TYPE,
+    f32 = F32_TYPE,
+    f64 = F64_TYPE,
+    bool = BOOL_TYPE,
+    string = STRING_TYPE,
+    void = VOID_TYPE,
+
+    pub fn is_subtype_of(child: TypeID, parent: TypeID) bool {
+        return (@intFromEnum(parent) & @intFromEnum(child)) == @intFromEnum(parent);
+    }
 };
 
 const MonoType = struct {
@@ -79,7 +83,16 @@ pub const TypeNode = union(enum) {
     }
 };
 
-const TypeError = error{ TypeMismatch, UnknownType, UnknownBuiltin, WrongArgumentsNumber, AllocError, UnknownVariable, AnonymousFunctionsNotImplemented, FunctionArgumentsCanOnlyBeIdentifiers };
+const TypeError = error{
+    TypeMismatch,
+    UnknownType,
+    UnknownBuiltin,
+    WrongArgumentsNumber,
+    AllocError,
+    UnknownVariable,
+    AnonymousFunctionsNotImplemented,
+    FunctionArgumentsCanOnlyBeIdentifiers,
+};
 
 const Err = ErrorReporter(TypeError);
 
@@ -394,92 +407,21 @@ fn get_local_node(self: *@This(), node: *TypeNode, ctx: *Context) !*TypeNode {
     return try self.new_type_node(node.*);
 }
 
-fn unify(a: *TypeNode, b: *TypeNode) !void {
-    if (is_subtype(a.get_tid(), b.get_tid())) {
-        a.set_tid(b.get_tid());
-    } else if (is_subtype(b.get_tid(), a.get_tid())) {
-        b.set_tid(a.get_tid());
-    }
+fn unify(node_a: *TypeNode, node_b: *TypeNode) !void {
+    const a = node_a.get_tid();
+    const b = node_b.get_tid();
 
-    if (!types_intersects(a.get_tid(), b.get_tid())) {
+    if (b.is_subtype_of(a)) {
+        node_a.set_tid(b);
+    } else if (a.is_subtype_of(b)) {
+        node_b.set_tid(a);
+    } else {
         std.debug.print(
             "\nType Mismatch --\nExpected : {}\nFound : {}\n",
-            .{ a.get_tid(), b.get_tid() },
+            .{ a, b },
         );
         return TypeError.TypeMismatch;
     }
-}
-
-fn is_subtype(supertype: TypeID, maybe_subtype: TypeID) bool {
-    if (find_subtypes(supertype, &type_hierarchy)) |subtypes| {
-        if (subtypes.get(maybe_subtype)) |_| {
-            return true;
-        }
-
-        for (subtypes.values) |subtype| {
-            if (subtype) |sub| {
-                const supertype_child = switch (sub.*) {
-                    .terminal => |ty| ty.tid,
-                    .supertype => |ty| ty.tid,
-                };
-                if (is_subtype(supertype_child, maybe_subtype)) {
-                    return true;
-                }
-            }
-        }
-    }
-    return false;
-}
-
-fn find_subtypes(target: TypeID, hierarchy: *const TypeHierarchy) ?*const Subtypes {
-    return switch (hierarchy.*) {
-        .terminal => null,
-        .supertype => |supertype| {
-            if (supertype.tid == target) return &supertype.subtypes;
-            for (&supertype.subtypes.values) |m_subtype| {
-                if (m_subtype) |subtype| {
-                    const subtype_tid = switch (subtype.*) {
-                        .terminal => |ty| ty.tid,
-                        .supertype => |ty| ty.tid,
-                    };
-
-                    if (subtype_tid == target) {
-                        return switch (subtype.*) {
-                            .terminal => null,
-                            .supertype => &subtype.supertype.subtypes, // danger
-                        };
-                    }
-
-                    if (switch (subtype.*) {
-                        .terminal => false,
-                        .supertype => true,
-                    }) {
-                        return find_subtypes(target, subtype);
-                    }
-                }
-            }
-
-            return null;
-        },
-    };
-}
-
-fn types_intersects(a: TypeID, b: TypeID) bool {
-    if (a == b) {
-        return true;
-    }
-
-    const a_is_terminal = find_subtypes(a, &type_hierarchy) == null;
-    if (!a_is_terminal and is_subtype(a, b)) {
-        return true;
-    }
-
-    const b_is_terminal = find_subtypes(b, &type_hierarchy) == null;
-    if (!b_is_terminal and is_subtype(b, a)) {
-        return true;
-    }
-
-    return false;
 }
 
 fn new_type_node(self: *@This(), type_node: TypeNode) !*TypeNode {
@@ -802,117 +744,22 @@ const builtins_types = std.ComptimeStringMap(
         },
     },
 );
+const TypeBit = u64;
+const ANY_TYPE: TypeBit = 1 << 0;
 
-const Subtypes = std.EnumArray(TypeID, ?*const TypeHierarchy);
-const TypeHierarchy = union(enum) {
-    terminal: struct { tid: TypeID },
-    supertype: struct { tid: TypeID, subtypes: Subtypes },
+const NUMBER_TYPE: TypeBit = 1 << 1 | ANY_TYPE;
 
-    pub fn get_type_id(self: *TypeHierarchy) TypeID {
-        return switch (self.*) {
-            .terminal => |terminal| terminal.tid,
-            .supertype => |supertype| supertype.tid,
-        };
-    }
+const INT_TYPE: TypeBit = 1 << 2 | NUMBER_TYPE;
+const I32_TYPE: TypeBit = 1 << 3 | INT_TYPE;
+const I64_TYPE: TypeBit = 1 << 4 | INT_TYPE;
 
-    pub fn get_subtypes(self: *TypeHierarchy) ?*Subtypes {
-        return if (tag(self.*) == .supertype) &self.supertype.subtypes else null;
-    }
-};
+const FLOAT_TYPE: TypeBit = 1 << 5 | NUMBER_TYPE;
+const F32_TYPE: TypeBit = 1 << 6 | FLOAT_TYPE;
+const F64_TYPE: TypeBit = 1 << 7 | FLOAT_TYPE;
 
-const i32_type: TypeHierarchy = .{
-    .terminal = .{
-        .tid = .i32,
-    },
-};
-const i64_type: TypeHierarchy = .{
-    .terminal = .{
-        .tid = .i64,
-    },
-};
-
-const f32_type: TypeHierarchy = .{
-    .terminal = .{
-        .tid = .f32,
-    },
-};
-const f64_type: TypeHierarchy = .{
-    .terminal = .{
-        .tid = .f64,
-    },
-};
-const bool_type: TypeHierarchy = .{
-    .terminal = .{
-        .tid = .bool,
-    },
-};
-const string_type: TypeHierarchy = .{
-    .terminal = .{
-        .tid = .string,
-    },
-};
-
-const int_type: TypeHierarchy = .{
-    .supertype = .{
-        .tid = .int,
-        .subtypes = blk: {
-            var subtypes = Subtypes.initFill(null);
-            subtypes.set(.i32, &i32_type);
-            subtypes.set(.i64, &i64_type);
-            break :blk subtypes;
-        },
-    },
-};
-
-const float_type: TypeHierarchy = .{
-    .supertype = .{
-        .tid = .float,
-        .subtypes = blk: {
-            var subtypes = Subtypes.initFill(null);
-            subtypes.set(.f32, &f32_type);
-            subtypes.set(.f64, &f64_type);
-            break :blk subtypes;
-        },
-    },
-};
-
-const number_type: TypeHierarchy = .{
-    .supertype = .{
-        .tid = .number,
-        .subtypes = blk: {
-            var subtypes = Subtypes.initFill(null);
-            subtypes.set(.int, &int_type);
-            subtypes.set(.float, &float_type);
-            break :blk subtypes;
-        },
-    },
-};
-
-const any_subtypes: Subtypes = blk: {
-    var subtypes = Subtypes.initFill(null);
-
-    subtypes.set(
-        .number,
-        &number_type,
-    );
-    subtypes.set(
-        .bool,
-        &bool_type,
-    );
-    subtypes.set(
-        .string,
-        &string_type,
-    );
-
-    break :blk subtypes;
-};
-
-const type_hierarchy = TypeHierarchy{
-    .supertype = .{
-        .tid = .any,
-        .subtypes = any_subtypes,
-    },
-};
+const BOOL_TYPE: TypeBit = 1 << 8 | ANY_TYPE;
+const STRING_TYPE: TypeBit = 1 << 9 | ANY_TYPE;
+const VOID_TYPE: TypeBit = 1 << 10;
 
 const Context = struct {
     variables: std.StringHashMapUnmanaged(*TypeNode),

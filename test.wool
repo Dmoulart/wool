@@ -1,10 +1,11 @@
-
-main :: -> {
-  a :i32 = 1
+add :: first, second -> 
+{ 
+  first + second + 1.5
 }
 
 
-/* // log :: from console import log
+/* 
+// log :: from console import log
 
 add :: first, second -> 
 { 
