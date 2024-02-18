@@ -1,13 +1,13 @@
-a := 1.5 + (2 + 3 + (4 - 5))
 
-/*add :: first, second ->
+add :: first, second -> f32
 { 
   first + second + 1.5
 }
 
-main :: -> void {
+main :: -> void
+{
   sum :: add(1, 1.5)
-}*/
+}
 
 /* 
 

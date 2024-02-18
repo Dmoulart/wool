@@ -8,7 +8,10 @@ sems: std.AutoArrayHashMapUnmanaged(*const Expr, *TypeNode),
 
 env: Env,
 
+const Infer = @This();
+
 const TypeBits = u64;
+
 const ANY_TYPE: TypeBits = 1 << 0;
 
 const NUMBER_TYPE: TypeBits = 1 << 1 | ANY_TYPE;
@@ -26,7 +29,9 @@ const STRING_TYPE: TypeBits = 1 << 9 | ANY_TYPE | TERMINAL_TYPE;
 
 const VOID_TYPE: TypeBits = 1 << 10 | TERMINAL_TYPE;
 
-const TERMINAL_TYPE: TypeBits = 1 << 11;
+const FUNC_TYPE: TypeBits = 1 << 11 | ANY_TYPE | TERMINAL_TYPE;
+
+const TERMINAL_TYPE: TypeBits = 1 << 12;
 
 pub const TypeID = enum(TypeBits) {
     any = ANY_TYPE,
@@ -40,6 +45,7 @@ pub const TypeID = enum(TypeBits) {
     bool = BOOL_TYPE,
     string = STRING_TYPE,
     void = VOID_TYPE,
+    func = FUNC_TYPE,
 
     pub fn is_subtype_of(child: TypeID, parent: TypeID) bool {
         return (@intFromEnum(parent) & @intFromEnum(child)) == @intFromEnum(parent);
@@ -93,20 +99,37 @@ pub const TypeNode = union(enum) {
                 self.variable.ref.set_tid(tid);
             },
             .function => {
-                self.function.return_type.set_tid(tid);
+                unreachable;
+
+                // self.function.return_type.set_tid(tid);
             },
         }
     }
-
-    pub fn clone(self: *TypeNode) TypeNode {
+    // move this in Infer methods
+    pub fn clone(self: *TypeNode, in: *Infer) !*TypeNode {
         return switch (self.*) {
-            .type => |*ty| .{ .type = .{ .tid = ty.tid } },
-            .variable => |*variable| .{ .variable = .{ .ref = variable.clone() } },
-            .function => {
-                // you should not try to clone a function directly
-                unreachable;
-            },
-            // .function => |*function| .{ .function = .{ .name = function.name, .return_type } },
+            .type => |*ty| try in.new_type(ty.tid),
+            .variable => |*variable| try in.new_type_node(
+                .{
+                    .variable = .{ .name = variable.name, .ref = try variable.ref.clone(in) },
+                },
+            ),
+            .function => |*func| try in.new_type_node(
+                .{
+                    .function = .{
+                        .name = func.name,
+                        .return_type = try func.return_type.clone(in),
+                        .args = blk: {
+                            //@todo:mem cleanup
+                            var new_args = try in.allocator.alloc(*TypeNode, func.args.len);
+                            for (new_args) |new_arg| {
+                                new_arg.* = (try new_arg.clone(in)).*;
+                            }
+                            break :blk new_args;
+                        },
+                    },
+                },
+            ),
         };
     }
 
@@ -118,8 +141,8 @@ pub const TypeNode = union(enum) {
             .variable => |*variable| {
                 return variable.ref.get_tid();
             },
-            .function => |*func| {
-                return func.return_type.get_tid();
+            .function => {
+                return .func;
             },
         };
     }
@@ -171,28 +194,32 @@ pub fn infer_program(self: *@This()) anyerror!*std.AutoArrayHashMapUnmanaged(*co
 pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
     return switch (expr.*) {
         .ConstInit => |*const_init| {
-            const node = try self.infer(const_init.initializer);
+            const initializer = try self.infer(const_init.initializer);
 
             const type_decl = try self.new_type_from_token(const_init.type);
 
-            try unify(type_decl, node);
+            try unify(type_decl, initializer);
 
-            try self.env.define(const_init.name.lexeme, node);
+            try self.env.define(const_init.name.lexeme, initializer);
 
-            self.put_sem(expr, try self.new_type(.void));
+            const node = try self.new_type(.void);
+
+            self.put_sem(expr, node);
 
             return node;
         },
         .VarInit => |*var_init| {
-            const node = try self.infer(var_init.initializer);
+            const initializer = try self.infer(var_init.initializer);
 
             const type_decl = try self.new_type_from_token(var_init.type);
 
-            try unify(type_decl, node);
+            try unify(type_decl, initializer);
 
-            try self.env.define(var_init.name.lexeme, node);
+            try self.env.define(var_init.name.lexeme, initializer);
 
-            self.put_sem(expr, try self.new_type(.void));
+            const node = try self.new_type(.void);
+
+            self.put_sem(expr, node);
 
             return node;
         },
@@ -319,8 +346,10 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
             const callee = try self.env.get(call_expr.callee.Variable.name.lexeme);
             if (callee.as_function()) |*func| {
                 if (func.is_generic()) {
-                    // var new_func = try self.clone_function_type(function);
-                    // unreachable;
+                    const new_func = try self.instanciate_function(func, call_expr.args);
+                    const node = try self.call(new_func.function, call_expr.args);
+                    self.put_sem(expr, node);
+                    return node;
                 }
 
                 const node = try self.call(func.*, call_expr.args);
@@ -517,14 +546,26 @@ fn new_var_from_token(self: *@This(), name: []const u8, maybe_token: ?*const Tok
     );
 }
 
-fn clone_function_type(self: *@This(), func: *FunType) !*FunType {
-    const return_type = self.new_type_node(func.return_type.clone());
-    const args = try self.allocator.alloc(*TypeNode, func.args.len);
-    for (func.args, 0..) |arg, i| {
-        args[i] = self.new_type_node(arg.clone());
+fn instanciate_function(self: *@This(), func: *const FunType, new_args: []*const Expr) anyerror!*TypeNode {
+    if (func.args.len != new_args.len) {
+        return TypeError.WrongArgumentsNumber;
     }
+    // use the func.clone method ?
+    const return_type = try func.return_type.clone(self);
+    const args = try self.allocator.alloc(*TypeNode, func.args.len);
+
+    for (func.args, 0..) |arg, i| {
+        args[i] = try arg.clone(self);
+    }
+
+    for (new_args, 0..) |expr_arg, i| {
+        const arg_node = try self.infer(expr_arg);
+        // mutate cloned function args
+        try unify(arg_node, args[i]);
+    }
+
     const function_type: FunType = .{
-        .name = func.name.?.lexeme,
+        .name = func.name,
         .args = args,
         .return_type = return_type,
     };

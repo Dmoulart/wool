@@ -1,347 +1,612 @@
 [
   {
     "type": {
-      "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
+      "variable": { "name": "T", "ref": { "type": { "tid": "f32" } } }
+    },
+    "expr": {
+      "Variable": {
+        "name": {
+          "type": { "IDENTIFIER": "first" },
+          "lexeme": "first",
+          "line": 4
+        }
+      }
+    },
+    "ptr": 4312039520
+  },
+  {
+    "type": {
+      "variable": {
+        "name": "T",
+        "ref": {
+          "variable": { "name": "T", "ref": { "type": { "tid": "f32" } } }
+        }
+      }
+    },
+    "expr": {
+      "Variable": {
+        "name": {
+          "type": { "IDENTIFIER": "second" },
+          "lexeme": "second",
+          "line": 4
+        }
+      }
+    },
+    "ptr": 4312039568
+  },
+  {
+    "type": {
+      "variable": {
+        "name": "T",
+        "ref": {
+          "variable": { "name": "T", "ref": { "type": { "tid": "f32" } } }
+        }
+      }
     },
     "expr": { "Literal": { "value": { "Number": 1.5 } } },
-    "ptr": 4364681216
+    "ptr": 4312039568
   },
   {
     "type": {
-      "variable": {
-        "name": "T",
-        "ref": {
-          "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
-        }
-      }
-    },
-    "expr": { "Literal": { "value": { "Number": 2.0 } } },
-    "ptr": 4364681264
-  },
-  {
-    "type": {
-      "variable": {
-        "name": "T",
-        "ref": {
-          "variable": {
-            "name": "T",
-            "ref": {
-              "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
-            }
-          }
-        }
-      }
-    },
-    "expr": { "Literal": { "value": { "Number": 3.0 } } },
-    "ptr": 4364681408
-  },
-  {
-    "type": {
-      "variable": {
-        "name": "T",
-        "ref": {
-          "variable": {
-            "name": "T",
-            "ref": {
-              "variable": {
-                "name": "T",
-                "ref": {
-                  "variable": {
-                    "name": "T",
-                    "ref": { "type": { "tid": "float" } }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "expr": { "Literal": { "value": { "Number": 4.0 } } },
-    "ptr": 4364681552
-  },
-  {
-    "type": {
-      "variable": {
-        "name": "T",
-        "ref": {
-          "variable": {
-            "name": "T",
-            "ref": {
-              "variable": {
-                "name": "T",
-                "ref": {
-                  "variable": {
-                    "name": "T",
-                    "ref": { "type": { "tid": "float" } }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "expr": { "Literal": { "value": { "Number": 5.0 } } },
-    "ptr": 4364681552
-  },
-  {
-    "type": {
-      "variable": {
-        "name": "T",
-        "ref": {
-          "variable": {
-            "name": "T",
-            "ref": {
-              "variable": {
-                "name": "T",
-                "ref": {
-                  "variable": {
-                    "name": "T",
-                    "ref": { "type": { "tid": "float" } }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
+      "variable": { "name": "T", "ref": { "type": { "tid": "f32" } } }
     },
     "expr": {
       "Binary": {
-        "left": { "Literal": { "value": { "Number": 4.0 } } },
-        "op": { "type": { "MINUS": {} }, "lexeme": "-", "line": 1 },
-        "right": { "Literal": { "value": { "Number": 5.0 } } }
-      }
-    },
-    "ptr": 4364681552
-  },
-  {
-    "type": {
-      "variable": {
-        "name": "T",
-        "ref": {
-          "variable": {
-            "name": "T",
-            "ref": {
-              "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
+        "left": {
+          "Variable": {
+            "name": {
+              "type": { "IDENTIFIER": "second" },
+              "lexeme": "second",
+              "line": 4
             }
           }
-        }
+        },
+        "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 4 },
+        "right": { "Literal": { "value": { "Number": 1.5 } } }
       }
     },
-    "expr": {
-      "Grouping": {
-        "expr": {
-          "Binary": {
-            "left": { "Literal": { "value": { "Number": 4.0 } } },
-            "op": { "type": { "MINUS": {} }, "lexeme": "-", "line": 1 },
-            "right": { "Literal": { "value": { "Number": 5.0 } } }
-          }
-        }
-      }
-    },
-    "ptr": 4364681408
+    "ptr": 4312039520
   },
   {
     "type": {
-      "variable": {
-        "name": "T",
-        "ref": {
-          "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
-        }
-      }
+      "variable": { "name": "T", "ref": { "type": { "tid": "f32" } } }
     },
     "expr": {
       "Binary": {
-        "left": { "Literal": { "value": { "Number": 3.0 } } },
-        "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
-        "right": {
-          "Grouping": {
-            "expr": {
-              "Binary": {
-                "left": { "Literal": { "value": { "Number": 4.0 } } },
-                "op": { "type": { "MINUS": {} }, "lexeme": "-", "line": 1 },
-                "right": { "Literal": { "value": { "Number": 5.0 } } }
-              }
+        "left": {
+          "Variable": {
+            "name": {
+              "type": { "IDENTIFIER": "first" },
+              "lexeme": "first",
+              "line": 4
             }
           }
-        }
-      }
-    },
-    "ptr": 4364681264
-  },
-  {
-    "type": {
-      "variable": {
-        "name": "T",
-        "ref": {
-          "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
-        }
-      }
-    },
-    "expr": {
-      "Binary": {
-        "left": { "Literal": { "value": { "Number": 2.0 } } },
-        "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
+        },
+        "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 4 },
         "right": {
           "Binary": {
-            "left": { "Literal": { "value": { "Number": 3.0 } } },
-            "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
-            "right": {
-              "Grouping": {
-                "expr": {
-                  "Binary": {
-                    "left": { "Literal": { "value": { "Number": 4.0 } } },
-                    "op": { "type": { "MINUS": {} }, "lexeme": "-", "line": 1 },
-                    "right": { "Literal": { "value": { "Number": 5.0 } } }
-                  }
+            "left": {
+              "Variable": {
+                "name": {
+                  "type": { "IDENTIFIER": "second" },
+                  "lexeme": "second",
+                  "line": 4
                 }
               }
-            }
+            },
+            "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 4 },
+            "right": { "Literal": { "value": { "Number": 1.5 } } }
           }
         }
       }
     },
-    "ptr": 4364681264
+    "ptr": 4312039520
   },
   {
     "type": {
-      "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
+      "variable": { "name": "T", "ref": { "type": { "tid": "f32" } } }
     },
     "expr": {
-      "Grouping": {
-        "expr": {
-          "Binary": {
-            "left": { "Literal": { "value": { "Number": 2.0 } } },
-            "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
-            "right": {
-              "Binary": {
-                "left": { "Literal": { "value": { "Number": 3.0 } } },
-                "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
-                "right": {
-                  "Grouping": {
-                    "expr": {
-                      "Binary": {
-                        "left": { "Literal": { "value": { "Number": 4.0 } } },
-                        "op": {
-                          "type": { "MINUS": {} },
-                          "lexeme": "-",
-                          "line": 1
-                        },
-                        "right": { "Literal": { "value": { "Number": 5.0 } } }
+      "Block": {
+        "exprs": [
+          {
+            "Binary": {
+              "left": {
+                "Variable": {
+                  "name": {
+                    "type": { "IDENTIFIER": "first" },
+                    "lexeme": "first",
+                    "line": 4
+                  }
+                }
+              },
+              "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 4 },
+              "right": {
+                "Binary": {
+                  "left": {
+                    "Variable": {
+                      "name": {
+                        "type": { "IDENTIFIER": "second" },
+                        "lexeme": "second",
+                        "line": 4
                       }
                     }
-                  }
+                  },
+                  "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 4 },
+                  "right": { "Literal": { "value": { "Number": 1.5 } } }
                 }
               }
             }
           }
-        }
+        ]
       }
     },
-    "ptr": 4364681216
+    "ptr": 4312039520
   },
   {
     "type": {
-      "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
+      "function": {
+        "name": "second",
+        "args": [
+          { "variable": { "name": "T", "ref": { "type": { "tid": "f32" } } } },
+          {
+            "variable": {
+              "name": "T",
+              "ref": {
+                "variable": { "name": "T", "ref": { "type": { "tid": "f32" } } }
+              }
+            }
+          }
+        ],
+        "return_type": {
+          "variable": { "name": "FuncRet", "ref": { "type": { "tid": "f32" } } }
+        }
+      }
     },
     "expr": {
-      "Binary": {
-        "left": { "Literal": { "value": { "Number": 1.5 } } },
-        "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
-        "right": {
-          "Grouping": {
+      "Function": {
+        "args": [
+          {
             "expr": {
-              "Binary": {
-                "left": { "Literal": { "value": { "Number": 2.0 } } },
-                "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
-                "right": {
-                  "Binary": {
-                    "left": { "Literal": { "value": { "Number": 3.0 } } },
-                    "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
-                    "right": {
-                      "Grouping": {
-                        "expr": {
-                          "Binary": {
-                            "left": {
-                              "Literal": { "value": { "Number": 4.0 } }
-                            },
-                            "op": {
-                              "type": { "MINUS": {} },
-                              "lexeme": "-",
-                              "line": 1
-                            },
-                            "right": {
-                              "Literal": { "value": { "Number": 5.0 } }
-                            }
+              "Variable": {
+                "name": {
+                  "type": { "IDENTIFIER": "first" },
+                  "lexeme": "first",
+                  "line": 2
+                }
+              }
+            },
+            "type": null
+          },
+          {
+            "expr": {
+              "Variable": {
+                "name": {
+                  "type": { "IDENTIFIER": "second" },
+                  "lexeme": "second",
+                  "line": 2
+                }
+              }
+            },
+            "type": null
+          }
+        ],
+        "body": {
+          "Block": {
+            "exprs": [
+              {
+                "Binary": {
+                  "left": {
+                    "Variable": {
+                      "name": {
+                        "type": { "IDENTIFIER": "first" },
+                        "lexeme": "first",
+                        "line": 4
+                      }
+                    }
+                  },
+                  "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 4 },
+                  "right": {
+                    "Binary": {
+                      "left": {
+                        "Variable": {
+                          "name": {
+                            "type": { "IDENTIFIER": "second" },
+                            "lexeme": "second",
+                            "line": 4
                           }
                         }
-                      }
+                      },
+                      "op": {
+                        "type": { "PLUS": {} },
+                        "lexeme": "+",
+                        "line": 4
+                      },
+                      "right": { "Literal": { "value": { "Number": 1.5 } } }
                     }
                   }
                 }
               }
-            }
+            ]
           }
-        }
+        },
+        "name": {
+          "type": { "IDENTIFIER": "second" },
+          "lexeme": "second",
+          "line": 2
+        },
+        "type": { "type": { "IDENTIFIER": "f32" }, "lexeme": "f32", "line": 2 }
       }
     },
-    "ptr": 4364681216
+    "ptr": 4312039904
   },
   {
     "type": { "type": { "tid": "void" } },
     "expr": {
-      "VarInit": {
-        "name": { "type": { "IDENTIFIER": "a" }, "lexeme": "a", "line": 1 },
+      "ConstInit": {
+        "name": { "type": { "IDENTIFIER": "add" }, "lexeme": "add", "line": 2 },
         "initializer": {
-          "Binary": {
-            "left": { "Literal": { "value": { "Number": 1.5 } } },
-            "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
-            "right": {
-              "Grouping": {
+          "Function": {
+            "args": [
+              {
                 "expr": {
-                  "Binary": {
-                    "left": { "Literal": { "value": { "Number": 2.0 } } },
-                    "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 1 },
-                    "right": {
-                      "Binary": {
-                        "left": { "Literal": { "value": { "Number": 3.0 } } },
-                        "op": {
-                          "type": { "PLUS": {} },
-                          "lexeme": "+",
-                          "line": 1
-                        },
-                        "right": {
-                          "Grouping": {
-                            "expr": {
-                              "Binary": {
-                                "left": {
-                                  "Literal": { "value": { "Number": 4.0 } }
-                                },
-                                "op": {
-                                  "type": { "MINUS": {} },
-                                  "lexeme": "-",
-                                  "line": 1
-                                },
-                                "right": {
-                                  "Literal": { "value": { "Number": 5.0 } }
-                                }
+                  "Variable": {
+                    "name": {
+                      "type": { "IDENTIFIER": "first" },
+                      "lexeme": "first",
+                      "line": 2
+                    }
+                  }
+                },
+                "type": null
+              },
+              {
+                "expr": {
+                  "Variable": {
+                    "name": {
+                      "type": { "IDENTIFIER": "second" },
+                      "lexeme": "second",
+                      "line": 2
+                    }
+                  }
+                },
+                "type": null
+              }
+            ],
+            "body": {
+              "Block": {
+                "exprs": [
+                  {
+                    "Binary": {
+                      "left": {
+                        "Variable": {
+                          "name": {
+                            "type": { "IDENTIFIER": "first" },
+                            "lexeme": "first",
+                            "line": 4
+                          }
+                        }
+                      },
+                      "op": {
+                        "type": { "PLUS": {} },
+                        "lexeme": "+",
+                        "line": 4
+                      },
+                      "right": {
+                        "Binary": {
+                          "left": {
+                            "Variable": {
+                              "name": {
+                                "type": { "IDENTIFIER": "second" },
+                                "lexeme": "second",
+                                "line": 4
                               }
                             }
-                          }
+                          },
+                          "op": {
+                            "type": { "PLUS": {} },
+                            "lexeme": "+",
+                            "line": 4
+                          },
+                          "right": { "Literal": { "value": { "Number": 1.5 } } }
                         }
                       }
                     }
                   }
-                }
+                ]
               }
+            },
+            "name": {
+              "type": { "IDENTIFIER": "second" },
+              "lexeme": "second",
+              "line": 2
+            },
+            "type": {
+              "type": { "IDENTIFIER": "f32" },
+              "lexeme": "f32",
+              "line": 2
             }
           }
         },
         "type": null
       }
     },
-    "ptr": 4364681936
+    "ptr": 4312040000
+  },
+  {
+    "type": {
+      "variable": { "name": "T", "ref": { "type": { "tid": "f32" } } }
+    },
+    "expr": { "Literal": { "value": { "Number": 1.0 } } },
+    "ptr": 4312040144
+  },
+  {
+    "type": {
+      "variable": { "name": "T", "ref": { "type": { "tid": "f32" } } }
+    },
+    "expr": { "Literal": { "value": { "Number": 1.5 } } },
+    "ptr": 4312040144
+  },
+  {
+    "type": {
+      "variable": { "name": "FuncRet", "ref": { "type": { "tid": "f32" } } }
+    },
+    "expr": {
+      "Call": {
+        "callee": {
+          "Variable": {
+            "name": {
+              "type": { "IDENTIFIER": "add" },
+              "lexeme": "add",
+              "line": 9
+            }
+          }
+        },
+        "paren": { "type": { "RIGHT_PAREN": {} }, "lexeme": ")", "line": 9 },
+        "args": [
+          { "Literal": { "value": { "Number": 1.0 } } },
+          { "Literal": { "value": { "Number": 1.5 } } }
+        ]
+      }
+    },
+    "ptr": 4312039424
+  },
+  {
+    "type": { "type": { "tid": "void" } },
+    "expr": {
+      "ConstInit": {
+        "name": { "type": { "IDENTIFIER": "sum" }, "lexeme": "sum", "line": 9 },
+        "initializer": {
+          "Call": {
+            "callee": {
+              "Variable": {
+                "name": {
+                  "type": { "IDENTIFIER": "add" },
+                  "lexeme": "add",
+                  "line": 9
+                }
+              }
+            },
+            "paren": {
+              "type": { "RIGHT_PAREN": {} },
+              "lexeme": ")",
+              "line": 9
+            },
+            "args": [
+              { "Literal": { "value": { "Number": 1.0 } } },
+              { "Literal": { "value": { "Number": 1.5 } } }
+            ]
+          }
+        },
+        "type": null
+      }
+    },
+    "ptr": 4312040480
+  },
+  {
+    "type": {
+      "variable": { "name": "FuncRet", "ref": { "type": { "tid": "f32" } } }
+    },
+    "expr": {
+      "Variable": {
+        "name": { "type": { "IDENTIFIER": "sum" }, "lexeme": "sum", "line": 11 }
+      }
+    },
+    "ptr": 4312039424
+  },
+  {
+    "type": {
+      "variable": { "name": "FuncRet", "ref": { "type": { "tid": "f32" } } }
+    },
+    "expr": {
+      "Block": {
+        "exprs": [
+          {
+            "ConstInit": {
+              "name": {
+                "type": { "IDENTIFIER": "sum" },
+                "lexeme": "sum",
+                "line": 9
+              },
+              "initializer": {
+                "Call": {
+                  "callee": {
+                    "Variable": {
+                      "name": {
+                        "type": { "IDENTIFIER": "add" },
+                        "lexeme": "add",
+                        "line": 9
+                      }
+                    }
+                  },
+                  "paren": {
+                    "type": { "RIGHT_PAREN": {} },
+                    "lexeme": ")",
+                    "line": 9
+                  },
+                  "args": [
+                    { "Literal": { "value": { "Number": 1.0 } } },
+                    { "Literal": { "value": { "Number": 1.5 } } }
+                  ]
+                }
+              },
+              "type": null
+            }
+          },
+          {
+            "Variable": {
+              "name": {
+                "type": { "IDENTIFIER": "sum" },
+                "lexeme": "sum",
+                "line": 11
+              }
+            }
+          }
+        ]
+      }
+    },
+    "ptr": 4312039424
+  },
+  {
+    "type": {
+      "function": {
+        "name": "main",
+        "args": [],
+        "return_type": {
+          "variable": { "name": "FuncRet", "ref": { "type": { "tid": "f32" } } }
+        }
+      }
+    },
+    "expr": {
+      "Function": {
+        "args": null,
+        "body": {
+          "Block": {
+            "exprs": [
+              {
+                "ConstInit": {
+                  "name": {
+                    "type": { "IDENTIFIER": "sum" },
+                    "lexeme": "sum",
+                    "line": 9
+                  },
+                  "initializer": {
+                    "Call": {
+                      "callee": {
+                        "Variable": {
+                          "name": {
+                            "type": { "IDENTIFIER": "add" },
+                            "lexeme": "add",
+                            "line": 9
+                          }
+                        }
+                      },
+                      "paren": {
+                        "type": { "RIGHT_PAREN": {} },
+                        "lexeme": ")",
+                        "line": 9
+                      },
+                      "args": [
+                        { "Literal": { "value": { "Number": 1.0 } } },
+                        { "Literal": { "value": { "Number": 1.5 } } }
+                      ]
+                    }
+                  },
+                  "type": null
+                }
+              },
+              {
+                "Variable": {
+                  "name": {
+                    "type": { "IDENTIFIER": "sum" },
+                    "lexeme": "sum",
+                    "line": 11
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "name": {
+          "type": { "IDENTIFIER": "main" },
+          "lexeme": "main",
+          "line": 7
+        },
+        "type": null
+      }
+    },
+    "ptr": 4312040528
+  },
+  {
+    "type": { "type": { "tid": "void" } },
+    "expr": {
+      "ConstInit": {
+        "name": {
+          "type": { "IDENTIFIER": "main" },
+          "lexeme": "main",
+          "line": 7
+        },
+        "initializer": {
+          "Function": {
+            "args": null,
+            "body": {
+              "Block": {
+                "exprs": [
+                  {
+                    "ConstInit": {
+                      "name": {
+                        "type": { "IDENTIFIER": "sum" },
+                        "lexeme": "sum",
+                        "line": 9
+                      },
+                      "initializer": {
+                        "Call": {
+                          "callee": {
+                            "Variable": {
+                              "name": {
+                                "type": { "IDENTIFIER": "add" },
+                                "lexeme": "add",
+                                "line": 9
+                              }
+                            }
+                          },
+                          "paren": {
+                            "type": { "RIGHT_PAREN": {} },
+                            "lexeme": ")",
+                            "line": 9
+                          },
+                          "args": [
+                            { "Literal": { "value": { "Number": 1.0 } } },
+                            { "Literal": { "value": { "Number": 1.5 } } }
+                          ]
+                        }
+                      },
+                      "type": null
+                    }
+                  },
+                  {
+                    "Variable": {
+                      "name": {
+                        "type": { "IDENTIFIER": "sum" },
+                        "lexeme": "sum",
+                        "line": 11
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "name": {
+              "type": { "IDENTIFIER": "main" },
+              "lexeme": "main",
+              "line": 7
+            },
+            "type": null
+          }
+        },
+        "type": null
+      }
+    },
+    "ptr": 4312040624
   }
 ]
