@@ -14,17 +14,19 @@ const ANY_TYPE: TypeBits = 1 << 0;
 const NUMBER_TYPE: TypeBits = 1 << 1 | ANY_TYPE;
 
 const INT_TYPE: TypeBits = 1 << 2 | NUMBER_TYPE;
-const I32_TYPE: TypeBits = 1 << 3 | INT_TYPE;
-const I64_TYPE: TypeBits = 1 << 4 | INT_TYPE;
+const I32_TYPE: TypeBits = 1 << 3 | INT_TYPE | TERMINAL_TYPE;
+const I64_TYPE: TypeBits = 1 << 4 | INT_TYPE | TERMINAL_TYPE;
 
 const FLOAT_TYPE: TypeBits = 1 << 5 | NUMBER_TYPE;
-const F32_TYPE: TypeBits = 1 << 6 | FLOAT_TYPE;
-const F64_TYPE: TypeBits = 1 << 7 | FLOAT_TYPE;
+const F32_TYPE: TypeBits = 1 << 6 | FLOAT_TYPE | TERMINAL_TYPE;
+const F64_TYPE: TypeBits = 1 << 7 | FLOAT_TYPE | TERMINAL_TYPE;
 
-const BOOL_TYPE: TypeBits = 1 << 8 | ANY_TYPE;
-const STRING_TYPE: TypeBits = 1 << 9 | ANY_TYPE;
+const BOOL_TYPE: TypeBits = 1 << 8 | ANY_TYPE | TERMINAL_TYPE;
+const STRING_TYPE: TypeBits = 1 << 9 | ANY_TYPE | TERMINAL_TYPE;
 
-const VOID_TYPE: TypeBits = 1 << 10;
+const VOID_TYPE: TypeBits = 1 << 10 | TERMINAL_TYPE;
+
+const TERMINAL_TYPE: TypeBits = 1 << 11;
 
 pub const TypeID = enum(TypeBits) {
     any = ANY_TYPE,
@@ -42,6 +44,10 @@ pub const TypeID = enum(TypeBits) {
     pub fn is_subtype_of(child: TypeID, parent: TypeID) bool {
         return (@intFromEnum(parent) & @intFromEnum(child)) == @intFromEnum(parent);
     }
+
+    pub fn is_terminal(self: TypeID) bool {
+        return @intFromEnum(self) & TERMINAL_TYPE == TERMINAL_TYPE;
+    }
 };
 
 const MonoType = struct {
@@ -57,6 +63,20 @@ pub const FunType = struct {
     name: []const u8,
     args: []*TypeNode,
     return_type: *TypeNode,
+
+    pub fn is_generic(self: *const FunType) bool {
+        if (!self.return_type.get_tid().is_terminal()) {
+            return true;
+        }
+
+        for (self.args) |arg| {
+            if (!arg.get_tid().is_terminal()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 };
 
 pub const TypeNode = union(enum) {
@@ -78,6 +98,18 @@ pub const TypeNode = union(enum) {
         }
     }
 
+    pub fn clone(self: *TypeNode) TypeNode {
+        return switch (self.*) {
+            .type => |*ty| .{ .type = .{ .tid = ty.tid } },
+            .variable => |*variable| .{ .variable = .{ .ref = variable.clone() } },
+            .function => {
+                // you should not try to clone a function directly
+                unreachable;
+            },
+            // .function => |*function| .{ .function = .{ .name = function.name, .return_type } },
+        };
+    }
+
     pub fn get_tid(self: TypeNode) TypeID {
         return switch (self) {
             .type => |*monotype| {
@@ -86,14 +118,18 @@ pub const TypeNode = union(enum) {
             .variable => |*variable| {
                 return variable.ref.get_tid();
             },
-            .function => |*function| {
-                return function.return_type.get_tid();
+            .function => |*func| {
+                return func.return_type.get_tid();
             },
         };
     }
 
     pub fn as_var(self: TypeNode) ?VarType {
         return if (tag(self) == .variable) self.variable else null;
+    }
+
+    pub fn as_function(self: TypeNode) ?FunType {
+        return if (tag(self) == .function) self.function else null;
     }
 };
 
@@ -107,6 +143,7 @@ const TypeError = error{
     AnonymousFunctionsNotImplemented,
     FunctionArgumentsCanOnlyBeIdentifiers,
     AlreadyDefinedVariable,
+    NonCallableExpression,
 };
 
 const Err = ErrorReporter(TypeError);
@@ -169,6 +206,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
         .Binary => |*binary| {
             //@todo:mem clean memory
             var args = try self.allocator.alloc(*const Expr, 2);
+
             args[0] = binary.left;
             args[1] = binary.right;
 
@@ -193,7 +231,6 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
             const node = try self.call(
                 builtin,
                 args,
-                expr,
             );
 
             self.put_sem(expr, node);
@@ -225,7 +262,6 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
 
             return node;
         },
-        // .Function => |*function| {},
         .If => |*if_expr| {
             const condition = try self.infer(if_expr.condition);
             const bool_condition = try self.new_type(.bool);
@@ -279,39 +315,23 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
             self.put_sem(expr, node);
             return node;
         },
-        .Function => |*function| {
-            if (function.name == null) {
-                return TypeError.AnonymousFunctionsNotImplemented;
-            }
-
-            self.env.begin_local_scope();
-            defer self.env.end_local_scope();
-
-            const return_type = try self.new_var_from_token("FuncRet", function.type);
-
-            var function_type: FunType = .{
-                .name = function.name.?.lexeme,
-                .args = if (function.args) |args|
-                    try self.allocator.alloc(*TypeNode, args.len)
-                else
-                    &[_]*TypeNode{},
-                .return_type = return_type,
-            };
-
-            if (function.args) |args| {
-                for (args, 0..) |arg, i| {
-                    const node = try self.new_var_from_token("Arg", arg.type);
-                    try self.env.define(arg.expr.Variable.name.lexeme, node);
-
-                    function_type.args[i] = node;
+        .Call => |*call_expr| {
+            const callee = try self.env.get(call_expr.callee.Variable.name.lexeme);
+            if (callee.as_function()) |*func| {
+                if (func.is_generic()) {
+                    // var new_func = try self.clone_function_type(function);
+                    // unreachable;
                 }
+
+                const node = try self.call(func.*, call_expr.args);
+                self.put_sem(expr, node);
+                return node;
+            } else {
+                return TypeError.NonCallableExpression;
             }
-
-            const body_type = try self.infer(function.body);
-
-            try unify(return_type, body_type);
-
-            const node = try self.new_type_node(.{ .function = function_type });
+        },
+        .Function => |*func| {
+            const node = try self.function(func);
 
             self.put_sem(expr, node);
 
@@ -321,18 +341,18 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
     };
 }
 
-fn call(self: *@This(), function: FunType, exprs_args: []*const Expr, _: *const Expr) anyerror!*TypeNode {
-    if (function.args.len != exprs_args.len) {
+fn call(self: *@This(), func: FunType, exprs_args: []*const Expr) anyerror!*TypeNode {
+    if (func.args.len != exprs_args.len) {
         return TypeError.WrongArgumentsNumber;
     }
 
     // @todo: just reuse one type scope. Or use another more generic object
     var type_scope: *TypeScope = try self.allocator.create(TypeScope);
     type_scope.* = TypeScope.init(self.allocator);
-    try type_scope.ensureTotalCapacity(@intCast(function.args.len));
+    try type_scope.ensureTotalCapacity(@intCast(func.args.len));
     defer type_scope.deinit();
 
-    for (exprs_args, function.args) |expr_arg, function_arg| {
+    for (exprs_args, func.args) |expr_arg, function_arg| {
         const arg = try self.infer(expr_arg);
 
         // @warning: watch this crap
@@ -362,7 +382,42 @@ fn call(self: *@This(), function: FunType, exprs_args: []*const Expr, _: *const 
         );
     }
 
-    return try self.get_local_node(function.return_type, type_scope);
+    return try self.get_local_node(func.return_type, type_scope);
+}
+// @todo: why anyerror
+fn function(self: *@This(), func: *const Expr.Function) anyerror!*TypeNode {
+    if (func.name == null) {
+        return TypeError.AnonymousFunctionsNotImplemented;
+    }
+
+    self.env.begin_local_scope();
+    defer self.env.end_local_scope();
+
+    const return_type = try self.new_var_from_token("FuncRet", func.type);
+
+    var function_type: FunType = .{
+        .name = func.name.?.lexeme,
+        .args = if (func.args) |args|
+            try self.allocator.alloc(*TypeNode, args.len)
+        else
+            &[_]*TypeNode{},
+        .return_type = return_type,
+    };
+
+    if (func.args) |args| {
+        for (args, 0..) |arg, i| {
+            const node = try self.new_var_from_token("Arg", arg.type);
+            try self.env.define(arg.expr.Variable.name.lexeme, node);
+
+            function_type.args[i] = node;
+        }
+    }
+
+    const body_type = try self.infer(func.body);
+
+    try unify(return_type, body_type);
+
+    return try self.new_type_node(.{ .function = function_type });
 }
 
 fn get_or_create_local_node(self: *@This(), base_node: *TypeNode, local_node: *TypeNode, scope: *TypeScope) !*TypeNode {
@@ -458,6 +513,25 @@ fn new_var_from_token(self: *@This(), name: []const u8, maybe_token: ?*const Tok
                 .ref = try self.new_type_from_token(maybe_token),
                 .name = name,
             },
+        },
+    );
+}
+
+fn clone_function_type(self: *@This(), func: *FunType) !*FunType {
+    const return_type = self.new_type_node(func.return_type.clone());
+    const args = try self.allocator.alloc(*TypeNode, func.args.len);
+    for (func.args, 0..) |arg, i| {
+        args[i] = self.new_type_node(arg.clone());
+    }
+    const function_type: FunType = .{
+        .name = func.name.?.lexeme,
+        .args = args,
+        .return_type = return_type,
+    };
+
+    return try self.new_type_node(
+        .{
+            .function = function_type,
         },
     );
 }

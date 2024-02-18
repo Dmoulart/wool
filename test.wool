@@ -1,17 +1,28 @@
+a := 1.5 + (2 + 3 + (4 - 5))
 
+/*add :: first, second ->
+{ 
+  first + second + 1.5
+}
 
+main :: -> {
+  sum :: add(1, 1.5)
+}*/
 
-global_var: i32 = 0 // -> Globals.put('global_var')
+/* 
+
+global_var  : i32 = 0 // -> Globals.put('global_var')
+global_var_2: i32 = 0
 
 b :: -> {
   local_var: i32 = 0 // -> Locals.put('local_var')
-  global_var: i32 = 0 // -> Globals.put('global_var')
 }
 
 a :: -> {
-  local_var :f32 = 1 // -> Locals.put('local_var')
+  local_var: f32 = 1 // -> Locals.put('local_var')
 }
 
+*/
 
 
 /* 
@@ -48,8 +59,6 @@ a := 1.5 + (2 + 3 + (4 - 5))
 a :: 1 // <- Number
 
 b :: 2 // <- Number
-
-
 
 // (add is a virtual/abstract (generic) function as long as it contains a non terminal type)
 add :: first, second ->
