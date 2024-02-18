@@ -5,7 +5,7 @@ a := 1.5 + (2 + 3 + (4 - 5))
   first + second + 1.5
 }
 
-main :: -> {
+main :: -> void {
   sum :: add(1, 1.5)
 }*/
 

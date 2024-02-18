@@ -179,7 +179,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
 
             try self.env.define(const_init.name.lexeme, node);
 
-            self.put_sem(expr, node);
+            self.put_sem(expr, try self.new_type(.void));
 
             return node;
         },
@@ -192,7 +192,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
 
             try self.env.define(var_init.name.lexeme, node);
 
-            self.put_sem(expr, node);
+            self.put_sem(expr, try self.new_type(.void));
 
             return node;
         },
