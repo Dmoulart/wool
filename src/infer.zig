@@ -6,13 +6,27 @@ type_nodes: std.ArrayListUnmanaged(TypeNode),
 
 sems: std.AutoArrayHashMapUnmanaged(*const Expr, *TypeNode),
 
-values: std.StringArrayHashMapUnmanaged(*TypeNode),
+env: Env,
 
-global_context: *Context,
+const TypeBits = u64;
+const ANY_TYPE: TypeBits = 1 << 0;
 
-contexts: std.ArrayListUnmanaged(Context),
+const NUMBER_TYPE: TypeBits = 1 << 1 | ANY_TYPE;
 
-pub const TypeID = enum(TypeBit) {
+const INT_TYPE: TypeBits = 1 << 2 | NUMBER_TYPE;
+const I32_TYPE: TypeBits = 1 << 3 | INT_TYPE;
+const I64_TYPE: TypeBits = 1 << 4 | INT_TYPE;
+
+const FLOAT_TYPE: TypeBits = 1 << 5 | NUMBER_TYPE;
+const F32_TYPE: TypeBits = 1 << 6 | FLOAT_TYPE;
+const F64_TYPE: TypeBits = 1 << 7 | FLOAT_TYPE;
+
+const BOOL_TYPE: TypeBits = 1 << 8 | ANY_TYPE;
+const STRING_TYPE: TypeBits = 1 << 9 | ANY_TYPE;
+
+const VOID_TYPE: TypeBits = 1 << 10;
+
+pub const TypeID = enum(TypeBits) {
     any = ANY_TYPE,
     number = NUMBER_TYPE,
     int = INT_TYPE,
@@ -92,21 +106,18 @@ const TypeError = error{
     UnknownVariable,
     AnonymousFunctionsNotImplemented,
     FunctionArgumentsCanOnlyBeIdentifiers,
+    AlreadyDefinedVariable,
 };
 
 const Err = ErrorReporter(TypeError);
 
 pub fn init(allocator: std.mem.Allocator, ast: []*Expr) @This() {
-    var contexts: std.ArrayListUnmanaged(Context) = .{};
-    const global_context = contexts.addOne(allocator) catch unreachable;
     return .{
         .allocator = allocator,
         .ast = ast,
+        .env = Env.init(allocator),
         .type_nodes = .{},
-        .contexts = contexts,
-        .global_context = global_context,
         .sems = .{},
-        .values = .{},
     };
 }
 
@@ -125,20 +136,12 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
         .ConstInit => |*const_init| {
             const node = try self.infer(const_init.initializer);
 
-            const type_decl = try self.new_type_node(
-                .{
-                    .type = .{
-                        .tid = if (const_init.type) |ty|
-                            try type_from_str(ty.lexeme)
-                        else
-                            .any,
-                    },
-                },
-            );
+            const type_decl = try self.new_type_from_token(const_init.type);
 
             try unify(type_decl, node);
 
-            try self.values.put(self.allocator, const_init.name.lexeme, node);
+            try self.env.define(const_init.name.lexeme, node);
+
             self.put_sem(expr, node);
 
             return node;
@@ -146,20 +149,12 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
         .VarInit => |*var_init| {
             const node = try self.infer(var_init.initializer);
 
-            const type_decl = try self.new_type_node(
-                .{
-                    .type = .{
-                        .tid = if (var_init.type) |ty|
-                            try type_from_str(ty.lexeme)
-                        else
-                            .any,
-                    },
-                },
-            );
+            const type_decl = try self.new_type_from_token(var_init.type);
 
             try unify(type_decl, node);
 
-            try self.values.put(self.allocator, var_init.name.lexeme, node);
+            try self.env.define(var_init.name.lexeme, node);
+
             self.put_sem(expr, node);
 
             return node;
@@ -224,7 +219,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
             return variable;
         },
         .Variable => |*variable| {
-            const node = self.values.get(variable.name.lexeme) orelse return TypeError.UnknownVariable;
+            const node = try self.env.get(variable.name.lexeme);
 
             self.put_sem(expr, node);
 
@@ -264,6 +259,9 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
         .Block => |*block| {
             var return_node: ?*TypeNode = null;
 
+            self.env.begin_local_scope();
+            defer self.env.end_local_scope();
+
             for (block.exprs) |block_expr| {
                 return_node = try self.infer(block_expr);
             }
@@ -286,6 +284,9 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
                 return TypeError.AnonymousFunctionsNotImplemented;
             }
 
+            self.env.begin_local_scope();
+            defer self.env.end_local_scope();
+
             const return_type = try self.new_var_from_token("FuncRet", function.type);
 
             var function_type: FunType = .{
@@ -300,12 +301,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
             if (function.args) |args| {
                 for (args, 0..) |arg, i| {
                     const node = try self.new_var_from_token("Arg", arg.type);
-
-                    try self.values.put(
-                        self.allocator,
-                        arg.expr.Variable.name.lexeme,
-                        node,
-                    );
+                    try self.env.define(arg.expr.Variable.name.lexeme, node);
 
                     function_type.args[i] = node;
                 }
@@ -330,9 +326,11 @@ fn call(self: *@This(), function: FunType, exprs_args: []*const Expr, _: *const 
         return TypeError.WrongArgumentsNumber;
     }
 
-    const local_ctx = try self.contexts.addOne(self.allocator);
-    local_ctx.* = Context.init(self.allocator);
-    defer local_ctx.deinit();
+    // @todo: just reuse one type scope. Or use another more generic object
+    var type_scope: *TypeScope = try self.allocator.create(TypeScope);
+    type_scope.* = TypeScope.init(self.allocator);
+    try type_scope.ensureTotalCapacity(@intCast(function.args.len));
+    defer type_scope.deinit();
 
     for (exprs_args, function.args) |expr_arg, function_arg| {
         const arg = try self.infer(expr_arg);
@@ -343,7 +341,7 @@ fn call(self: *@This(), function: FunType, exprs_args: []*const Expr, _: *const 
         const call_arg = try self.get_or_create_local_node(
             function_arg,
             arg,
-            local_ctx,
+            type_scope,
         );
 
         try unify(
@@ -364,12 +362,12 @@ fn call(self: *@This(), function: FunType, exprs_args: []*const Expr, _: *const 
         );
     }
 
-    return try self.get_local_node(function.return_type, local_ctx);
+    return try self.get_local_node(function.return_type, type_scope);
 }
 
-fn get_or_create_local_node(self: *@This(), base_node: *TypeNode, local_node: *TypeNode, ctx: *Context) !*TypeNode {
+fn get_or_create_local_node(self: *@This(), base_node: *TypeNode, local_node: *TypeNode, scope: *TypeScope) !*TypeNode {
     if (base_node.as_var()) |variable| {
-        if (ctx.variables.get(variable.name)) |registered_variable| {
+        if (scope.get(variable.name)) |registered_variable| {
             return registered_variable;
         } else {
             const new_var = switch (local_node.*) {
@@ -390,7 +388,9 @@ fn get_or_create_local_node(self: *@This(), base_node: *TypeNode, local_node: *T
 
             try unify(new_var, base_node_copy);
 
-            return try ctx.create_var_instance(new_var);
+            try scope.put(new_var.variable.name, new_var);
+
+            return new_var;
         }
     }
 
@@ -398,9 +398,9 @@ fn get_or_create_local_node(self: *@This(), base_node: *TypeNode, local_node: *T
     return try self.new_type_node(base_node.*);
 }
 
-fn get_local_node(self: *@This(), node: *TypeNode, ctx: *Context) !*TypeNode {
+fn get_local_node(self: *@This(), node: *TypeNode, scope: *TypeScope) !*TypeNode {
     if (node.as_var()) |variable| {
-        if (ctx.variables.get(variable.name)) |registered_variable| {
+        if (scope.get(variable.name)) |registered_variable| {
             return registered_variable;
         }
     }
@@ -520,17 +520,6 @@ pub fn type_from_str(str: []const u8) !TypeID {
         return TypeError.UnknownType;
     }
 }
-const Env = std.StringArrayHashMap(*TypeNode);
-
-const std = @import("std");
-
-const Expr = @import("./ast/expr.zig").Expr;
-const Type = @import("./types.zig").Type;
-const Token = @import("./token.zig");
-const floatMax = std.math.floatMax;
-const maxInt = std.math.maxInt;
-const ErrorReporter = @import("./error-reporter.zig").ErrorReporter;
-const tag = std.meta.activeTag;
 
 fn pretty_print(data: anytype) void {
     switch (@TypeOf(data)) {
@@ -744,44 +733,6 @@ const builtins_types = std.ComptimeStringMap(
         },
     },
 );
-const TypeBit = u64;
-const ANY_TYPE: TypeBit = 1 << 0;
-
-const NUMBER_TYPE: TypeBit = 1 << 1 | ANY_TYPE;
-
-const INT_TYPE: TypeBit = 1 << 2 | NUMBER_TYPE;
-const I32_TYPE: TypeBit = 1 << 3 | INT_TYPE;
-const I64_TYPE: TypeBit = 1 << 4 | INT_TYPE;
-
-const FLOAT_TYPE: TypeBit = 1 << 5 | NUMBER_TYPE;
-const F32_TYPE: TypeBit = 1 << 6 | FLOAT_TYPE;
-const F64_TYPE: TypeBit = 1 << 7 | FLOAT_TYPE;
-
-const BOOL_TYPE: TypeBit = 1 << 8 | ANY_TYPE;
-const STRING_TYPE: TypeBit = 1 << 9 | ANY_TYPE;
-const VOID_TYPE: TypeBit = 1 << 10;
-
-const Context = struct {
-    variables: std.StringHashMapUnmanaged(*TypeNode),
-
-    allocator: std.mem.Allocator,
-
-    pub fn init(allocator: std.mem.Allocator) Context {
-        return .{
-            .variables = .{},
-            .allocator = allocator,
-        };
-    }
-
-    pub fn deinit(self: *@This()) void {
-        self.variables.deinit(self.allocator);
-    }
-
-    pub fn create_var_instance(self: *@This(), node: *TypeNode) !*TypeNode {
-        try self.variables.put(self.allocator, node.variable.name, node);
-        return node;
-    }
-};
 
 pub fn log_sems(self: *@This()) !void {
     std.debug.print("\n#####SEMS-STATE\n", .{});
@@ -827,3 +778,115 @@ pub fn write_sems_to_file(self: *@This()) !void {
 
     try jsonPrint(types.items, "./types.json");
 }
+
+const Env = struct {
+    allocator: std.mem.Allocator,
+    local: Scope,
+    global: Scope,
+
+    current_depth: u32 = 0,
+
+    pub fn init(allocator: std.mem.Allocator) Env {
+        return .{
+            .allocator = allocator,
+            .global = Scope.init(allocator),
+            .local = Scope.init(allocator),
+        };
+    }
+
+    pub fn define(self: *Env, name: []const u8, node: *TypeNode) !void {
+        if (self.in_global_scope()) {
+            try self.define_global(name, node);
+        } else {
+            try self.define_local(name, node);
+        }
+    }
+
+    pub fn define_global(self: *Env, name: []const u8, node: *TypeNode) !void {
+        try self.global.define(name, node);
+    }
+
+    pub fn define_local(self: *Env, name: []const u8, node: *TypeNode) !void {
+        return if (self.global.has(name))
+            TypeError.AlreadyDefinedVariable
+        else
+            try self.local.define(name, node);
+    }
+
+    pub fn begin_local_scope(self: *Env) void {
+        self.current_depth += 1;
+    }
+
+    pub fn end_local_scope(self: *Env) void {
+        self.current_depth -= 1;
+        if (self.in_global_scope()) {
+            self.local.clear();
+        }
+    }
+
+    pub fn in_global_scope(self: *Env) bool {
+        return self.current_depth == 0;
+    }
+
+    pub fn get(self: *Env, name: []const u8) !*TypeNode {
+        if (self.in_global_scope()) {
+            return self.global.get(name);
+        }
+
+        return self.local.get(name) catch |err| switch (err) {
+            TypeError.UnknownVariable => try self.global.get(name),
+            else => |other_error| other_error,
+        };
+    }
+
+    pub fn deinit(self: *Env) void {
+        self.global.deinit();
+        self.local.deinit();
+    }
+};
+
+const Scope = struct {
+    allocator: std.mem.Allocator,
+    values: std.StringHashMapUnmanaged(*TypeNode),
+
+    pub fn init(allocator: std.mem.Allocator) Scope {
+        return .{
+            .allocator = allocator,
+            .values = .{},
+        };
+    }
+
+    pub fn deinit(self: *Scope) void {
+        self.values.deinit(self.allocator);
+    }
+
+    pub fn define(self: *Scope, name: []const u8, node: *TypeNode) !void {
+        const result = try self.values.getOrPut(self.allocator, name);
+        if (result.found_existing) return TypeError.AlreadyDefinedVariable;
+        result.value_ptr.* = node;
+    }
+
+    pub fn clear(self: *Scope) void {
+        self.values.clearAndFree(self.allocator);
+    }
+
+    pub fn get(self: *Scope, name: []const u8) !*TypeNode {
+        return self.values.get(name) orelse TypeError.UnknownVariable;
+    }
+
+    pub fn has(self: *Scope, name: []const u8) bool {
+        return self.values.contains(name);
+    }
+};
+
+const TypeScope = std.StringHashMap(*TypeNode);
+
+const std = @import("std");
+
+const Expr = @import("./ast/expr.zig").Expr;
+const Type = @import("./types.zig").Type;
+const Token = @import("./token.zig");
+const floatMax = std.math.floatMax;
+const maxInt = std.math.maxInt;
+const ErrorReporter = @import("./error-reporter.zig").ErrorReporter;
+const tag = std.meta.activeTag;

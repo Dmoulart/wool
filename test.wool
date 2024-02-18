@@ -1,7 +1,17 @@
-add :: first, second -> 
-{ 
-  first + second + 1.5
+
+
+
+global_var: i32 = 0 // -> Globals.put('global_var')
+
+b :: -> {
+  local_var: i32 = 0 // -> Locals.put('local_var')
+  global_var: i32 = 0 // -> Globals.put('global_var')
 }
+
+a :: -> {
+  local_var :f32 = 1 // -> Locals.put('local_var')
+}
+
 
 
 /* 
