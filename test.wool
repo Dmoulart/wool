@@ -1,4 +1,10 @@
-// log :: from console import log
+
+main :: -> {
+  a :i32 = 1
+}
+
+
+/* // log :: from console import log
 
 add :: first, second -> 
 { 
@@ -10,7 +16,7 @@ main :: -> void {
 
   log(sum)
 }
-
+*/
 
 
 /*

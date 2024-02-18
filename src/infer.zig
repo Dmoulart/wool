@@ -395,9 +395,9 @@ fn get_local_node(self: *@This(), node: *TypeNode, ctx: *Context) !*TypeNode {
 }
 
 fn unify(a: *TypeNode, b: *TypeNode) !void {
-    if (is_narrower(a.get_tid(), b.get_tid())) {
+    if (is_subtype(a.get_tid(), b.get_tid())) {
         a.set_tid(b.get_tid());
-    } else if (is_narrower(b.get_tid(), a.get_tid())) {
+    } else if (is_subtype(b.get_tid(), a.get_tid())) {
         b.set_tid(a.get_tid());
     }
 
@@ -410,10 +410,6 @@ fn unify(a: *TypeNode, b: *TypeNode) !void {
     }
 }
 
-fn is_narrower(tid: TypeID, maybe_narrower: TypeID) bool {
-    return is_subtype(tid, maybe_narrower);
-}
-
 fn is_subtype(supertype: TypeID, maybe_subtype: TypeID) bool {
     if (find_subtypes(supertype, &type_hierarchy)) |subtypes| {
         if (subtypes.get(maybe_subtype)) |_| {
@@ -422,11 +418,11 @@ fn is_subtype(supertype: TypeID, maybe_subtype: TypeID) bool {
 
         for (subtypes.values) |subtype| {
             if (subtype) |sub| {
-                const subtype_tid_2 = switch (sub.*) {
+                const supertype_child = switch (sub.*) {
                     .terminal => |ty| ty.tid,
                     .supertype => |ty| ty.tid,
                 };
-                if (is_subtype(subtype_tid_2, maybe_subtype)) {
+                if (is_subtype(supertype_child, maybe_subtype)) {
                     return true;
                 }
             }
@@ -450,7 +446,7 @@ fn find_subtypes(target: TypeID, hierarchy: *const TypeHierarchy) ?*const Subtyp
                     if (subtype_tid == target) {
                         return switch (subtype.*) {
                             .terminal => null,
-                            .supertype => &subtype.supertype.subtypes,
+                            .supertype => &subtype.supertype.subtypes, // danger
                         };
                     }
 
@@ -874,7 +870,7 @@ const float_type: TypeHierarchy = .{
         .subtypes = blk: {
             var subtypes = Subtypes.initFill(null);
             subtypes.set(.f32, &f32_type);
-            subtypes.set(.f32, &f64_type);
+            subtypes.set(.f64, &f64_type);
             break :blk subtypes;
         },
     },
