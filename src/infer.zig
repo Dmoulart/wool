@@ -263,6 +263,11 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
 
             return return_node.?;
         },
+        .Import => {
+            const node = try self.new_type(.any);
+            self.put_sem(expr, node);
+            return node;
+        },
         .Function => |*function| {
             if (function.name == null) {
                 return TypeError.AnonymousFunctionsNotImplemented;

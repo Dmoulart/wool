@@ -2,7 +2,6 @@ pub fn main() !void {
     const alloc = std.heap.page_allocator;
     const args = try std.process.argsAlloc(alloc);
     defer std.process.argsFree(alloc, args);
-
     if (args.len > 1) {
         try runFile(args[1]);
     } else {

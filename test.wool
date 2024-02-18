@@ -1,5 +1,4 @@
-log :: from console import log
-
+// log :: from console import log
 
 add :: first, second -> 
 { 
@@ -11,13 +10,6 @@ main :: -> void {
 
   log(sum)
 }
-
-
-
-
-
-
-
 
 
 
