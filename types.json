@@ -1,7 +1,7 @@
 [
   {
     "type": {
-      "variable": { "name": "T", "ref": { "type": { "tid": "f32" } } }
+      "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
     },
     "expr": {
       "Variable": {
@@ -12,16 +12,11 @@
         }
       }
     },
-    "ptr": 4312039520
+    "ptr": 4341712048
   },
   {
     "type": {
-      "variable": {
-        "name": "T",
-        "ref": {
-          "variable": { "name": "T", "ref": { "type": { "tid": "f32" } } }
-        }
-      }
+      "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
     },
     "expr": {
       "Variable": {
@@ -32,44 +27,11 @@
         }
       }
     },
-    "ptr": 4312039568
+    "ptr": 4341712048
   },
   {
     "type": {
-      "variable": {
-        "name": "T",
-        "ref": {
-          "variable": { "name": "T", "ref": { "type": { "tid": "f32" } } }
-        }
-      }
-    },
-    "expr": { "Literal": { "value": { "Number": 1.5 } } },
-    "ptr": 4312039568
-  },
-  {
-    "type": {
-      "variable": { "name": "T", "ref": { "type": { "tid": "f32" } } }
-    },
-    "expr": {
-      "Binary": {
-        "left": {
-          "Variable": {
-            "name": {
-              "type": { "IDENTIFIER": "second" },
-              "lexeme": "second",
-              "line": 4
-            }
-          }
-        },
-        "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 4 },
-        "right": { "Literal": { "value": { "Number": 1.5 } } }
-      }
-    },
-    "ptr": 4312039520
-  },
-  {
-    "type": {
-      "variable": { "name": "T", "ref": { "type": { "tid": "f32" } } }
+      "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
     },
     "expr": {
       "Binary": {
@@ -84,27 +46,21 @@
         },
         "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 4 },
         "right": {
-          "Binary": {
-            "left": {
-              "Variable": {
-                "name": {
-                  "type": { "IDENTIFIER": "second" },
-                  "lexeme": "second",
-                  "line": 4
-                }
-              }
-            },
-            "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 4 },
-            "right": { "Literal": { "value": { "Number": 1.5 } } }
+          "Variable": {
+            "name": {
+              "type": { "IDENTIFIER": "second" },
+              "lexeme": "second",
+              "line": 4
+            }
           }
         }
       }
     },
-    "ptr": 4312039520
+    "ptr": 4341712048
   },
   {
     "type": {
-      "variable": { "name": "T", "ref": { "type": { "tid": "f32" } } }
+      "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
     },
     "expr": {
       "Block": {
@@ -122,18 +78,12 @@
               },
               "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 4 },
               "right": {
-                "Binary": {
-                  "left": {
-                    "Variable": {
-                      "name": {
-                        "type": { "IDENTIFIER": "second" },
-                        "lexeme": "second",
-                        "line": 4
-                      }
-                    }
-                  },
-                  "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 4 },
-                  "right": { "Literal": { "value": { "Number": 1.5 } } }
+                "Variable": {
+                  "name": {
+                    "type": { "IDENTIFIER": "second" },
+                    "lexeme": "second",
+                    "line": 4
+                  }
                 }
               }
             }
@@ -141,25 +91,33 @@
         ]
       }
     },
-    "ptr": 4312039520
+    "ptr": 4341712048
   },
   {
     "type": {
       "function": {
         "name": "second",
         "args": [
-          { "variable": { "name": "T", "ref": { "type": { "tid": "f32" } } } },
+          {
+            "variable": { "name": "T", "ref": { "type": { "tid": "number" } } }
+          },
           {
             "variable": {
               "name": "T",
               "ref": {
-                "variable": { "name": "T", "ref": { "type": { "tid": "f32" } } }
+                "variable": {
+                  "name": "T",
+                  "ref": { "type": { "tid": "number" } }
+                }
               }
             }
           }
         ],
         "return_type": {
-          "variable": { "name": "FuncRet", "ref": { "type": { "tid": "f32" } } }
+          "variable": {
+            "name": "FuncRet",
+            "ref": { "type": { "tid": "number" } }
+          }
         }
       }
     },
@@ -207,22 +165,12 @@
                   },
                   "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 4 },
                   "right": {
-                    "Binary": {
-                      "left": {
-                        "Variable": {
-                          "name": {
-                            "type": { "IDENTIFIER": "second" },
-                            "lexeme": "second",
-                            "line": 4
-                          }
-                        }
-                      },
-                      "op": {
-                        "type": { "PLUS": {} },
-                        "lexeme": "+",
+                    "Variable": {
+                      "name": {
+                        "type": { "IDENTIFIER": "second" },
+                        "lexeme": "second",
                         "line": 4
-                      },
-                      "right": { "Literal": { "value": { "Number": 1.5 } } }
+                      }
                     }
                   }
                 }
@@ -235,10 +183,10 @@
           "lexeme": "second",
           "line": 2
         },
-        "type": { "type": { "IDENTIFIER": "f32" }, "lexeme": "f32", "line": 2 }
+        "type": null
       }
     },
-    "ptr": 4312039904
+    "ptr": 4341711184
   },
   {
     "type": { "type": { "tid": "void" } },
@@ -293,22 +241,12 @@
                         "line": 4
                       },
                       "right": {
-                        "Binary": {
-                          "left": {
-                            "Variable": {
-                              "name": {
-                                "type": { "IDENTIFIER": "second" },
-                                "lexeme": "second",
-                                "line": 4
-                              }
-                            }
-                          },
-                          "op": {
-                            "type": { "PLUS": {} },
-                            "lexeme": "+",
+                        "Variable": {
+                          "name": {
+                            "type": { "IDENTIFIER": "second" },
+                            "lexeme": "second",
                             "line": 4
-                          },
-                          "right": { "Literal": { "value": { "Number": 1.5 } } }
+                          }
                         }
                       }
                     }
@@ -321,31 +259,27 @@
               "lexeme": "second",
               "line": 2
             },
-            "type": {
-              "type": { "IDENTIFIER": "f32" },
-              "lexeme": "f32",
-              "line": 2
-            }
+            "type": null
           }
         },
         "type": null
       }
     },
-    "ptr": 4312040000
+    "ptr": 4341711280
   },
   {
     "type": {
-      "variable": { "name": "T", "ref": { "type": { "tid": "f32" } } }
+      "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
     },
     "expr": { "Literal": { "value": { "Number": 1.0 } } },
-    "ptr": 4312040144
+    "ptr": 4341712336
   },
   {
     "type": {
-      "variable": { "name": "T", "ref": { "type": { "tid": "f32" } } }
+      "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
     },
     "expr": { "Literal": { "value": { "Number": 1.5 } } },
-    "ptr": 4312040144
+    "ptr": 4341712336
   },
   {
     "type": {
@@ -369,7 +303,7 @@
         ]
       }
     },
-    "ptr": 4312039424
+    "ptr": 4341711952
   },
   {
     "type": { "type": { "tid": "void" } },
@@ -398,26 +332,13 @@
             ]
           }
         },
-        "type": null
+        "type": { "type": { "IDENTIFIER": "f32" }, "lexeme": "f32", "line": 9 }
       }
     },
-    "ptr": 4312040480
+    "ptr": 4341712672
   },
   {
-    "type": {
-      "variable": { "name": "FuncRet", "ref": { "type": { "tid": "f32" } } }
-    },
-    "expr": {
-      "Variable": {
-        "name": { "type": { "IDENTIFIER": "sum" }, "lexeme": "sum", "line": 11 }
-      }
-    },
-    "ptr": 4312039424
-  },
-  {
-    "type": {
-      "variable": { "name": "FuncRet", "ref": { "type": { "tid": "f32" } } }
-    },
+    "type": { "type": { "tid": "void" } },
     "expr": {
       "Block": {
         "exprs": [
@@ -450,22 +371,17 @@
                   ]
                 }
               },
-              "type": null
-            }
-          },
-          {
-            "Variable": {
-              "name": {
-                "type": { "IDENTIFIER": "sum" },
-                "lexeme": "sum",
-                "line": 11
+              "type": {
+                "type": { "IDENTIFIER": "f32" },
+                "lexeme": "f32",
+                "line": 9
               }
             }
           }
         ]
       }
     },
-    "ptr": 4312039424
+    "ptr": 4341712672
   },
   {
     "type": {
@@ -473,7 +389,10 @@
         "name": "main",
         "args": [],
         "return_type": {
-          "variable": { "name": "FuncRet", "ref": { "type": { "tid": "f32" } } }
+          "variable": {
+            "name": "FuncRet",
+            "ref": { "type": { "tid": "void" } }
+          }
         }
       }
     },
@@ -512,15 +431,10 @@
                       ]
                     }
                   },
-                  "type": null
-                }
-              },
-              {
-                "Variable": {
-                  "name": {
-                    "type": { "IDENTIFIER": "sum" },
-                    "lexeme": "sum",
-                    "line": 11
+                  "type": {
+                    "type": { "IDENTIFIER": "f32" },
+                    "lexeme": "f32",
+                    "line": 9
                   }
                 }
               }
@@ -532,10 +446,14 @@
           "lexeme": "main",
           "line": 7
         },
-        "type": null
+        "type": {
+          "type": { "IDENTIFIER": "void" },
+          "lexeme": "void",
+          "line": 7
+        }
       }
     },
-    "ptr": 4312040528
+    "ptr": 4341712720
   },
   {
     "type": { "type": { "tid": "void" } },
@@ -581,15 +499,10 @@
                           ]
                         }
                       },
-                      "type": null
-                    }
-                  },
-                  {
-                    "Variable": {
-                      "name": {
-                        "type": { "IDENTIFIER": "sum" },
-                        "lexeme": "sum",
-                        "line": 11
+                      "type": {
+                        "type": { "IDENTIFIER": "f32" },
+                        "lexeme": "f32",
+                        "line": 9
                       }
                     }
                   }
@@ -601,12 +514,16 @@
               "lexeme": "main",
               "line": 7
             },
-            "type": null
+            "type": {
+              "type": { "IDENTIFIER": "void" },
+              "lexeme": "void",
+              "line": 7
+            }
           }
         },
         "type": null
       }
     },
-    "ptr": 4312040624
+    "ptr": 4341712816
   }
 ]

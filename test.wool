@@ -1,12 +1,12 @@
 
-add :: first, second -> f32
+add :: first, second -> 
 { 
-  first + second + 1.5
+  first + second 
 }
 
 main :: -> void
 {
-  sum :: add(1, 1.5)
+  sum :f32 : add(1, 1.5)
 }
 
 /* 

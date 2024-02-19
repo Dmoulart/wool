@@ -163,9 +163,11 @@ const TypeError = error{
     WrongArgumentsNumber,
     AllocError,
     UnknownVariable,
+    UnknownFunction,
     AnonymousFunctionsNotImplemented,
     FunctionArgumentsCanOnlyBeIdentifiers,
     AlreadyDefinedVariable,
+    AlreadyDefinedFunction,
     NonCallableExpression,
 };
 
@@ -343,12 +345,17 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
             return node;
         },
         .Call => |*call_expr| {
-            const callee = try self.env.get(call_expr.callee.Variable.name.lexeme);
+            const function_name = call_expr.callee.Variable.name.lexeme;
+            const callee = try self.env.get(function_name);
             if (callee.as_function()) |*func| {
+
+                // @todo func.is_generic() and current context is concrete function
                 if (func.is_generic()) {
-                    const new_func = try self.instanciate_function(func, call_expr.args);
+                    const func_expr = try self.env.get_function(func.name);
+                    const new_func = try self.instanciate_function(func, &func_expr.Function, call_expr.args);
                     const node = try self.call(new_func.function, call_expr.args);
                     self.put_sem(expr, node);
+                    pretty_print(new_func);
                     return node;
                 }
 
@@ -360,8 +367,8 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
             }
         },
         .Function => |*func| {
-            const node = try self.function(func);
-
+            const node = try self.function(func, null, null);
+            try self.env.define_function(func.name.?.lexeme, expr);
             self.put_sem(expr, node);
 
             return node;
@@ -414,9 +421,15 @@ fn call(self: *@This(), func: FunType, exprs_args: []*const Expr) anyerror!*Type
     return try self.get_local_node(func.return_type, type_scope);
 }
 // @todo: why anyerror
-fn function(self: *@This(), func: *const Expr.Function) anyerror!*TypeNode {
+fn function(self: *@This(), func: *const Expr.Function, maybe_args: ?[]*TypeNode, maybe_return_type: ?*TypeNode) anyerror!*TypeNode {
     if (func.name == null) {
         return TypeError.AnonymousFunctionsNotImplemented;
+    }
+
+    if (maybe_args) |args| {
+        if (func.args != null and args.len != func.args.?.len) {
+            return TypeError.WrongArgumentsNumber;
+        }
     }
 
     self.env.begin_local_scope();
@@ -439,12 +452,20 @@ fn function(self: *@This(), func: *const Expr.Function) anyerror!*TypeNode {
             try self.env.define(arg.expr.Variable.name.lexeme, node);
 
             function_type.args[i] = node;
+
+            if (maybe_args) |optional_args| {
+                try unify(optional_args[i], node);
+            }
         }
     }
 
-    const body_type = try self.infer(func.body);
+    const body = try self.infer(func.body);
 
-    try unify(return_type, body_type);
+    try unify(return_type, body);
+
+    if (maybe_return_type) |optional_return_type| {
+        try unify(optional_return_type, return_type);
+    }
 
     return try self.new_type_node(.{ .function = function_type });
 }
@@ -546,13 +567,34 @@ fn new_var_from_token(self: *@This(), name: []const u8, maybe_token: ?*const Tok
     );
 }
 
-fn instanciate_function(self: *@This(), func: *const FunType, new_args: []*const Expr) anyerror!*TypeNode {
+fn instanciate_function(self: *@This(), func: *const FunType, func_expr: *const Expr.Function, new_args: []*const Expr) anyerror!*TypeNode {
     if (func.args.len != new_args.len) {
         return TypeError.WrongArgumentsNumber;
     }
+
+    //@todo : re-infer function EXPRESSIOn but with new arguments.
+
+    // self.env.begin_local_scope();
+    // defer self.env.end_local_scope();
+
     // use the func.clone method ?
     const return_type = try func.return_type.clone(self);
     const args = try self.allocator.alloc(*TypeNode, func.args.len);
+
+    // if (func.args) |args| {
+    //     for (args, 0..) |arg, i| {
+    //         const node = try self.new_var_from_token("Arg", arg.type);
+    //         try self.env.define(arg.expr.Variable.name.lexeme, node);
+
+    //         function_type.args[i] = node;
+    //     }
+    // }
+
+    // const body = try self.infer(func.body);
+
+    // try unify(return_type, body);
+
+    // return try self.new_type_node(.{ .function = function_type });
 
     for (func.args, 0..) |arg, i| {
         args[i] = try arg.clone(self);
@@ -560,6 +602,7 @@ fn instanciate_function(self: *@This(), func: *const FunType, new_args: []*const
 
     for (new_args, 0..) |expr_arg, i| {
         const arg_node = try self.infer(expr_arg);
+        // try self.env.define(arg.expr.Variable.name.lexeme, arg_node);
         // mutate cloned function args
         try unify(arg_node, args[i]);
     }
@@ -570,10 +613,10 @@ fn instanciate_function(self: *@This(), func: *const FunType, new_args: []*const
         .return_type = return_type,
     };
 
-    return try self.new_type_node(
-        .{
-            .function = function_type,
-        },
+    return try self.function(
+        func_expr,
+        function_type.args,
+        function_type.return_type,
     );
 }
 
@@ -661,10 +704,20 @@ fn pretty_print(data: anytype) void {
             },
             .variable => |variable| {
                 std.debug.print("\n [Variable]: {s}\n", .{variable.name});
-                std.debug.print("\n TID: {} \n", .{variable.ref.type.tid});
+                std.debug.print("\n TID: {} \n", .{variable.ref.get_tid()});
                 std.debug.print("\n $REF_PTR: {} \n", .{@intFromPtr(variable.ref)});
 
                 std.debug.print("\n", .{});
+            },
+            .function => |func| {
+                std.debug.print("\n [Function]: {s}\n", .{func.name});
+                std.debug.print("\n - Return Type : \n", .{});
+                pretty_print(func.return_type);
+
+                std.debug.print("\n - Args: \n", .{});
+                for (func.args) |arg| {
+                    pretty_print(arg);
+                }
             },
         },
         else => @compileError("Wrong type in pretty print"),
@@ -917,6 +970,11 @@ const Env = struct {
         }
     }
 
+    pub fn define_function(self: *Env, name: []const u8, expr: *const Expr) !void {
+        // @todo regular scoping
+        try self.global.define_function(name, expr);
+    }
+
     pub fn define_global(self: *Env, name: []const u8, node: *TypeNode) !void {
         try self.global.define(name, node);
     }
@@ -954,6 +1012,11 @@ const Env = struct {
         };
     }
 
+    pub fn get_function(self: *Env, name: []const u8) !*const Expr {
+        // @todo regular scoping
+        return try self.global.get_function(name);
+    }
+
     pub fn deinit(self: *Env) void {
         self.global.deinit();
         self.local.deinit();
@@ -963,16 +1026,19 @@ const Env = struct {
 const Scope = struct {
     allocator: std.mem.Allocator,
     values: std.StringHashMapUnmanaged(*TypeNode),
+    functions: std.StringHashMapUnmanaged(*const Expr),
 
     pub fn init(allocator: std.mem.Allocator) Scope {
         return .{
             .allocator = allocator,
             .values = .{},
+            .functions = .{},
         };
     }
 
     pub fn deinit(self: *Scope) void {
         self.values.deinit(self.allocator);
+        self.functions.deinit(self.allocator);
     }
 
     pub fn define(self: *Scope, name: []const u8, node: *TypeNode) !void {
@@ -981,12 +1047,22 @@ const Scope = struct {
         result.value_ptr.* = node;
     }
 
+    pub fn define_function(self: *Scope, name: []const u8, expr: *const Expr) !void {
+        const result = try self.functions.getOrPut(self.allocator, name);
+        if (result.found_existing) return TypeError.AlreadyDefinedFunction;
+        result.value_ptr.* = expr;
+    }
+
     pub fn clear(self: *Scope) void {
         self.values.clearAndFree(self.allocator);
     }
 
     pub fn get(self: *Scope, name: []const u8) !*TypeNode {
         return self.values.get(name) orelse TypeError.UnknownVariable;
+    }
+
+    pub fn get_function(self: *Scope, name: []const u8) !*const Expr {
+        return self.functions.get(name) orelse TypeError.UnknownFunction;
     }
 
     pub fn has(self: *Scope, name: []const u8) bool {
