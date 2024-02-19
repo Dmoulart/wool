@@ -255,7 +255,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
                 else => TypeError.UnknownBuiltin,
             };
 
-            const builtin = builtins_types.get(builtin_name).?;
+            const builtin = &builtins_types.get(builtin_name).?;
 
             const node = try self.call(
                 builtin,
@@ -348,18 +348,17 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
             const function_name = call_expr.callee.Variable.name.lexeme;
             const callee = try self.env.get(function_name);
             if (callee.as_function()) |*func| {
-
                 // @todo func.is_generic() and current context is concrete function
                 if (func.is_generic()) {
                     const func_expr = try self.env.get_function(func.name);
-                    const new_func = try self.instanciate_function(func, &func_expr.Function, call_expr.args);
-                    const node = try self.call(new_func.function, call_expr.args);
+                    const new_func = try self.instanciate_function(callee, func_expr, call_expr.args);
+                    const node = try self.call(&new_func.function, call_expr.args);
                     self.put_sem(expr, node);
                     pretty_print(new_func);
                     return node;
                 }
 
-                const node = try self.call(func.*, call_expr.args);
+                const node = try self.call(func, call_expr.args);
                 self.put_sem(expr, node);
                 return node;
             } else {
@@ -367,7 +366,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
             }
         },
         .Function => |*func| {
-            const node = try self.function(func, null, null);
+            const node = try self.function(expr, null, null);
             try self.env.define_function(func.name.?.lexeme, expr);
             self.put_sem(expr, node);
 
@@ -377,7 +376,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
     };
 }
 
-fn call(self: *@This(), func: FunType, exprs_args: []*const Expr) anyerror!*TypeNode {
+fn call(self: *@This(), func: *const FunType, exprs_args: []*const Expr) anyerror!*TypeNode {
     if (func.args.len != exprs_args.len) {
         return TypeError.WrongArgumentsNumber;
     }
@@ -421,13 +420,14 @@ fn call(self: *@This(), func: FunType, exprs_args: []*const Expr) anyerror!*Type
     return try self.get_local_node(func.return_type, type_scope);
 }
 // @todo: why anyerror
-fn function(self: *@This(), func: *const Expr.Function, maybe_args: ?[]*TypeNode, maybe_return_type: ?*TypeNode) anyerror!*TypeNode {
-    if (func.name == null) {
+fn function(self: *@This(), expr: *const Expr, maybe_args: ?[]*TypeNode, maybe_return_type: ?*TypeNode) anyerror!*TypeNode {
+    const func_expr = expr.Function;
+    if (func_expr.name == null) {
         return TypeError.AnonymousFunctionsNotImplemented;
     }
 
     if (maybe_args) |args| {
-        if (func.args != null and args.len != func.args.?.len) {
+        if (func_expr.args != null and args.len != func_expr.args.?.len) {
             return TypeError.WrongArgumentsNumber;
         }
     }
@@ -435,18 +435,18 @@ fn function(self: *@This(), func: *const Expr.Function, maybe_args: ?[]*TypeNode
     self.env.begin_local_scope();
     defer self.env.end_local_scope();
 
-    const return_type = try self.new_var_from_token("FuncRet", func.type);
+    const return_type = try self.new_var_from_token("FuncRet", func_expr.type);
 
     var function_type: FunType = .{
-        .name = func.name.?.lexeme,
-        .args = if (func.args) |args|
+        .name = func_expr.name.?.lexeme,
+        .args = if (func_expr.args) |args|
             try self.allocator.alloc(*TypeNode, args.len)
         else
             &[_]*TypeNode{},
         .return_type = return_type,
     };
 
-    if (func.args) |args| {
+    if (func_expr.args) |args| {
         for (args, 0..) |arg, i| {
             const node = try self.new_var_from_token("Arg", arg.type);
             try self.env.define(arg.expr.Variable.name.lexeme, node);
@@ -459,7 +459,7 @@ fn function(self: *@This(), func: *const Expr.Function, maybe_args: ?[]*TypeNode
         }
     }
 
-    const body = try self.infer(func.body);
+    const body = try self.infer(func_expr.body);
 
     try unify(return_type, body);
 
@@ -567,36 +567,18 @@ fn new_var_from_token(self: *@This(), name: []const u8, maybe_token: ?*const Tok
     );
 }
 
-fn instanciate_function(self: *@This(), func: *const FunType, func_expr: *const Expr.Function, new_args: []*const Expr) anyerror!*TypeNode {
-    if (func.args.len != new_args.len) {
+fn instanciate_function(self: *@This(), func_node: *const TypeNode, expr: *const Expr, new_args: []*const Expr) anyerror!*TypeNode {
+    const func_type = func_node.function;
+
+    if (func_type.args.len != new_args.len) {
         return TypeError.WrongArgumentsNumber;
     }
 
-    //@todo : re-infer function EXPRESSIOn but with new arguments.
-
-    // self.env.begin_local_scope();
-    // defer self.env.end_local_scope();
-
     // use the func.clone method ?
-    const return_type = try func.return_type.clone(self);
-    const args = try self.allocator.alloc(*TypeNode, func.args.len);
+    const return_type = try func_type.return_type.clone(self);
+    const args = try self.allocator.alloc(*TypeNode, func_type.args.len);
 
-    // if (func.args) |args| {
-    //     for (args, 0..) |arg, i| {
-    //         const node = try self.new_var_from_token("Arg", arg.type);
-    //         try self.env.define(arg.expr.Variable.name.lexeme, node);
-
-    //         function_type.args[i] = node;
-    //     }
-    // }
-
-    // const body = try self.infer(func.body);
-
-    // try unify(return_type, body);
-
-    // return try self.new_type_node(.{ .function = function_type });
-
-    for (func.args, 0..) |arg, i| {
+    for (func_type.args, 0..) |arg, i| {
         args[i] = try arg.clone(self);
     }
 
@@ -608,13 +590,13 @@ fn instanciate_function(self: *@This(), func: *const FunType, func_expr: *const 
     }
 
     const function_type: FunType = .{
-        .name = func.name,
+        .name = func_type.name,
         .args = args,
         .return_type = return_type,
     };
 
     return try self.function(
-        func_expr,
+        expr,
         function_type.args,
         function_type.return_type,
     );
