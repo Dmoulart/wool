@@ -1,69 +1,342 @@
 [
   {
     "type": {
-      "variable": { "name": "T", "ref": { "type": { "tid": "i32" } } }
+      "variable": { "name": "T", "ref": { "type": { "tid": "number" } } }
     },
-    "expr": { "Literal": { "value": { "Number": 0.0 } } },
-    "ptr": 4366254080
+    "expr": {
+      "Variable": {
+        "name": {
+          "type": { "IDENTIFIER": "first" },
+          "lexeme": "first",
+          "line": 5
+        }
+      }
+    },
+    "ptr": 4309091504
+  },
+  {
+    "type": {
+      "variable": { "name": "T", "ref": { "type": { "tid": "number" } } }
+    },
+    "expr": {
+      "Variable": {
+        "name": {
+          "type": { "IDENTIFIER": "second" },
+          "lexeme": "second",
+          "line": 5
+        }
+      }
+    },
+    "ptr": 4309091504
+  },
+  {
+    "type": {
+      "variable": { "name": "T", "ref": { "type": { "tid": "number" } } }
+    },
+    "expr": {
+      "Binary": {
+        "left": {
+          "Variable": {
+            "name": {
+              "type": { "IDENTIFIER": "first" },
+              "lexeme": "first",
+              "line": 5
+            }
+          }
+        },
+        "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 5 },
+        "right": {
+          "Variable": {
+            "name": {
+              "type": { "IDENTIFIER": "second" },
+              "lexeme": "second",
+              "line": 5
+            }
+          }
+        }
+      }
+    },
+    "ptr": 4309091504
+  },
+  {
+    "type": {
+      "variable": { "name": "T", "ref": { "type": { "tid": "number" } } }
+    },
+    "expr": {
+      "Block": {
+        "exprs": [
+          {
+            "Binary": {
+              "left": {
+                "Variable": {
+                  "name": {
+                    "type": { "IDENTIFIER": "first" },
+                    "lexeme": "first",
+                    "line": 5
+                  }
+                }
+              },
+              "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 5 },
+              "right": {
+                "Variable": {
+                  "name": {
+                    "type": { "IDENTIFIER": "second" },
+                    "lexeme": "second",
+                    "line": 5
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "ptr": 4309091504
+  },
+  {
+    "type": {
+      "function": {
+        "name": "second",
+        "args": [
+          {
+            "variable": { "name": "T", "ref": { "type": { "tid": "number" } } }
+          },
+          {
+            "variable": {
+              "name": "T",
+              "ref": {
+                "variable": {
+                  "name": "T",
+                  "ref": { "type": { "tid": "number" } }
+                }
+              }
+            }
+          }
+        ],
+        "return_type": {
+          "variable": { "name": "T", "ref": { "type": { "tid": "number" } } }
+        }
+      }
+    },
+    "expr": {
+      "Function": {
+        "args": [
+          {
+            "expr": {
+              "Variable": {
+                "name": {
+                  "type": { "IDENTIFIER": "first" },
+                  "lexeme": "first",
+                  "line": 3
+                }
+              }
+            },
+            "type": null
+          },
+          {
+            "expr": {
+              "Variable": {
+                "name": {
+                  "type": { "IDENTIFIER": "second" },
+                  "lexeme": "second",
+                  "line": 3
+                }
+              }
+            },
+            "type": null
+          }
+        ],
+        "body": {
+          "Block": {
+            "exprs": [
+              {
+                "Binary": {
+                  "left": {
+                    "Variable": {
+                      "name": {
+                        "type": { "IDENTIFIER": "first" },
+                        "lexeme": "first",
+                        "line": 5
+                      }
+                    }
+                  },
+                  "op": { "type": { "PLUS": {} }, "lexeme": "+", "line": 5 },
+                  "right": {
+                    "Variable": {
+                      "name": {
+                        "type": { "IDENTIFIER": "second" },
+                        "lexeme": "second",
+                        "line": 5
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "name": {
+          "type": { "IDENTIFIER": "second" },
+          "lexeme": "second",
+          "line": 3
+        },
+        "type": null
+      }
+    },
+    "ptr": 4309090640
   },
   {
     "type": { "type": { "tid": "void" } },
     "expr": {
-      "VarInit": {
-        "name": {
-          "type": { "IDENTIFIER": "global_var" },
-          "lexeme": "global_var",
-          "line": 16
+      "ConstInit": {
+        "name": { "type": { "IDENTIFIER": "add" }, "lexeme": "add", "line": 3 },
+        "initializer": {
+          "Function": {
+            "args": [
+              {
+                "expr": {
+                  "Variable": {
+                    "name": {
+                      "type": { "IDENTIFIER": "first" },
+                      "lexeme": "first",
+                      "line": 3
+                    }
+                  }
+                },
+                "type": null
+              },
+              {
+                "expr": {
+                  "Variable": {
+                    "name": {
+                      "type": { "IDENTIFIER": "second" },
+                      "lexeme": "second",
+                      "line": 3
+                    }
+                  }
+                },
+                "type": null
+              }
+            ],
+            "body": {
+              "Block": {
+                "exprs": [
+                  {
+                    "Binary": {
+                      "left": {
+                        "Variable": {
+                          "name": {
+                            "type": { "IDENTIFIER": "first" },
+                            "lexeme": "first",
+                            "line": 5
+                          }
+                        }
+                      },
+                      "op": {
+                        "type": { "PLUS": {} },
+                        "lexeme": "+",
+                        "line": 5
+                      },
+                      "right": {
+                        "Variable": {
+                          "name": {
+                            "type": { "IDENTIFIER": "second" },
+                            "lexeme": "second",
+                            "line": 5
+                          }
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "name": {
+              "type": { "IDENTIFIER": "second" },
+              "lexeme": "second",
+              "line": 3
+            },
+            "type": null
+          }
         },
-        "initializer": { "Literal": { "value": { "Number": 0.0 } } },
-        "type": { "type": { "IDENTIFIER": "i32" }, "lexeme": "i32", "line": 16 }
+        "type": null
       }
     },
-    "ptr": 4366254224
+    "ptr": 4309090736
   },
   {
     "type": {
       "variable": { "name": "T", "ref": { "type": { "tid": "i32" } } }
     },
-    "expr": { "Literal": { "value": { "Number": 0.0 } } },
-    "ptr": 4366254272
-  },
-  {
-    "type": { "type": { "tid": "void" } },
-    "expr": {
-      "VarInit": {
-        "name": {
-          "type": { "IDENTIFIER": "global_var_2" },
-          "lexeme": "global_var_2",
-          "line": 17
-        },
-        "initializer": { "Literal": { "value": { "Number": 0.0 } } },
-        "type": { "type": { "IDENTIFIER": "i32" }, "lexeme": "i32", "line": 17 }
-      }
-    },
-    "ptr": 4366254416
+    "expr": { "Literal": { "value": { "Number": 1.0 } } },
+    "ptr": 4309091792
   },
   {
     "type": {
       "variable": { "name": "T", "ref": { "type": { "tid": "i32" } } }
     },
-    "expr": { "Literal": { "value": { "Number": 0.0 } } },
-    "ptr": 4366254560
+    "expr": { "Literal": { "value": { "Number": 1.0 } } },
+    "ptr": 4309091792
+  },
+  {
+    "type": {
+      "variable": { "name": "T", "ref": { "type": { "tid": "i32" } } }
+    },
+    "expr": {
+      "Call": {
+        "callee": {
+          "Variable": {
+            "name": {
+              "type": { "IDENTIFIER": "add" },
+              "lexeme": "add",
+              "line": 10
+            }
+          }
+        },
+        "paren": { "type": { "RIGHT_PAREN": {} }, "lexeme": ")", "line": 10 },
+        "args": [
+          { "Literal": { "value": { "Number": 1.0 } } },
+          { "Literal": { "value": { "Number": 1.0 } } }
+        ]
+      }
+    },
+    "ptr": 4309091792
   },
   {
     "type": { "type": { "tid": "void" } },
     "expr": {
-      "VarInit": {
+      "ConstInit": {
         "name": {
-          "type": { "IDENTIFIER": "local_var" },
-          "lexeme": "local_var",
-          "line": 20
+          "type": { "IDENTIFIER": "sum" },
+          "lexeme": "sum",
+          "line": 10
         },
-        "initializer": { "Literal": { "value": { "Number": 0.0 } } },
-        "type": { "type": { "IDENTIFIER": "i32" }, "lexeme": "i32", "line": 20 }
+        "initializer": {
+          "Call": {
+            "callee": {
+              "Variable": {
+                "name": {
+                  "type": { "IDENTIFIER": "add" },
+                  "lexeme": "add",
+                  "line": 10
+                }
+              }
+            },
+            "paren": {
+              "type": { "RIGHT_PAREN": {} },
+              "lexeme": ")",
+              "line": 10
+            },
+            "args": [
+              { "Literal": { "value": { "Number": 1.0 } } },
+              { "Literal": { "value": { "Number": 1.0 } } }
+            ]
+          }
+        },
+        "type": { "type": { "IDENTIFIER": "i32" }, "lexeme": "i32", "line": 10 }
       }
     },
-    "ptr": 4366254704
+    "ptr": 4309092080
   },
   {
     "type": { "type": { "tid": "void" } },
@@ -71,35 +344,53 @@
       "Block": {
         "exprs": [
           {
-            "VarInit": {
+            "ConstInit": {
               "name": {
-                "type": { "IDENTIFIER": "local_var" },
-                "lexeme": "local_var",
-                "line": 20
+                "type": { "IDENTIFIER": "sum" },
+                "lexeme": "sum",
+                "line": 10
               },
-              "initializer": { "Literal": { "value": { "Number": 0.0 } } },
+              "initializer": {
+                "Call": {
+                  "callee": {
+                    "Variable": {
+                      "name": {
+                        "type": { "IDENTIFIER": "add" },
+                        "lexeme": "add",
+                        "line": 10
+                      }
+                    }
+                  },
+                  "paren": {
+                    "type": { "RIGHT_PAREN": {} },
+                    "lexeme": ")",
+                    "line": 10
+                  },
+                  "args": [
+                    { "Literal": { "value": { "Number": 1.0 } } },
+                    { "Literal": { "value": { "Number": 1.0 } } }
+                  ]
+                }
+              },
               "type": {
                 "type": { "IDENTIFIER": "i32" },
                 "lexeme": "i32",
-                "line": 20
+                "line": 10
               }
             }
           }
         ]
       }
     },
-    "ptr": 4366254704
+    "ptr": 4309092080
   },
   {
     "type": {
       "function": {
-        "name": "b",
+        "name": "main",
         "args": [],
         "return_type": {
-          "variable": {
-            "name": "FuncRet",
-            "ref": { "type": { "tid": "void" } }
-          }
+          "variable": { "name": "T", "ref": { "type": { "tid": "void" } } }
         }
       }
     },
@@ -110,38 +401,67 @@
           "Block": {
             "exprs": [
               {
-                "VarInit": {
+                "ConstInit": {
                   "name": {
-                    "type": { "IDENTIFIER": "local_var" },
-                    "lexeme": "local_var",
-                    "line": 20
+                    "type": { "IDENTIFIER": "sum" },
+                    "lexeme": "sum",
+                    "line": 10
                   },
-                  "initializer": { "Literal": { "value": { "Number": 0.0 } } },
+                  "initializer": {
+                    "Call": {
+                      "callee": {
+                        "Variable": {
+                          "name": {
+                            "type": { "IDENTIFIER": "add" },
+                            "lexeme": "add",
+                            "line": 10
+                          }
+                        }
+                      },
+                      "paren": {
+                        "type": { "RIGHT_PAREN": {} },
+                        "lexeme": ")",
+                        "line": 10
+                      },
+                      "args": [
+                        { "Literal": { "value": { "Number": 1.0 } } },
+                        { "Literal": { "value": { "Number": 1.0 } } }
+                      ]
+                    }
+                  },
                   "type": {
                     "type": { "IDENTIFIER": "i32" },
                     "lexeme": "i32",
-                    "line": 20
+                    "line": 10
                   }
                 }
               }
             ]
           }
         },
-        "name": { "type": { "IDENTIFIER": "b" }, "lexeme": "b", "line": 19 },
+        "name": {
+          "type": { "IDENTIFIER": "main" },
+          "lexeme": "main",
+          "line": 8
+        },
         "type": {
           "type": { "IDENTIFIER": "void" },
           "lexeme": "void",
-          "line": 19
+          "line": 8
         }
       }
     },
-    "ptr": 4366254752
+    "ptr": 4309092128
   },
   {
     "type": { "type": { "tid": "void" } },
     "expr": {
       "ConstInit": {
-        "name": { "type": { "IDENTIFIER": "b" }, "lexeme": "b", "line": 19 },
+        "name": {
+          "type": { "IDENTIFIER": "main" },
+          "lexeme": "main",
+          "line": 8
+        },
         "initializer": {
           "Function": {
             "args": null,
@@ -149,19 +469,38 @@
               "Block": {
                 "exprs": [
                   {
-                    "VarInit": {
+                    "ConstInit": {
                       "name": {
-                        "type": { "IDENTIFIER": "local_var" },
-                        "lexeme": "local_var",
-                        "line": 20
+                        "type": { "IDENTIFIER": "sum" },
+                        "lexeme": "sum",
+                        "line": 10
                       },
                       "initializer": {
-                        "Literal": { "value": { "Number": 0.0 } }
+                        "Call": {
+                          "callee": {
+                            "Variable": {
+                              "name": {
+                                "type": { "IDENTIFIER": "add" },
+                                "lexeme": "add",
+                                "line": 10
+                              }
+                            }
+                          },
+                          "paren": {
+                            "type": { "RIGHT_PAREN": {} },
+                            "lexeme": ")",
+                            "line": 10
+                          },
+                          "args": [
+                            { "Literal": { "value": { "Number": 1.0 } } },
+                            { "Literal": { "value": { "Number": 1.0 } } }
+                          ]
+                        }
                       },
                       "type": {
                         "type": { "IDENTIFIER": "i32" },
                         "lexeme": "i32",
-                        "line": 20
+                        "line": 10
                       }
                     }
                   }
@@ -169,162 +508,20 @@
               }
             },
             "name": {
-              "type": { "IDENTIFIER": "b" },
-              "lexeme": "b",
-              "line": 19
+              "type": { "IDENTIFIER": "main" },
+              "lexeme": "main",
+              "line": 8
             },
             "type": {
               "type": { "IDENTIFIER": "void" },
               "lexeme": "void",
-              "line": 19
+              "line": 8
             }
           }
         },
         "type": null
       }
     },
-    "ptr": 4366254848
-  },
-  {
-    "type": {
-      "variable": { "name": "T", "ref": { "type": { "tid": "f32" } } }
-    },
-    "expr": { "Literal": { "value": { "Number": 1.0 } } },
-    "ptr": 4366254992
-  },
-  {
-    "type": { "type": { "tid": "void" } },
-    "expr": {
-      "VarInit": {
-        "name": {
-          "type": { "IDENTIFIER": "local_var" },
-          "lexeme": "local_var",
-          "line": 24
-        },
-        "initializer": { "Literal": { "value": { "Number": 1.0 } } },
-        "type": { "type": { "IDENTIFIER": "f32" }, "lexeme": "f32", "line": 24 }
-      }
-    },
-    "ptr": 4366255136
-  },
-  {
-    "type": { "type": { "tid": "void" } },
-    "expr": {
-      "Block": {
-        "exprs": [
-          {
-            "VarInit": {
-              "name": {
-                "type": { "IDENTIFIER": "local_var" },
-                "lexeme": "local_var",
-                "line": 24
-              },
-              "initializer": { "Literal": { "value": { "Number": 1.0 } } },
-              "type": {
-                "type": { "IDENTIFIER": "f32" },
-                "lexeme": "f32",
-                "line": 24
-              }
-            }
-          }
-        ]
-      }
-    },
-    "ptr": 4366255136
-  },
-  {
-    "type": {
-      "function": {
-        "name": "a",
-        "args": [],
-        "return_type": {
-          "variable": {
-            "name": "FuncRet",
-            "ref": { "type": { "tid": "void" } }
-          }
-        }
-      }
-    },
-    "expr": {
-      "Function": {
-        "args": null,
-        "body": {
-          "Block": {
-            "exprs": [
-              {
-                "VarInit": {
-                  "name": {
-                    "type": { "IDENTIFIER": "local_var" },
-                    "lexeme": "local_var",
-                    "line": 24
-                  },
-                  "initializer": { "Literal": { "value": { "Number": 1.0 } } },
-                  "type": {
-                    "type": { "IDENTIFIER": "f32" },
-                    "lexeme": "f32",
-                    "line": 24
-                  }
-                }
-              }
-            ]
-          }
-        },
-        "name": { "type": { "IDENTIFIER": "a" }, "lexeme": "a", "line": 23 },
-        "type": {
-          "type": { "IDENTIFIER": "void" },
-          "lexeme": "void",
-          "line": 23
-        }
-      }
-    },
-    "ptr": 4366255184
-  },
-  {
-    "type": { "type": { "tid": "void" } },
-    "expr": {
-      "ConstInit": {
-        "name": { "type": { "IDENTIFIER": "a" }, "lexeme": "a", "line": 23 },
-        "initializer": {
-          "Function": {
-            "args": null,
-            "body": {
-              "Block": {
-                "exprs": [
-                  {
-                    "VarInit": {
-                      "name": {
-                        "type": { "IDENTIFIER": "local_var" },
-                        "lexeme": "local_var",
-                        "line": 24
-                      },
-                      "initializer": {
-                        "Literal": { "value": { "Number": 1.0 } }
-                      },
-                      "type": {
-                        "type": { "IDENTIFIER": "f32" },
-                        "lexeme": "f32",
-                        "line": 24
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            "name": {
-              "type": { "IDENTIFIER": "a" },
-              "lexeme": "a",
-              "line": 23
-            },
-            "type": {
-              "type": { "IDENTIFIER": "void" },
-              "lexeme": "void",
-              "line": 23
-            }
-          }
-        },
-        "type": null
-      }
-    },
-    "ptr": 4366255280
+    "ptr": 4309092224
   }
 ]

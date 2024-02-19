@@ -347,6 +347,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
         .Call => |*call_expr| {
             const function_name = call_expr.callee.Variable.name.lexeme;
             const callee = try self.env.get(function_name);
+
             if (callee.as_function()) |*func| {
                 // @todo func.is_generic() and current context is concrete function
                 if (func.is_generic()) {
@@ -435,7 +436,7 @@ fn function(self: *@This(), expr: *const Expr, maybe_args: ?[]*TypeNode, maybe_r
     self.env.begin_local_scope();
     defer self.env.end_local_scope();
 
-    const return_type = try self.new_var_from_token("FuncRet", func_expr.type);
+    const return_type = try self.new_var_from_token("T", func_expr.type);
 
     var function_type: FunType = .{
         .name = func_expr.name.?.lexeme,
@@ -448,7 +449,7 @@ fn function(self: *@This(), expr: *const Expr, maybe_args: ?[]*TypeNode, maybe_r
 
     if (func_expr.args) |args| {
         for (args, 0..) |arg, i| {
-            const node = try self.new_var_from_token("Arg", arg.type);
+            const node = try self.new_var_from_token("T", arg.type);
             try self.env.define(arg.expr.Variable.name.lexeme, node);
 
             function_type.args[i] = node;

@@ -7,7 +7,7 @@ add :: first, second ->
 
 main :: -> void
 {
-  sum :: add(1, 1)
+  sum : i32 : add(1, 1)
 }
 
 
