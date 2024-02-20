@@ -7,7 +7,13 @@ add :: first, second -> f32
 
 main :: -> void
 {
-  sum :: add(1, 1.5)
+  i := 10
+
+  while i > 1.5 {
+    sum := add(1, i)
+    i = i - 1
+  }
+
 }
 
 

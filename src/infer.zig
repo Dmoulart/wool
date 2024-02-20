@@ -226,6 +226,19 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
 
             return node;
         },
+        .Assign => |*assign| {
+            const variable = try self.env.get(assign.name.lexeme);
+            const value = try self.infer(assign.value);
+
+            try unify(variable, value);
+
+            self.put_sem(assign.value, value);
+
+            const node = try self.new_type(.void);
+            self.put_sem(expr, node);
+
+            return node;
+        },
         .Grouping => |*grouping| {
             var node = try self.infer(grouping.expr);
 
@@ -268,13 +281,8 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
             return node;
         },
         .Literal => |*literal| {
-            const node = try self.new_type_node(
-                .{
-                    .type = .{
-                        .tid = type_of(literal.value),
-                    },
-                },
-            );
+            const node = try self.new_type(type_of(literal.value));
+
             const variable = try self.new_type_node(
                 .{
                     .variable = .{ .name = "T", .ref = node }, // @todo make name other than T does not work in binary
@@ -344,6 +352,19 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
             const node = try self.new_type(.any);
             self.put_sem(expr, node);
             return node;
+        },
+        .While => |*while_expr| {
+            const condition = try self.infer(while_expr.condition);
+            const bool_condition = try self.new_type(.bool);
+
+            try unify(condition, bool_condition);
+            self.put_sem(while_expr.condition, condition);
+
+            const body = try self.infer(while_expr.body);
+
+            self.put_sem(expr, body);
+
+            return body;
         },
         .Call => |*call_expr| {
             const function_name = call_expr.callee.Variable.name.lexeme;
