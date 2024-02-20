@@ -169,6 +169,7 @@ const TypeError = error{
     AlreadyDefinedVariable,
     AlreadyDefinedFunction,
     NonCallableExpression,
+    GenericFunctionNotImplemented,
 };
 
 const Err = ErrorReporter(TypeError);
@@ -351,12 +352,13 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
             if (callee.as_function()) |*func| {
                 // @todo func.is_generic() and current context is concrete function
                 if (func.is_generic()) {
-                    const func_expr = try self.env.get_function(func.name);
-                    const new_func = try self.instanciate_function(callee, func_expr, call_expr.args);
-                    const node = try self.call(&new_func.function, call_expr.args);
-                    self.put_sem(expr, node);
-                    pretty_print(new_func);
-                    return node;
+                    return TypeError.GenericFunctionNotImplemented;
+                    // const func_expr = try self.env.get_function(func.name);
+                    // const new_func = try self.instanciate_function(callee, func_expr, call_expr.args);
+                    // const node = try self.call(&new_func.function, call_expr.args);
+                    // self.put_sem(expr, node);
+                    // pretty_print(new_func);
+                    // return node;
                 }
 
                 const node = try self.call(func, call_expr.args);
@@ -423,6 +425,7 @@ fn call(self: *@This(), func: *const FunType, exprs_args: []*const Expr) anyerro
 // @todo: why anyerror
 fn function(self: *@This(), expr: *const Expr, maybe_args: ?[]*TypeNode, maybe_return_type: ?*TypeNode) anyerror!*TypeNode {
     const func_expr = expr.Function;
+
     if (func_expr.name == null) {
         return TypeError.AnonymousFunctionsNotImplemented;
     }
@@ -467,6 +470,8 @@ fn function(self: *@This(), expr: *const Expr, maybe_args: ?[]*TypeNode, maybe_r
     if (maybe_return_type) |optional_return_type| {
         try unify(optional_return_type, return_type);
     }
+
+    // pretty_print(body);
 
     return try self.new_type_node(.{ .function = function_type });
 }
@@ -568,7 +573,12 @@ fn new_var_from_token(self: *@This(), name: []const u8, maybe_token: ?*const Tok
     );
 }
 
-fn instanciate_function(self: *@This(), func_node: *const TypeNode, expr: *const Expr, new_args: []*const Expr) anyerror!*TypeNode {
+fn instanciate_function(
+    self: *@This(),
+    func_node: *const TypeNode,
+    expr: *const Expr,
+    new_args: []*const Expr,
+) anyerror!*TypeNode {
     const func_type = func_node.function;
 
     if (func_type.args.len != new_args.len) {
@@ -585,7 +595,6 @@ fn instanciate_function(self: *@This(), func_node: *const TypeNode, expr: *const
 
     for (new_args, 0..) |expr_arg, i| {
         const arg_node = try self.infer(expr_arg);
-        // try self.env.define(arg.expr.Variable.name.lexeme, arg_node);
         // mutate cloned function args
         try unify(arg_node, args[i]);
     }

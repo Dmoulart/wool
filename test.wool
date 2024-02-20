@@ -1,18 +1,17 @@
 
 
-add :: first, second -> 
+add :: first, second -> f32
 { 
   first + second 
 }
 
 main :: -> void
 {
-  sum : i32 : add(1, 1)
+  sum :: add(1, 1.5)
 }
 
 
 /* 
-
 global_var  : i32 = 0 // -> Globals.put('global_var')
 global_var_2: i32 = 0
 
