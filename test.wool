@@ -1,8 +1,8 @@
 
 
 add :: first, second -> f32
-{ 
-  first + second 
+{
+  first + second
 }
 
 main :: -> void
@@ -11,13 +11,15 @@ main :: -> void
 
   while i > 1.5 {
     sum := add(1, i)
-    i = i - 1
+    if sum >= 10 {
+      i = i - 1
+    }
   }
 
 }
 
 
-/* 
+/*
 global_var  : i32 = 0 // -> Globals.put('global_var')
 global_var_2: i32 = 0
 
@@ -32,12 +34,12 @@ a :: -> {
 */
 
 
-/* 
+/*
 // log :: from console import log
 
-add :: first, second -> 
-{ 
-  first + second + 1.5
+add :: first, second ->
+{
+  first + second
 }
 
 main :: -> void {
@@ -50,7 +52,7 @@ main :: -> void {
 
 /*
 test_float_coercion :: {
-  b := 1 
+  b := 1
   c := 2
 
   if (c == 1.5) c else b // should coerce b and c to float !
@@ -69,8 +71,8 @@ b :: 2 // <- Number
 
 // (add is a virtual/abstract (generic) function as long as it contains a non terminal type)
 add :: first, second ->
-{ 
-  first + second 
+{
+  first + second
 }
 
 // (main is always an "concrete" (non-generic) function)
@@ -80,7 +82,7 @@ main :: -> {
   sum := add(a, b)
 
   // <- Float
-  sum + 1.5 
+  sum + 1.5
 
 }
 

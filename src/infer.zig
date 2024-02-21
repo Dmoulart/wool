@@ -10,7 +10,7 @@ env: Env,
 
 const Infer = @This();
 
-const TypeBits = u64;
+const TypeBits = u32;
 
 const ANY_TYPE: TypeBits = 1 << 0;
 
@@ -27,9 +27,9 @@ const F64_TYPE: TypeBits = 1 << 7 | FLOAT_TYPE | TERMINAL_TYPE;
 const BOOL_TYPE: TypeBits = 1 << 8 | ANY_TYPE | TERMINAL_TYPE;
 const STRING_TYPE: TypeBits = 1 << 9 | ANY_TYPE | TERMINAL_TYPE;
 
-const VOID_TYPE: TypeBits = 1 << 10 | TERMINAL_TYPE;
+const FUNC_TYPE: TypeBits = 1 << 10 | ANY_TYPE | TERMINAL_TYPE;
 
-const FUNC_TYPE: TypeBits = 1 << 11 | ANY_TYPE | TERMINAL_TYPE;
+const VOID_TYPE: TypeBits = 1 << 11 | TERMINAL_TYPE;
 
 const TERMINAL_TYPE: TypeBits = 1 << 12;
 
@@ -357,7 +357,8 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
             const condition = try self.infer(while_expr.condition);
             const bool_condition = try self.new_type(.bool);
 
-            try unify(condition, bool_condition);
+            try unify(bool_condition, condition);
+
             self.put_sem(while_expr.condition, condition);
 
             const body = try self.infer(while_expr.body);
