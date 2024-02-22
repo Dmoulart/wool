@@ -29,7 +29,7 @@ const STRING_TYPE: TypeBits = 1 << 9 | ANY_TYPE | TERMINAL_TYPE;
 
 const FUNC_TYPE: TypeBits = 1 << 10 | ANY_TYPE | TERMINAL_TYPE;
 
-const VOID_TYPE: TypeBits = 1 << 11 | TERMINAL_TYPE;
+const VOID_TYPE: TypeBits = 1 << 11 | ANY_TYPE | TERMINAL_TYPE;
 
 const TERMINAL_TYPE: TypeBits = 1 << 12;
 
@@ -58,6 +58,7 @@ pub const TypeID = enum(TypeBits) {
 
 const MonoType = struct {
     tid: TypeID,
+    size: ?u64,
 };
 
 const VarType = struct {
@@ -133,8 +134,8 @@ pub const TypeNode = union(enum) {
         };
     }
 
-    pub fn get_tid(self: TypeNode) TypeID {
-        return switch (self) {
+    pub fn get_tid(self: *TypeNode) TypeID {
+        return switch (self.*) {
             .type => |*monotype| {
                 return monotype.tid;
             },
@@ -228,6 +229,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
         },
         .Assign => |*assign| {
             const variable = try self.env.get(assign.name.lexeme);
+
             const value = try self.infer(assign.value);
 
             try unify(variable, value);
@@ -235,6 +237,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
             self.put_sem(assign.value, value);
 
             const node = try self.new_type(.void);
+
             self.put_sem(expr, node);
 
             return node;
@@ -268,7 +271,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
                 .BANG_EQUAL => "!=",
                 else => TypeError.UnknownBuiltin,
             };
-
+            // dangling ptr ? smelly ?
             const builtin = &builtins_types.get(builtin_name).?;
 
             const node = try self.call(
@@ -566,7 +569,10 @@ fn new_type_node(self: *@This(), type_node: TypeNode) !*TypeNode {
 fn new_type(self: *@This(), tid: TypeID) !*TypeNode {
     return try self.new_type_node(
         .{
-            .type = .{ .tid = tid },
+            .type = .{
+                .tid = tid,
+                .size = null,
+            },
         },
     );
 }
@@ -579,6 +585,7 @@ fn new_type_from_token(self: *@This(), maybe_token: ?*const Token) !*TypeNode {
                     try type_from_str(token.lexeme)
                 else
                     .any,
+                .size = null,
             },
         },
     );
@@ -648,9 +655,20 @@ fn put_sem(self: *@This(), expr: *const Expr, node: *TypeNode) void {
     self.sems.put(self.allocator, expr, node) catch unreachable;
 }
 
-inline fn is_float_value(number: f64) bool {
+inline fn is_float_value(number_str: []const u8) bool {
+    return includes_char(number_str, '.');
     // this is stupid, number should be a string and just check if it has a dot in it
-    return @rem(number, 1) != 0;
+    // return @rem(number, 1) != 0;
+
+}
+
+fn includes_char(haystack: []const u8, needle: u8) bool {
+    for (haystack) |char| {
+        if (char == needle) {
+            return true;
+        }
+    }
+    return false;
 }
 
 pub fn jsonPrint(value: anytype, file_path: []const u8) !void {
@@ -669,7 +687,7 @@ pub fn jsonPrint(value: anytype, file_path: []const u8) !void {
 }
 
 pub fn type_from_str(str: []const u8) !TypeID {
-    // use meta functions for enums ?
+    // optimize this
     if (std.mem.eql(u8, str, "i32")) {
         return .i32;
     } else if (std.mem.eql(u8, str, "i64")) {
@@ -748,6 +766,7 @@ const BaseTypes = blk: {
             TypeNode{
                 .type = .{
                     .tid = @enumFromInt(tid.value),
+                    .size = null,
                 },
             },
         );
@@ -1006,6 +1025,17 @@ const Env = struct {
 
     pub fn end_local_scope(self: *Env) void {
         self.current_depth -= 1;
+
+        // Could be a way to narrow non terminal values at the end of scope of concrete functions
+        // var iterator = self.local.values.iterator();
+
+        // while (iterator.next()) |ty| {
+        //     if (!ty.value_ptr.*.get_tid().is_terminal()) {
+        //         std.debug.print("HOLY FU", .{});
+        //         std.os.exit(1);
+        //     }
+        // }
+
         if (self.in_global_scope()) {
             self.local.clear();
         }
@@ -1039,7 +1069,7 @@ const Env = struct {
 
 const Scope = struct {
     allocator: std.mem.Allocator,
-    values: std.StringHashMapUnmanaged(*TypeNode),
+    values: std.StringArrayHashMapUnmanaged(*TypeNode),
     functions: std.StringHashMapUnmanaged(*const Expr),
 
     pub fn init(allocator: std.mem.Allocator) Scope {

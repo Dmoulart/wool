@@ -97,7 +97,7 @@ pub const Type = union(Types) {
     // Literals.
     IDENTIFIER: []const u8,
     STRING: []const u8,
-    NUMBER: f64,
+    NUMBER: []const u8,
 
     // Keywords.
     AND,

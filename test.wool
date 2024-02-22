@@ -1,5 +1,14 @@
 
+main :: -> void {
 
+  i := 10.0
+
+  b := 10
+
+  i = b + i
+}
+
+/*
 add :: first, second -> f32
 {
   first + second
@@ -17,7 +26,7 @@ main :: -> void
   }
 
 }
-
+*/
 
 /*
 global_var  : i32 = 0 // -> Globals.put('global_var')

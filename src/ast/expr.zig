@@ -70,7 +70,7 @@ pub const Expr = union(enum) {
     pub const Literal = struct {
         pub const Value = union(enum) {
             String: []const u8,
-            Number: f64,
+            Number: []const u8,
             Boolean: bool,
             Nil: ?bool, // what type should we use to represent null values ?
         };
