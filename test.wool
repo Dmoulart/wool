@@ -1,12 +1,24 @@
+add_poly :: first, second -> 
+{
+  first + second
+}
+
+add :: first, second -> f32
+{
+  first + second
+}
 
 main :: -> void {
 
-  i := 10.0
+  a :f32 = add(1 2)
 
-  b := 10
+  b := 10000
 
-  i = b + i
+  a = a + b
+
+  // i = add(i, b) // <- parser bug 
 }
+
 
 /*
 add :: first, second -> f32

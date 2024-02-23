@@ -58,7 +58,7 @@ pub const TypeID = enum(TypeBits) {
 
 const MonoType = struct {
     tid: TypeID,
-    size: ?u64,
+    // size: ?u64,
 };
 
 const VarType = struct {
@@ -67,7 +67,7 @@ const VarType = struct {
 };
 
 pub const FunType = struct {
-    name: []const u8,
+    name: ?[]const u8,
     args: []*TypeNode,
     return_type: *TypeNode,
 
@@ -171,6 +171,7 @@ const TypeError = error{
     AlreadyDefinedFunction,
     NonCallableExpression,
     GenericFunctionNotImplemented,
+    CannotResolveType,
 };
 
 const Err = ErrorReporter(TypeError);
@@ -286,6 +287,8 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
         .Literal => |*literal| {
             const node = try self.new_type(type_of(literal.value));
 
+            // node.type.size = try size_of(literal.value);
+
             const variable = try self.new_type_node(
                 .{
                     .variable = .{ .name = "T", .ref = node }, // @todo make name other than T does not work in binary
@@ -337,7 +340,6 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
             var return_node: ?*TypeNode = null;
 
             self.env.begin_local_scope();
-            defer self.env.end_local_scope();
 
             for (block.exprs) |block_expr| {
                 return_node = try self.infer(block_expr);
@@ -348,6 +350,8 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
             }
 
             self.put_sem(expr, return_node.?);
+
+            try self.env.end_local_scope(false); // @todo generic block ?????
 
             return return_node.?;
         },
@@ -393,9 +397,9 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
                 return TypeError.NonCallableExpression;
             }
         },
-        .Function => |*func| {
+        .Function => {
             const node = try self.function(expr, null, null);
-            try self.env.define_function(func.name.?.lexeme, expr);
+            // try self.env.define_function(func.name.?.lexeme, expr);
             self.put_sem(expr, node);
 
             return node;
@@ -451,9 +455,9 @@ fn call(self: *@This(), func: *const FunType, exprs_args: []*const Expr) anyerro
 fn function(self: *@This(), expr: *const Expr, maybe_args: ?[]*TypeNode, maybe_return_type: ?*TypeNode) anyerror!*TypeNode {
     const func_expr = expr.Function;
 
-    if (func_expr.name == null) {
-        return TypeError.AnonymousFunctionsNotImplemented;
-    }
+    // if (func_expr.name == null) {
+    //     return TypeError.AnonymousFunctionsNotImplemented;
+    // }
 
     if (maybe_args) |args| {
         if (func_expr.args != null and args.len != func_expr.args.?.len) {
@@ -462,12 +466,12 @@ fn function(self: *@This(), expr: *const Expr, maybe_args: ?[]*TypeNode, maybe_r
     }
 
     self.env.begin_local_scope();
-    defer self.env.end_local_scope();
 
     const return_type = try self.new_var_from_token("T", func_expr.type);
 
     var function_type: FunType = .{
-        .name = func_expr.name.?.lexeme,
+        // .name = func_expr.name.?.lexeme,
+        .name = null,
         .args = if (func_expr.args) |args|
             try self.allocator.alloc(*TypeNode, args.len)
         else
@@ -495,6 +499,8 @@ fn function(self: *@This(), expr: *const Expr, maybe_args: ?[]*TypeNode, maybe_r
     if (maybe_return_type) |optional_return_type| {
         try unify(optional_return_type, return_type);
     }
+
+    try self.env.end_local_scope(!function_type.is_generic());
 
     // pretty_print(body);
 
@@ -571,7 +577,7 @@ fn new_type(self: *@This(), tid: TypeID) !*TypeNode {
         .{
             .type = .{
                 .tid = tid,
-                .size = null,
+                // .size = null,
             },
         },
     );
@@ -585,7 +591,7 @@ fn new_type_from_token(self: *@This(), maybe_token: ?*const Token) !*TypeNode {
                     try type_from_str(token.lexeme)
                 else
                     .any,
-                .size = null,
+                // .size = null,
             },
         },
     );
@@ -650,6 +656,31 @@ fn type_of(value: Expr.Literal.Value) TypeID {
     };
 }
 
+// fn get_bit_size(value: u64) u64 {
+//     var number: u64 = value;
+//     var count: u64 = 0;
+//     while (number > 0) {
+//         count += 1;
+//         number >>= 1; // Right shift the number by 1 bit
+//     }
+//     return count;
+// }
+
+// pub fn size_of(value: Expr.Literal.Value) !u64 {
+//     return switch (value) {
+//         .String => value.String.len * 8, // @todo real string size measurement ?
+//         .Number => |number| blk: {
+//             var number_value = try std.fmt.parseFloat(f64, number);
+//             std.debug.print("\nparsed float {}\n", .{number_value});
+//             var unsigned: u64 = @bitCast(number_value);
+//             std.debug.print("\n unsigned {}\n", .{unsigned});
+//             break :blk get_bit_size(unsigned);
+//         },
+//         .Boolean => 1,
+//         else => unreachable,
+//     };
+// }
+
 fn put_sem(self: *@This(), expr: *const Expr, node: *TypeNode) void {
     // @todo:err try to find a way to handle the allocations error
     self.sems.put(self.allocator, expr, node) catch unreachable;
@@ -657,9 +688,6 @@ fn put_sem(self: *@This(), expr: *const Expr, node: *TypeNode) void {
 
 inline fn is_float_value(number_str: []const u8) bool {
     return includes_char(number_str, '.');
-    // this is stupid, number should be a string and just check if it has a dot in it
-    // return @rem(number, 1) != 0;
-
 }
 
 fn includes_char(haystack: []const u8, needle: u8) bool {
@@ -766,7 +794,7 @@ const BaseTypes = blk: {
             TypeNode{
                 .type = .{
                     .tid = @enumFromInt(tid.value),
-                    .size = null,
+                    // .size = null,
                 },
             },
         );
@@ -1023,18 +1051,20 @@ const Env = struct {
         self.current_depth += 1;
     }
 
-    pub fn end_local_scope(self: *Env) void {
+    pub fn end_local_scope(self: *Env, must_resolve_types: bool) TypeError!void {
         self.current_depth -= 1;
 
-        // Could be a way to narrow non terminal values at the end of scope of concrete functions
-        // var iterator = self.local.values.iterator();
+        if (must_resolve_types) {
+            // @todo: only for non generic function
+            // Could be a way to narrow non terminal values at the end of scope of concrete functions
+            var iterator = self.local.values.iterator();
 
-        // while (iterator.next()) |ty| {
-        //     if (!ty.value_ptr.*.get_tid().is_terminal()) {
-        //         std.debug.print("HOLY FU", .{});
-        //         std.os.exit(1);
-        //     }
-        // }
+            while (iterator.next()) |ty| {
+                if (!ty.value_ptr.*.get_tid().is_terminal()) {
+                    return TypeError.CannotResolveType;
+                }
+            }
+        }
 
         if (self.in_global_scope()) {
             self.local.clear();
@@ -1093,7 +1123,10 @@ const Scope = struct {
 
     pub fn define_function(self: *Scope, name: []const u8, expr: *const Expr) !void {
         const result = try self.functions.getOrPut(self.allocator, name);
-        if (result.found_existing) return TypeError.AlreadyDefinedFunction;
+        if (result.found_existing) {
+            std.debug.print("hello", .{});
+            return TypeError.AlreadyDefinedFunction;
+        }
         result.value_ptr.* = expr;
     }
 

@@ -320,20 +320,21 @@ fn function(self: *Self) ParserError!*Expr {
             const func_type = self.optional(
                 .IDENTIFIER,
             );
+            // // This will be used to get the name of the function.. The constant assignation
+            // // @todo: find a better way
+            // const maybe_last_expr = self.last_expr();
 
-            const maybe_last_expr = self.last_expr();
+            // var name: ?*const Token = null;
 
-            var name: ?*const Token = null;
-
-            if (maybe_last_expr) |last_expression| {
-                name = switch (last_expression.*) {
-                    .ConstInit => |*const_intialization| const_intialization.name,
-                    .VarInit => |var_initialization| var_initialization.name,
-                    .Assign => |assignation| assignation.name,
-                    .Variable => |variable| variable.name,
-                    else => null,
-                };
-            }
+            // if (maybe_last_expr) |last_expression| {
+            //     name = switch (last_expression.*) {
+            //         .ConstInit => |*const_intialization| const_intialization.name,
+            //         .VarInit => |var_initialization| var_initialization.name,
+            //         .Assign => |assignation| assignation.name,
+            //         .Variable => |variable| variable.name,
+            //         else => null,
+            //     };
+            // }
 
             const body = try self.expression();
 
@@ -345,7 +346,7 @@ fn function(self: *Self) ParserError!*Expr {
                         else
                             null,
                         .body = body,
-                        .name = name,
+                        .name = null,
                         .type = func_type,
                     },
                 },
@@ -705,17 +706,23 @@ fn finish_call(self: *Self, callee: *const Expr) ParserError!*Expr {
     var args = std.ArrayList(*const Expr).init(self.allocator);
     errdefer args.deinit();
 
-    if (!self.check(.RIGHT_PAREN)) {
-        const first_expr = try self.expression();
+    while (!self.check(.RIGHT_PAREN)) {
+        const expr = try self.expression();
 
-        try args.append(first_expr);
-
-        while (self.match(&.{.COMMA})) {
-            const expr = try self.expression();
-
-            try args.append(expr);
-        }
+        try args.append(expr);
     }
+
+    // if (!self.check(.RIGHT_PAREN)) {
+    //     const first_expr = try self.expression();
+
+    //     try args.append(first_expr);
+
+    //     while (self.match(&.{.COMMA})) {
+    //         const expr = try self.expression();
+
+    //         try args.append(expr);
+    //     }
+    // }
 
     const paren = try self.consume(
         .RIGHT_PAREN,
