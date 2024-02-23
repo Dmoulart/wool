@@ -272,12 +272,6 @@ fn function(self: *Self) ParserError!*Expr {
         arg_with_type or
         arg_without_type;
 
-    // const is_function = no_arg or
-    //     (self.check(.IDENTIFIER) and
-    //     self.check_next(1, .IDENTIFIER) and
-    //     (self.check_next(2, .MINUS_ARROW) or
-    //     self.check_next(2, .COMMA)));
-
     if (is_function) {
         const args_declaration = current == .IDENTIFIER;
         var args: ?std.ArrayList(Expr.Arg) = null;
@@ -311,30 +305,9 @@ fn function(self: *Self) ParserError!*Expr {
                 "Expect -> before declaring function body.",
             );
 
-            // const func_type = try self.consume(
-            //     .IDENTIFIER,
-            //     ParserError.MissingFunctionType,
-            //     "Expect type after '->'.",
-            // );
-
-            const func_type = self.optional(
+            const return_type = self.optional(
                 .IDENTIFIER,
             );
-            // // This will be used to get the name of the function.. The constant assignation
-            // // @todo: find a better way
-            // const maybe_last_expr = self.last_expr();
-
-            // var name: ?*const Token = null;
-
-            // if (maybe_last_expr) |last_expression| {
-            //     name = switch (last_expression.*) {
-            //         .ConstInit => |*const_intialization| const_intialization.name,
-            //         .VarInit => |var_initialization| var_initialization.name,
-            //         .Assign => |assignation| assignation.name,
-            //         .Variable => |variable| variable.name,
-            //         else => null,
-            //     };
-            // }
 
             const body = try self.expression();
 
@@ -347,7 +320,7 @@ fn function(self: *Self) ParserError!*Expr {
                             null,
                         .body = body,
                         .name = null,
-                        .type = func_type,
+                        .type = return_type,
                     },
                 },
             );
