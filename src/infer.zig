@@ -6,9 +6,23 @@ type_nodes: std.ArrayListUnmanaged(TypeNode),
 
 sems: std.AutoArrayHashMapUnmanaged(*const Expr, *TypeNode),
 
+sems2: std.ArrayListUnmanaged(Sem),
+
 env: Env,
 
 const Infer = @This();
+
+const Sem = struct {
+    ty: TypedAST(Expr),
+    expr: *const Expr,
+
+    pub fn init(expr: *const Expr, ty: TypedAST(Expr)) Sem {
+        return .{
+            .expr = expr,
+            .ty = ty,
+        };
+    }
+};
 
 const TypeBits = u32;
 
@@ -183,6 +197,7 @@ pub fn init(allocator: std.mem.Allocator, ast: []*Expr) @This() {
         .env = Env.init(allocator),
         .type_nodes = .{},
         .sems = .{},
+        .sems2 = .{},
     };
 }
 
@@ -192,6 +207,7 @@ pub fn infer_program(self: *@This()) anyerror!*std.AutoArrayHashMapUnmanaged(*co
     }
 
     try self.write_sems_to_file();
+    try self.write_sems_to_file2();
 
     return &self.sems;
 }
@@ -210,6 +226,28 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
             const node = try self.new_type(.void);
 
             self.put_sem(expr, node);
+
+            // const TAST = TypedAST(Expr);
+            // var typed: Typed(Expr.ConstInit) = .{ .initializer = initializer };
+            // std.debug.print("", .{});
+
+            const f = std.meta.fields(TypedAST(Expr));
+            // try jsonPrint(f, "f");
+            inline for (f) |ff| {
+                std.debug.print("\n{s}\n", .{ff.name});
+            }
+
+            const sem = Sem.init(
+                expr,
+                .{
+                    .ConstInit = .{ .initializer = initializer },
+                },
+            );
+
+            try self.create_sem(sem);
+
+            // std.debug.print("sem2 {any}", .{std.meta.fields(TypedAST(Expr))});
+            // std.debug.print("typed {}", .{typed});
 
             return node;
         },
@@ -686,6 +724,11 @@ fn put_sem(self: *@This(), expr: *const Expr, node: *TypeNode) void {
     self.sems.put(self.allocator, expr, node) catch unreachable;
 }
 
+fn create_sem(self: *@This(), sem: Sem) !void {
+    var sem_ptr = try self.sems2.addOne(self.allocator);
+    sem_ptr.* = sem;
+}
+
 inline fn is_float_value(number_str: []const u8) bool {
     return includes_char(number_str, '.');
 }
@@ -981,6 +1024,10 @@ pub fn log_sems(self: *@This()) !void {
     }
 }
 
+pub fn write_sems_to_file2(self: *@This()) !void {
+    try jsonPrint(self.sems2.items, "./types_2.json");
+}
+
 pub fn write_sems_to_file(self: *@This()) !void {
     var types = std.ArrayList(struct {
         type: *TypeNode,
@@ -1152,6 +1199,8 @@ const TypeScope = std.StringHashMap(*TypeNode);
 const std = @import("std");
 
 const Expr = @import("./ast/expr.zig").Expr;
+const Typed = @import("./ast/texpr.zig").Typed;
+const TypedAST = @import("./ast/texpr.zig").TypedAST;
 const Type = @import("./types.zig").Type;
 const Token = @import("./token.zig");
 const floatMax = std.math.floatMax;
