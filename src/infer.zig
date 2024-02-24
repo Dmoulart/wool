@@ -13,13 +13,15 @@ env: Env,
 const Infer = @This();
 
 const Sem = struct {
-    ty: TypedAST(Expr),
+    typed_expr: TypedAST(Expr),
     expr: *const Expr,
+    type: *TypeNode,
 
-    pub fn init(expr: *const Expr, ty: TypedAST(Expr)) Sem {
+    pub fn init(expr: *const Expr, typed_expr: TypedAST(Expr), @"type": *TypeNode) Sem {
         return .{
             .expr = expr,
-            .ty = ty,
+            .typed_expr = typed_expr,
+            .type = @"type",
         };
     }
 };
@@ -227,27 +229,17 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
 
             self.put_sem(expr, node);
 
-            // const TAST = TypedAST(Expr);
-            // var typed: Typed(Expr.ConstInit) = .{ .initializer = initializer };
-            // std.debug.print("", .{});
-
-            const f = std.meta.fields(TypedAST(Expr));
-            // try jsonPrint(f, "f");
-            inline for (f) |ff| {
-                std.debug.print("\n{s}\n", .{ff.name});
-            }
-
             const sem = Sem.init(
                 expr,
                 .{
-                    .ConstInit = .{ .initializer = initializer },
+                    .ConstInit = .{
+                        .initializer = initializer,
+                    },
                 },
+                node,
             );
 
             try self.create_sem(sem);
-
-            // std.debug.print("sem2 {any}", .{std.meta.fields(TypedAST(Expr))});
-            // std.debug.print("typed {}", .{typed});
 
             return node;
         },
@@ -264,6 +256,18 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
 
             self.put_sem(expr, node);
 
+            const sem = Sem.init(
+                expr,
+                .{
+                    .VarInit = .{
+                        .initializer = initializer,
+                    },
+                },
+                node,
+            );
+
+            try self.create_sem(sem);
+
             return node;
         },
         .Assign => |*assign| {
@@ -279,12 +283,36 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
 
             self.put_sem(expr, node);
 
+            const sem = Sem.init(
+                expr,
+                .{
+                    .Assign = .{
+                        .value = value,
+                    },
+                },
+                node,
+            );
+
+            try self.create_sem(sem);
+
             return node;
         },
         .Grouping => |*grouping| {
             var node = try self.infer(grouping.expr);
 
             self.put_sem(expr, node);
+
+            const sem = Sem.init(
+                expr,
+                .{
+                    .Grouping = .{
+                        .expr = node,
+                    },
+                },
+                node,
+            );
+
+            try self.create_sem(sem);
 
             return node;
         },
@@ -319,6 +347,18 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
             );
 
             self.put_sem(expr, node);
+
+            // const sem = Sem.init(
+            //     expr,
+            //     .{
+            //         .Binary = .{
+            //             .expr = node,
+            //         },
+            //     },
+            //     node,
+            // );
+
+            // try self.create_sem(sem);
 
             return node;
         },
