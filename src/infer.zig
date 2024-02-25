@@ -80,6 +80,26 @@ pub const TypeID = enum(TypeBits) {
     pub fn is_terminal(self: TypeID) bool {
         return @intFromEnum(self) & TERMINAL_TYPE == TERMINAL_TYPE;
     }
+
+    pub fn ToZigType(self: TypeID) type {
+        return switch (self) {
+            .i32 => i32,
+            .i64 => i64,
+            .f32 => f32,
+            .f64 => f64,
+            else => unreachable,
+        };
+    }
+
+    pub fn from_zig_type(comptime T: type) TypeID {
+        return switch (T) {
+            i32 => .i32,
+            i64 => .i64,
+            f32 => .f32,
+            f64 => .f64,
+            else => unreachable,
+        };
+    }
 };
 
 const MonoType = struct {

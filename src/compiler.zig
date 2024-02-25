@@ -23,11 +23,40 @@ pub fn compile_program(self: *Compiler) !void {
 pub fn compile(self: *Compiler, inst: *Ir.Inst) !void {
     switch (inst.*) {
         // .push_i32 => |*push_i32| c.BinaryenConst(self.module, c.BinaryenLiteralInt32(push_i32)),
-        .global_i32 => |*global_i32| {
+        // @todo: factorize this in a good way ?
+        // .global_i32, .global_i64, .global_f32, .global_f64 => |*global| {
+        //     _ = self.binaryen.add_immutable_global(
+        //         self.to_c_str(global.name),
+        //         Infer.TypeID.from_zig_type(@TypeOf(global.value)),
+        //         global.value,
+        //     );
+        // },
+        .global_i32 => |*global| {
             _ = self.binaryen.add_immutable_global(
-                self.to_c_str(global_i32.name),
+                self.to_c_str(global.name),
                 .i32,
-                global_i32.value,
+                global.value,
+            );
+        },
+        .global_i64 => |*global| {
+            _ = self.binaryen.add_immutable_global(
+                self.to_c_str(global.name),
+                .i64,
+                global.value,
+            );
+        },
+        .global_f32 => |*global| {
+            _ = self.binaryen.add_immutable_global(
+                self.to_c_str(global.name),
+                .f32,
+                global.value,
+            );
+        },
+        .global_f64 => |*global| {
+            _ = self.binaryen.add_immutable_global(
+                self.to_c_str(global.name),
+                .f64,
+                global.value,
             );
         },
         else => return CompileError.NotImplemented,
@@ -69,17 +98,6 @@ const Binaryen = struct {
         };
     }
 
-    pub fn constant(self: *Binaryen, comptime tid: Infer.TypeID, value: anytype) c.BinaryenExpressionRef {
-        return c.BinaryenConst(self.module, self.literal(tid, value));
-        // return c.BinaryenAddGlobal(
-        //     self.module,
-        //     self.to_c_str(global_i32.name),
-        //     Bin.ty(.i32),
-        //     false,
-        //     c.BinaryenConst(self.module, Bin.literal(.i32, global_i32.value)),
-        // );
-    }
-
     pub fn add_immutable_global(
         self: *Binaryen,
         name: [*:0]const u8,
@@ -108,6 +126,10 @@ const Binaryen = struct {
             true,
             self.constant(tid, value),
         );
+    }
+
+    pub fn constant(self: *Binaryen, comptime tid: Infer.TypeID, value: anytype) c.BinaryenExpressionRef {
+        return c.BinaryenConst(self.module, self.literal(tid, value));
     }
 
     pub fn ty(self: *Binaryen, comptime tid: Infer.TypeID) c.BinaryenType {

@@ -4,26 +4,22 @@ instructions: std.ArrayListUnmanaged(Inst),
 
 const Ir = @This();
 
-const Op = enum(u8) {
-    push_i32,
-    local_i32,
-    global_i32,
-    // const_init,
-    // global,
-};
-
-pub const Inst = union(Op) {
+pub const Inst = union(enum) {
     push_i32: i32,
     local_i32: []const u8,
-    global_i32: struct { name: []const u8, value: i32 },
-    // const_init = struct {
-    //     name: []const u8,
-    //     ty: TypeID,
-    // },
-    // global = struct {
-    //     name: []const u8,
-    //     ty: TypeID,
-    // },
+
+    global_i32: Inst.Global(i32),
+    global_i64: Inst.Global(i64),
+    global_f32: Inst.Global(f32),
+    global_f64: Inst.Global(f64),
+
+    fn Global(comptime T: type) type {
+        return struct {
+            const Type = T;
+            name: []const u8,
+            value: T,
+        };
+    }
 };
 
 const IrError = error{NotImplemented};
@@ -62,9 +58,27 @@ pub fn emit(self: *Ir, sem: *Infer.Sem) !Inst {
         .ConstInit => |*const_init| switch (get_sem_tid(to_sem(const_init.initializer))) {
             .i32 => Inst{
                 .global_i32 = .{
-                    .name = const_init.orig_expr.ConstInit.name.lexeme,
-                    .value = (try self.emit(to_sem(const_init.initializer))).push_i32, // holy sh** this does not seems to be a good idea
-                }, // stack ?
+                    .name = const_init.orig_expr.ConstInit.name.lexeme, // stack ?
+                    .value = try self.eval(to_sem(const_init.initializer), i32),
+                },
+            },
+            .i64 => Inst{
+                .global_i64 = .{
+                    .name = const_init.orig_expr.ConstInit.name.lexeme, // stack ?
+                    .value = try self.eval(to_sem(const_init.initializer), i64),
+                },
+            },
+            .f32 => Inst{
+                .global_f32 = .{
+                    .name = const_init.orig_expr.ConstInit.name.lexeme, // stack ?
+                    .value = try self.eval(to_sem(const_init.initializer), f32),
+                },
+            },
+            .f64 => Inst{
+                .global_f32 = .{
+                    .name = const_init.orig_expr.ConstInit.name.lexeme, // stack ?
+                    .value = try self.eval(to_sem(const_init.initializer), f32),
+                },
             },
             else => IrError.NotImplemented,
         },
@@ -81,8 +95,19 @@ pub fn emit(self: *Ir, sem: *Infer.Sem) !Inst {
     };
 }
 
+fn eval(self: *Ir, sem: *Infer.Sem, comptime ExpectedType: type) !ExpectedType {
+    _ = self;
+    return switch (sem.*) {
+        .Literal => |*literal| switch (ExpectedType) {
+            i32, i64 => try std.fmt.parseInt(ExpectedType, literal.orig_expr.Literal.value.Number, 10),
+            f32, f64 => try std.fmt.parseFloat(ExpectedType, literal.orig_expr.Literal.value.Number),
+            else => IrError.NotImplemented,
+        },
+        else => IrError.NotImplemented,
+    };
+}
+
 const Infer = @import("./infer.zig");
-const TypeID = @import("./infer.zig").TypeID;
 const get_sem_tid = @import("./infer.zig").get_sem_tid;
 const to_sem = @import("./infer.zig").to_sem;
 const std = @import("std");
