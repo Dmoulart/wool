@@ -8,18 +8,27 @@ pub const Inst = union(enum) {
     push_i32: i32,
     local_i32: []const u8,
 
+    // make one global instruction ?
     global_i32: Inst.Global(i32),
     global_i64: Inst.Global(i64),
     global_f32: Inst.Global(f32),
     global_f64: Inst.Global(f64),
 
-    fn Global(comptime T: type) type {
+    begin_func: BeginFunc,
+    end_func: []const u8,
+
+    pub fn Global(comptime T: type) type {
         return struct {
-            const Type = T;
             name: []const u8,
             value: T,
         };
     }
+
+    pub const BeginFunc = struct {
+        name: []const u8,
+        args: []Infer.TypeID,
+        ret: Infer.TypeID,
+    };
 };
 
 const IrError = error{NotImplemented};
@@ -33,18 +42,26 @@ pub fn init(allocator: std.mem.Allocator) Ir {
 
 pub fn emit_program(self: *Ir, sems: []*Infer.Sem) ![]Inst {
     for (sems) |sem| {
-        const inst = try self.emit(sem);
-
-        try self.instructions.append(self.allocator, inst);
+        try self.emit(try self.convert(sem));
     }
 
     return self.instructions.items;
 }
 
-pub fn emit(self: *Ir, sem: *Infer.Sem) !Inst {
+// pub fn emit_instruction(self: *Ir, sem: *Infer.Sem) !void {
+//     const inst = try self.convert(sem);
+//     try self.emit(inst);
+// }
+
+pub fn emit(self: *Ir, inst: Inst) !void {
+    try self.instructions.append(self.allocator, inst);
+}
+
+pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!Inst {
     return switch (sem.*) {
         .Literal => |*literal| switch (get_sem_tid(sem)) {
-            .i32 => Inst{
+            //temporary, Number should be narrowed in Infer phase or an error should be thrown
+            .number, .i32 => Inst{
                 .push_i32 = try std.fmt.parseInt(i32, literal.orig_expr.Literal.value.Number, 10),
             },
             else => IrError.NotImplemented,
@@ -82,6 +99,25 @@ pub fn emit(self: *Ir, sem: *Infer.Sem) !Inst {
             },
             else => IrError.NotImplemented,
         },
+        .Function => |*function| blk: {
+            var args = try self.allocator.alloc(Infer.TypeID, function.type_node.function.args.len);
+            for (function.type_node.function.args, 0..) |arg, i| {
+                args[i] = arg.get_tid();
+            }
+            const name = if (function.orig_expr.Function.name) |name| name.lexeme else "anon";
+            const begin_func = Inst{
+                .begin_func = .{
+                    .name = name,
+                    .ret = function.type_node.function.return_type.get_tid(),
+                    .args = args,
+                },
+            };
+            try self.emit(begin_func);
+            // try self.instructions.append(self.allocator, begin_func);
+            const body = try self.convert(to_sem(function.body));
+            try self.emit(body);
+            break :blk Inst{ .end_func = name };
+        },
         else => {
             std.debug.print("\nNot Implemented = {any}\n", .{sem});
             return IrError.NotImplemented;
@@ -94,6 +130,14 @@ pub fn emit(self: *Ir, sem: *Infer.Sem) !Inst {
         // },
     };
 }
+
+// fn global(self: *Ir, comptime T: type, sem: *Infer.Sem) Inst.Global(T) {
+//     const name = sem.orig_expr.ConstInit.name.lexeme;
+//     return .{
+//         .name = name,
+//         .value = try self.eval(to_sem(sem.initializer), T),
+//     };
+// }
 
 fn eval(self: *Ir, sem: *Infer.Sem, comptime ExpectedType: type) !ExpectedType {
     _ = self;

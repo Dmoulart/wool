@@ -59,6 +59,9 @@ pub fn compile(self: *Compiler, inst: *Ir.Inst) !void {
                 global.value,
             );
         },
+        // .begin_func => |*begin_func| {
+        //     // self.binaryen
+        // },
         else => return CompileError.NotImplemented,
     }
 }

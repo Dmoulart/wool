@@ -58,7 +58,7 @@ pub fn Typed(comptime Ast: type) type {
             },
         };
 
-        const decorated_type = @Type(.{
+        const DecoratedType = @Type(.{
             .Struct = .{
                 .layout = .Auto,
                 .fields = expr_fields,
@@ -70,8 +70,8 @@ pub fn Typed(comptime Ast: type) type {
         union_fields = union_fields ++ [_]UnionField{
             .{
                 .name = expr_type.name,
-                .type = decorated_type,
-                .alignment = @alignOf(decorated_type),
+                .type = DecoratedType,
+                .alignment = @alignOf(DecoratedType),
             },
         };
     }
