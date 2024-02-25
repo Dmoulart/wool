@@ -12,19 +12,17 @@ env: Env,
 
 const Infer = @This();
 
-const Sem = struct {
-    typed_expr: TypedAST(Expr),
-    expr: *const Expr,
-    type: *TypeNode,
+const Sem = Typed(Expr);
 
-    pub fn init(expr: *const Expr, typed_expr: TypedAST(Expr), @"type": *TypeNode) Sem {
-        return .{
-            .expr = expr,
-            .typed_expr = typed_expr,
-            .type = @"type",
-        };
-    }
-};
+pub fn sem_type(sem: *Sem) *TypeNode {
+    return switch (sem.*) {
+        inline else => |*any_sem| any_sem.type_node,
+    };
+}
+
+pub fn to_sems(ptr: *anyopaque) []*Sem {
+    return @alignCast(@ptrCast(ptr));
+}
 
 const TypeBits = u32;
 
@@ -214,107 +212,97 @@ pub fn infer_program(self: *@This()) anyerror!*std.AutoArrayHashMapUnmanaged(*co
     return &self.sems;
 }
 
-pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
+pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
     return switch (expr.*) {
         .ConstInit => |*const_init| {
             const initializer = try self.infer(const_init.initializer);
 
             const type_decl = try self.new_type_from_token(const_init.type);
 
-            try unify(type_decl, initializer);
+            try unify(type_decl, sem_type(initializer));
 
-            try self.env.define(const_init.name.lexeme, initializer);
+            try self.env.define(const_init.name.lexeme, sem_type(initializer));
 
-            const node = try self.new_type(.void);
-
-            self.put_sem(expr, node);
-
-            const sem = Sem.init(
-                expr,
+            return try self.create_sem(
                 .{
                     .ConstInit = .{
                         .initializer = initializer,
+                        .type_node = try self.new_type(.void),
+                        .orig_expr = expr,
                     },
                 },
-                node,
             );
 
-            try self.create_sem(sem);
-
-            return node;
+            // return try self.create_sem(
+            //     .{
+            //         .expr = expr,
+            //         .typed_expr = .{
+            //             .ConstInit = .{
+            //                 .initializer = initializer,
+            //             },
+            //         },
+            //         .type = try self.new_type(.void),
+            //     },
+            // );
         },
         .VarInit => |*var_init| {
             const initializer = try self.infer(var_init.initializer);
 
             const type_decl = try self.new_type_from_token(var_init.type);
 
-            try unify(type_decl, initializer);
+            try unify(type_decl, sem_type(initializer));
 
-            try self.env.define(var_init.name.lexeme, initializer);
+            try self.env.define(var_init.name.lexeme, sem_type(initializer));
 
-            const node = try self.new_type(.void);
-
-            self.put_sem(expr, node);
-
-            const sem = Sem.init(
-                expr,
+            return try self.create_sem(
                 .{
                     .VarInit = .{
                         .initializer = initializer,
+                        .orig_expr = expr,
+                        .type_node = try self.new_type(.void),
                     },
                 },
-                node,
             );
-
-            try self.create_sem(sem);
-
-            return node;
         },
         .Assign => |*assign| {
             const variable = try self.env.get(assign.name.lexeme);
 
             const value = try self.infer(assign.value);
 
-            try unify(variable, value);
+            try unify(variable, sem_type(value));
 
-            self.put_sem(assign.value, value);
+            self.put_sem(assign.value, sem_type(value));
 
             const node = try self.new_type(.void);
 
             self.put_sem(expr, node);
 
-            const sem = Sem.init(
-                expr,
+            const sem = try self.create_sem(
                 .{
                     .Assign = .{
                         .value = value,
+                        .orig_expr = expr,
+                        .type_node = node,
                     },
                 },
-                node,
             );
 
-            try self.create_sem(sem);
-
-            return node;
+            return sem;
         },
         .Grouping => |*grouping| {
-            var node = try self.infer(grouping.expr);
+            var expr_sem = try self.infer(grouping.expr);
 
-            self.put_sem(expr, node);
+            self.put_sem(expr, sem_type(expr_sem));
 
-            const sem = Sem.init(
-                expr,
+            return try self.create_sem(
                 .{
                     .Grouping = .{
-                        .expr = node,
+                        .expr = expr_sem,
+                        .orig_expr = expr,
+                        .type_node = sem_type(expr_sem),
                     },
                 },
-                node,
             );
-
-            try self.create_sem(sem);
-
-            return node;
         },
         .Binary => |*binary| {
             //@todo:mem clean memory
@@ -341,12 +329,12 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
             // dangling ptr ? smelly ?
             const builtin = &builtins_types.get(builtin_name).?;
 
-            const node = try self.call(
+            const call_infos = try self.call(
                 builtin,
                 args,
             );
 
-            self.put_sem(expr, node);
+            self.put_sem(expr, call_infos.return_type);
 
             // const sem = Sem.init(
             //     expr,
@@ -359,8 +347,16 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
             // );
 
             // try self.create_sem(sem);
-
-            return node;
+            return try self.create_sem(
+                .{
+                    .Binary = .{
+                        .left = call_infos.args[0],
+                        .right = call_infos.args[1],
+                        .orig_expr = expr,
+                        .type_node = call_infos.return_type,
+                    },
+                },
+            );
         },
         .Literal => |*literal| {
             const node = try self.new_type(type_of(literal.value));
@@ -375,87 +371,132 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
 
             self.put_sem(expr, variable);
 
-            return variable;
+            return try self.create_sem(
+                .{
+                    .Literal = .{
+                        .orig_expr = expr,
+                        .type_node = variable,
+                    },
+                },
+            );
         },
         .Variable => |*variable| {
             const node = try self.env.get(variable.name.lexeme);
 
             self.put_sem(expr, node);
 
-            return node;
+            return try self.create_sem(
+                .{
+                    .Variable = .{
+                        .orig_expr = expr,
+                        .type_node = node,
+                    },
+                },
+            );
         },
         .If => |*if_expr| {
             const condition = try self.infer(if_expr.condition);
             const bool_condition = try self.new_type(.bool);
 
-            try unify(condition, bool_condition);
-            self.put_sem(if_expr.condition, condition);
+            try unify(sem_type(condition), bool_condition);
+            self.put_sem(if_expr.condition, sem_type(condition));
 
             const then_branch = try self.infer(if_expr.then_branch);
 
+            var maybe_else_branch: ?*Sem = null;
+
             if (if_expr.else_branch) |else_branch| {
-                const else_branch_type = try self.infer(else_branch);
-                try unify(then_branch, else_branch_type);
-                self.put_sem(else_branch, else_branch_type);
+                maybe_else_branch = try self.infer(else_branch);
+                try unify(sem_type(then_branch), sem_type(maybe_else_branch.?));
+                self.put_sem(else_branch, sem_type(maybe_else_branch.?));
             }
 
-            self.put_sem(if_expr.then_branch, then_branch);
+            self.put_sem(if_expr.then_branch, sem_type(then_branch));
 
             const node = try self.new_type_node(
                 .{
                     .variable = .{
                         .name = "if",
-                        .ref = then_branch,
+                        .ref = sem_type(then_branch),
                     },
                 },
             );
 
             self.put_sem(expr, node);
 
-            return node;
+            return try self.create_sem(.{ .If = .{
+                .condition = condition,
+                .then_branch = then_branch,
+                .else_branch = maybe_else_branch,
+                .orig_expr = expr,
+                .type_node = node,
+            } });
         },
         .Block => |*block| {
-            var return_node: ?*TypeNode = null;
+            var sems = try self.allocator.alloc(*anyopaque, block.exprs.len);
 
             self.env.begin_local_scope();
 
-            for (block.exprs) |block_expr| {
-                return_node = try self.infer(block_expr);
+            for (block.exprs, 0..) |block_expr, i| {
+                sems[i] = try self.infer(block_expr);
             }
 
-            if (return_node == null) {
-                return_node = try self.new_type(.void);
-            }
+            const return_type = if (block.exprs.len > 0)
+                sem_type(@alignCast(@ptrCast(sems[block.exprs.len - 1])))
+            else
+                try self.new_type(.void);
 
-            self.put_sem(expr, return_node.?);
+            self.put_sem(expr, return_type);
 
             try self.env.end_local_scope(false); // @todo generic block ?????
 
-            return return_node.?;
+            return try self.create_sem(
+                .{
+                    .Block = .{
+                        .exprs = sems,
+                        .orig_expr = expr,
+                        .type_node = return_type,
+                    },
+                },
+            );
         },
         .Import => {
             const node = try self.new_type(.any);
             self.put_sem(expr, node);
-            return node;
+            return try self.create_sem(
+                .{
+                    .Import = .{
+                        .type_node = node,
+                        .orig_expr = expr,
+                    },
+                },
+            );
         },
         .While => |*while_expr| {
             const condition = try self.infer(while_expr.condition);
             const bool_condition = try self.new_type(.bool);
 
-            try unify(bool_condition, condition);
+            try unify(bool_condition, sem_type(condition));
 
-            self.put_sem(while_expr.condition, condition);
+            self.put_sem(while_expr.condition, sem_type(condition));
 
             const body = try self.infer(while_expr.body);
 
-            self.put_sem(expr, body);
+            self.put_sem(expr, sem_type(body));
 
-            return body;
+            return try self.create_sem(.{
+                .While = .{
+                    .inc = null,
+                    .condition = condition,
+                    .body = body,
+                    .orig_expr = expr,
+                    .type_node = sem_type(body),
+                },
+            });
         },
         .Call => |*call_expr| {
             const function_name = call_expr.callee.Variable.name.lexeme;
             const callee = try self.env.get(function_name);
-
             if (callee.as_function()) |*func| {
                 // @todo func.is_generic() and current context is concrete function
                 if (func.is_generic()) {
@@ -468,25 +509,51 @@ pub fn infer(self: *@This(), expr: *const Expr) !*TypeNode {
                     // return node;
                 }
 
-                const node = try self.call(func, call_expr.args);
-                self.put_sem(expr, node);
-                return node;
+                const call_infos = try self.call(func, call_expr.args);
+                self.put_sem(expr, call_infos.return_type);
+
+                return try self.create_sem(
+                    .{
+                        .Call = .{
+                            .args = @alignCast(@ptrCast(call_infos.args)),
+                            .callee = callee,
+                            .type_node = call_infos.return_type,
+                            .orig_expr = expr,
+                        },
+                    },
+                );
             } else {
                 return TypeError.NonCallableExpression;
             }
         },
         .Function => {
-            const node = try self.function(expr, null, null);
+            const function_infos = try self.function(
+                expr,
+                null,
+                null,
+            );
             // try self.env.define_function(func.name.?.lexeme, expr);
-            self.put_sem(expr, node);
-
-            return node;
+            self.put_sem(expr, function_infos.type_node);
+            return try self.create_sem(
+                .{
+                    .Function = .{
+                        .type_node = function_infos.type_node,
+                        .orig_expr = expr,
+                        .body = function_infos.body,
+                    },
+                },
+            );
+            // return node;
         },
         else => unreachable,
     };
 }
 
-fn call(self: *@This(), func: *const FunType, exprs_args: []*const Expr) anyerror!*TypeNode {
+fn call(
+    self: *@This(),
+    func: *const FunType,
+    exprs_args: []*const Expr,
+) anyerror!struct { args: []*Sem, return_type: *TypeNode } {
     if (func.args.len != exprs_args.len) {
         return TypeError.WrongArgumentsNumber;
     }
@@ -497,27 +564,30 @@ fn call(self: *@This(), func: *const FunType, exprs_args: []*const Expr) anyerro
     try type_scope.ensureTotalCapacity(@intCast(func.args.len));
     defer type_scope.deinit();
 
-    for (exprs_args, func.args) |expr_arg, function_arg| {
+    var args_sems = try self.allocator.alloc(*Sem, exprs_args.len);
+
+    for (exprs_args, func.args, 0..) |expr_arg, function_arg, i| {
         const arg = try self.infer(expr_arg);
 
+        var arg_type = sem_type(arg);
         // @warning: watch this crap
-        arg.variable.name = function_arg.variable.name;
+        arg_type.variable.name = function_arg.variable.name;
 
         const call_arg = try self.get_or_create_local_node(
             function_arg,
-            arg,
+            arg_type,
             type_scope,
         );
 
         try unify(
             call_arg,
-            arg,
+            sem_type(arg),
         );
 
         // Variable binding !
-        if (tag(call_arg.*) == .variable and tag(arg.*) == .variable and call_arg != arg) {
+        if (tag(call_arg.*) == .variable and tag(arg_type.*) == .variable and call_arg != arg_type) {
             if (std.mem.eql(u8, function_arg.variable.name, call_arg.variable.name)) {
-                arg.variable.ref = call_arg;
+                arg_type.variable.ref = call_arg;
             }
         }
 
@@ -525,12 +595,17 @@ fn call(self: *@This(), func: *const FunType, exprs_args: []*const Expr) anyerro
             expr_arg,
             call_arg,
         );
+
+        args_sems[i] = arg;
     }
 
-    return try self.get_local_node(func.return_type, type_scope);
+    return .{
+        .args = args_sems,
+        .return_type = try self.get_local_node(func.return_type, type_scope),
+    };
 }
-// @todo: why anyerror
-fn function(self: *@This(), expr: *const Expr, maybe_args: ?[]*TypeNode, maybe_return_type: ?*TypeNode) anyerror!*TypeNode {
+
+fn function2(self: *@This(), expr: *const Expr, maybe_args: ?[]*TypeNode, maybe_return_type: ?*TypeNode) anyerror!*TypeNode {
     const func_expr = expr.Function;
 
     // if (func_expr.name == null) {
@@ -583,6 +658,67 @@ fn function(self: *@This(), expr: *const Expr, maybe_args: ?[]*TypeNode, maybe_r
     // pretty_print(body);
 
     return try self.new_type_node(.{ .function = function_type });
+}
+
+// @todo: why anyerror
+fn function(self: *@This(), expr: *const Expr, maybe_args: ?[]*TypeNode, maybe_return_type: ?*TypeNode) anyerror!struct { body: *Sem, type_node: *TypeNode } {
+    const func_expr = expr.Function;
+
+    // if (func_expr.name == null) {
+    //     return TypeError.AnonymousFunctionsNotImplemented;
+    // }
+
+    if (maybe_args) |args| {
+        if (func_expr.args != null and args.len != func_expr.args.?.len) {
+            return TypeError.WrongArgumentsNumber;
+        }
+    }
+
+    self.env.begin_local_scope();
+
+    const return_type = try self.new_var_from_token("T", func_expr.type);
+
+    var function_type: FunType = .{
+        // .name = func_expr.name.?.lexeme,
+        .name = null,
+        .args = if (func_expr.args) |args|
+            try self.allocator.alloc(*TypeNode, args.len)
+        else
+            &[_]*TypeNode{},
+        .return_type = return_type,
+    };
+
+    if (func_expr.args) |args| {
+        for (args, 0..) |arg, i| {
+            const node = try self.new_var_from_token("T", arg.type);
+            try self.env.define(arg.expr.Variable.name.lexeme, node);
+
+            function_type.args[i] = node;
+
+            if (maybe_args) |optional_args| {
+                try unify(optional_args[i], node);
+            }
+        }
+    }
+
+    const body = try self.infer(func_expr.body);
+
+    try unify(return_type, sem_type(body));
+
+    if (maybe_return_type) |optional_return_type| {
+        try unify(optional_return_type, return_type);
+    }
+
+    try self.env.end_local_scope(!function_type.is_generic());
+
+    // pretty_print(body);
+
+    const type_node = try self.new_type_node(.{ .function = function_type });
+
+    return .{
+        .body = body,
+        .type_node = type_node,
+    };
 }
 
 fn get_or_create_local_node(self: *@This(), base_node: *TypeNode, local_node: *TypeNode, scope: *TypeScope) !*TypeNode {
@@ -764,9 +900,10 @@ fn put_sem(self: *@This(), expr: *const Expr, node: *TypeNode) void {
     self.sems.put(self.allocator, expr, node) catch unreachable;
 }
 
-fn create_sem(self: *@This(), sem: Sem) !void {
+fn create_sem(self: *@This(), sem: Sem) !*Sem {
     var sem_ptr = try self.sems2.addOne(self.allocator);
     sem_ptr.* = sem;
+    return sem_ptr;
 }
 
 inline fn is_float_value(number_str: []const u8) bool {
@@ -1065,7 +1202,8 @@ pub fn log_sems(self: *@This()) !void {
 }
 
 pub fn write_sems_to_file2(self: *@This()) !void {
-    try jsonPrint(self.sems2.items, "./types_2.json");
+    // try jsonPrint(self.sems2.items, "./types_2.json");
+    std.debug.print("\n{any}\n", .{self.sems2.items});
 }
 
 pub fn write_sems_to_file(self: *@This()) !void {
@@ -1240,7 +1378,6 @@ const std = @import("std");
 
 const Expr = @import("./ast/expr.zig").Expr;
 const Typed = @import("./ast/texpr.zig").Typed;
-const TypedAST = @import("./ast/texpr.zig").TypedAST;
 const Type = @import("./types.zig").Type;
 const Token = @import("./token.zig");
 const floatMax = std.math.floatMax;

@@ -1,1 +1,9 @@
-[{"type":{"variable":{"name":"T","ref":{"type":{"tid":"number"}}}},"expr":{"Literal":{"value":{"Number":"1"}}},"ptr":4380540928},{"type":{"type":{"tid":"void"}},"expr":{"VarInit":{"name":{"type":{"IDENTIFIER":"a"},"lexeme":"a","line":1},"initializer":{"Literal":{"value":{"Number":"1"}}},"type":null}},"ptr":4380541072}]
+[
+  {
+    "type": {
+      "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
+    },
+    "expr": { "Literal": { "value": { "Number": "1.5" } } },
+    "ptr": 4342251520
+  }
+]
