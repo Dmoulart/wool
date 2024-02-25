@@ -8,6 +8,8 @@ sems: std.AutoArrayHashMapUnmanaged(*const Expr, *TypeNode),
 
 sems2: std.ArrayListUnmanaged(Sem),
 
+typed_ast: std.ArrayListUnmanaged(*Sem),
+
 env: Env,
 
 const Infer = @This();
@@ -201,25 +203,19 @@ const TypeError = error{
 const Err = ErrorReporter(TypeError);
 
 pub fn init(allocator: std.mem.Allocator, ast: []*Expr) @This() {
-    return .{
-        .allocator = allocator,
-        .ast = ast,
-        .env = Env.init(allocator),
-        .type_nodes = .{},
-        .sems = .{},
-        .sems2 = .{},
-    };
+    return .{ .allocator = allocator, .ast = ast, .env = Env.init(allocator), .type_nodes = .{}, .sems = .{}, .sems2 = .{}, .typed_ast = .{} };
 }
 
-pub fn infer_program(self: *@This()) anyerror![]Sem {
+pub fn infer_program(self: *@This()) anyerror![]*Sem {
     for (self.ast) |expr| {
-        _ = try self.infer(expr);
+        const t_expr = try self.infer(expr);
+        try self.typed_ast.append(self.allocator, t_expr);
     }
 
     try self.write_sems_to_file();
     // try self.write_sems_to_file2();
 
-    return self.sems2.items;
+    return self.typed_ast.items;
 }
 
 pub fn infer(self: *@This(), expr: *const Expr) !*Sem {

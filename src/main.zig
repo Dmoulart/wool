@@ -54,10 +54,16 @@ fn run(src: []const u8, allocator: std.mem.Allocator) !void {
 
     var infer = Infer.init(allocator, ast);
     const sems = try infer.infer_program();
-    var ir = IR.init(allocator);
+    var ir = Ir.init(allocator);
 
     var program = try ir.emit_program(sems);
     try jsonPrint(program, "./ir.json");
+
+    var compiler = Compiler.init(allocator, program);
+    try compiler.compile_program();
+
+    try compiler.write();
+
     // try jsonPrint(sems., "./sems.json");
 
     // var compiler = Compiler.init(allocator, ast, sems);
@@ -90,5 +96,6 @@ const print = std.debug.print;
 const Lexer = @import("./lexer.zig");
 const Parser = @import("./parser.zig");
 const Infer = @import("./infer.zig");
-const IR = @import("./ir.zig");
+const Ir = @import("./ir.zig");
+const Compiler = @import("./compiler.zig");
 // const Compiler = @import("./compiler.zig");

@@ -12,10 +12,10 @@ const Op = enum(u8) {
     // global,
 };
 
-const Inst = union(Op) {
+pub const Inst = union(Op) {
     push_i32: i32,
     local_i32: []const u8,
-    global_i32: []const u8,
+    global_i32: struct { name: []const u8, value: i32 },
     // const_init = struct {
     //     name: []const u8,
     //     ty: TypeID,
@@ -35,8 +35,8 @@ pub fn init(allocator: std.mem.Allocator) Ir {
     };
 }
 
-pub fn emit_program(self: *Ir, sems: []Infer.Sem) ![]Inst {
-    for (sems) |*sem| {
+pub fn emit_program(self: *Ir, sems: []*Infer.Sem) ![]Inst {
+    for (sems) |sem| {
         const inst = try self.emit(sem);
 
         try self.instructions.append(self.allocator, inst);
@@ -46,7 +46,6 @@ pub fn emit_program(self: *Ir, sems: []Infer.Sem) ![]Inst {
 }
 
 pub fn emit(self: *Ir, sem: *Infer.Sem) !Inst {
-    _ = self;
     return switch (sem.*) {
         .Literal => |*literal| switch (get_sem_tid(sem)) {
             .i32 => Inst{
@@ -62,7 +61,10 @@ pub fn emit(self: *Ir, sem: *Infer.Sem) !Inst {
         },
         .ConstInit => |*const_init| switch (get_sem_tid(to_sem(const_init.initializer))) {
             .i32 => Inst{
-                .global_i32 = const_init.orig_expr.ConstInit.name.lexeme, // stack ?
+                .global_i32 = .{
+                    .name = const_init.orig_expr.ConstInit.name.lexeme,
+                    .value = (try self.emit(to_sem(const_init.initializer))).push_i32, // holy sh** this does not seems to be a good idea
+                }, // stack ?
             },
             else => IrError.NotImplemented,
         },
