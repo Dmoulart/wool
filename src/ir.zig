@@ -7,6 +7,7 @@ const Ir = @This();
 const Op = enum(u8) {
     push_i32,
     local_i32,
+    global_i32,
     // const_init,
     // global,
 };
@@ -14,6 +15,7 @@ const Op = enum(u8) {
 const Inst = union(Op) {
     push_i32: i32,
     local_i32: []const u8,
+    global_i32: []const u8,
     // const_init = struct {
     //     name: []const u8,
     //     ty: TypeID,
@@ -50,12 +52,17 @@ pub fn emit(self: *Ir, sem: *Infer.Sem) !Inst {
             .i32 => Inst{
                 .push_i32 = try std.fmt.parseInt(i32, literal.orig_expr.Literal.value.Number, 10),
             },
-
             else => IrError.NotImplemented,
         },
         .VarInit => |*var_init| switch (get_sem_tid(to_sem(var_init.initializer))) {
             .i32 => Inst{
-                .local_i32 = var_init.orig_expr.VarInit.name.lexeme,
+                .local_i32 = var_init.orig_expr.VarInit.name.lexeme, // stack ?
+            },
+            else => IrError.NotImplemented,
+        },
+        .ConstInit => |*const_init| switch (get_sem_tid(to_sem(const_init.initializer))) {
+            .i32 => Inst{
+                .global_i32 = const_init.orig_expr.ConstInit.name.lexeme, // stack ?
             },
             else => IrError.NotImplemented,
         },
