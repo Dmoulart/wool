@@ -6,3 +6,5 @@ out.wasm
 # Debug
 ast.json
 tokens.json
+types.json
+types_2.json
