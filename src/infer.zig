@@ -12,7 +12,7 @@ env: Env,
 
 const Infer = @This();
 
-const Sem = Typed(Expr);
+pub const Sem = Typed(Expr);
 
 pub fn sem_type(sem: *Sem) *TypeNode {
     return switch (sem.*) {
@@ -20,7 +20,17 @@ pub fn sem_type(sem: *Sem) *TypeNode {
     };
 }
 
+pub fn get_sem_tid(sem: *Sem) TypeID {
+    return switch (sem.*) {
+        inline else => |*any_sem| any_sem.type_node.get_tid(),
+    };
+}
+
 pub fn to_sems(ptr: *anyopaque) []*Sem {
+    return @alignCast(@ptrCast(ptr));
+}
+
+pub fn to_sem(ptr: *anyopaque) *Sem {
     return @alignCast(@ptrCast(ptr));
 }
 
@@ -201,15 +211,15 @@ pub fn init(allocator: std.mem.Allocator, ast: []*Expr) @This() {
     };
 }
 
-pub fn infer_program(self: *@This()) anyerror!*std.AutoArrayHashMapUnmanaged(*const Expr, *TypeNode) {
+pub fn infer_program(self: *@This()) anyerror![]Sem {
     for (self.ast) |expr| {
         _ = try self.infer(expr);
     }
 
     try self.write_sems_to_file();
-    try self.write_sems_to_file2();
+    // try self.write_sems_to_file2();
 
-    return &self.sems;
+    return self.sems2.items;
 }
 
 pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
@@ -1377,7 +1387,7 @@ const TypeScope = std.StringHashMap(*TypeNode);
 const std = @import("std");
 
 const Expr = @import("./ast/expr.zig").Expr;
-const Typed = @import("./ast/texpr.zig").Typed;
+const Typed = @import("./ast/typed.zig").Typed;
 const Type = @import("./types.zig").Type;
 const Token = @import("./token.zig");
 const floatMax = std.math.floatMax;

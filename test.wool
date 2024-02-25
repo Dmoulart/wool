@@ -1,4 +1,6 @@
-add_poly :: first, second -> 
+a: i32 = 0
+
+/* add_poly :: first, second -> 
 {
   first + second
 }
@@ -18,7 +20,7 @@ main :: -> void {
 
   // i = add(i, b) // <- parser bug 
 }
-
+*/
 
 /*
 add :: first, second -> f32

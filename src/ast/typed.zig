@@ -4,14 +4,14 @@ const UnionField = std.builtin.Type.UnionField;
 const Expr = @import("./expr.zig").Expr;
 const TypeNode = @import("../infer.zig").TypeNode;
 
-pub fn Typed(comptime AST: type) type {
-    if (@typeInfo(AST) != .Union) {
+pub fn Typed(comptime Ast: type) type {
+    if (@typeInfo(Ast) != .Union) {
         @compileError("TypedAST Can only decorate a union.");
     }
 
     var union_fields: []const UnionField = &[0]UnionField{};
 
-    for (std.meta.fields(AST)) |expr_type| {
+    for (std.meta.fields(Ast)) |expr_type| {
         var expr_fields: []const StructField = &[0]StructField{};
 
         var total_expr_fields: usize = 0;
@@ -80,7 +80,7 @@ pub fn Typed(comptime AST: type) type {
         .{
             .Union = .{
                 .layout = .Auto,
-                .tag_type = std.meta.FieldEnum(AST),
+                .tag_type = std.meta.FieldEnum(Ast),
                 .fields = union_fields,
                 .decls = &[_]std.builtin.Type.Declaration{},
             },

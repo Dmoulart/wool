@@ -44,6 +44,7 @@ fn run(src: []const u8, allocator: std.mem.Allocator) !void {
     defer lexer.deinit();
 
     const tokens = try lexer.scan();
+    try jsonPrint(tokens, "./tokens.json");
 
     var parser = Parser.init(tokens, allocator);
     defer parser.deinit();
@@ -51,12 +52,12 @@ fn run(src: []const u8, allocator: std.mem.Allocator) !void {
     const ast = try parser.parse();
     try jsonPrint(ast, "./ast.json");
 
-    // var semer = Semer.init(allocator, ast);
-    // const sems = try semer.analyze();
+    var infer = Infer.init(allocator, ast);
+    const sems = try infer.infer_program();
+    var ir = IR.init(allocator);
 
-    var inferer = Infer.init(allocator, ast);
-    const sems = try inferer.infer_program();
-    _ = sems;
+    var program = try ir.emit_program(sems);
+    try jsonPrint(program, "./ir.json");
     // try jsonPrint(sems., "./sems.json");
 
     // var compiler = Compiler.init(allocator, ast, sems);
@@ -64,7 +65,6 @@ fn run(src: []const u8, allocator: std.mem.Allocator) !void {
 
     // try compiler.compile();
 
-    try jsonPrint(tokens, "./tokens.json");
 }
 
 pub fn jsonPrint(value: anytype, file_path: []const u8) !void {
@@ -90,4 +90,5 @@ const print = std.debug.print;
 const Lexer = @import("./lexer.zig");
 const Parser = @import("./parser.zig");
 const Infer = @import("./infer.zig");
+const IR = @import("./ir.zig");
 // const Compiler = @import("./compiler.zig");
