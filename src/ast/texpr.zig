@@ -36,31 +36,6 @@ pub fn Typed(comptime AST: type) type {
                     },
                 };
             }
-            // if (expr_field.type == *const Expr) {
-            //     total_expr_fields += 1;
-            //     expr_fields = expr_fields ++ [_]StructField{
-            //         .{
-            //             .name = expr_field.name,
-            //             .type = *anyopaque,
-            //             .default_value = null,
-            //             .is_comptime = false,
-            //             .alignment = @alignOf(*anyopaque),
-            //         },
-            //     };
-            // }
-
-            // if (expr_field.type == ?*const Expr) {
-            //     total_expr_fields += 1;
-            //     expr_fields = expr_fields ++ [_]StructField{
-            //         .{
-            //             .name = expr_field.name,
-            //             .type = ?*anyopaque,
-            //             .default_value = null,
-            //             .is_comptime = false,
-            //             .alignment = @alignOf(?*anyopaque),
-            //         },
-            //     };
-            // }
         }
 
         expr_fields = expr_fields ++ [_]StructField{
@@ -112,44 +87,3 @@ pub fn Typed(comptime AST: type) type {
         },
     );
 }
-
-// // Decorate an expression type with types
-// pub fn Typed(comptime E: type) type {
-//     var fields: []const StructField = &[0]StructField{};
-
-//     var total_expr_fields: usize = 0;
-
-//     inline for (std.meta.fields(E)) |field| {
-//         if (field.type == *const Expr) {
-//             total_expr_fields += 1;
-//             fields = fields ++ [_]StructField{
-//                 .{
-//                     .name = field.name,
-//                     .type = *Typed(field.type),
-//                     .default_value = null,
-//                     .is_comptime = false,
-//                     .alignment = @alignOf(*Typed(field.type)),
-//                 },
-//             };
-//         }
-//     }
-
-//     fields = fields ++ [_]StructField{
-//         .{
-//             .name = "type",
-//             .type = *TypeNode,
-//             .default_value = null,
-//             .is_comptime = false,
-//             .alignment = @alignOf(*TypeNode),
-//         },
-//     };
-
-//     return @Type(.{
-//         .Struct = .{
-//             .layout = .Auto,
-//             .fields = fields,
-//             .decls = &[_]std.builtin.Type.Declaration{},
-//             .is_tuple = false,
-//         },
-//     });
-// }
