@@ -1,1 +1,0 @@
-[{"typed_expr":{"VarInit":{"initializer":{"variable":{"name":"T","ref":{"type":{"tid":"number"}}}}}},"expr":{"VarInit":{"name":{"type":{"IDENTIFIER":"a"},"lexeme":"a","line":1},"initializer":{"Literal":{"value":{"Number":"1"}}},"type":null}},"type":{"type":{"tid":"void"}}}]

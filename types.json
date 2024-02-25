@@ -1,9 +1,0 @@
-[
-  {
-    "type": {
-      "variable": { "name": "T", "ref": { "type": { "tid": "float" } } }
-    },
-    "expr": { "Literal": { "value": { "Number": "1.5" } } },
-    "ptr": 4342251520
-  }
-]
