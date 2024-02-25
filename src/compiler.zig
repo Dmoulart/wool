@@ -16,11 +16,13 @@ pub fn init(allocator: std.mem.Allocator, ir: []Ir.Inst) Compiler {
 
 pub fn compile_program(self: *Compiler) !void {
     for (self.ir) |*instruction| {
-        try self.compile(instruction);
+        if (is_global_instruction(instruction)) {
+            try self.compile_global(instruction);
+        }
     }
 }
 
-pub fn compile(self: *Compiler, inst: *Ir.Inst) !void {
+pub fn compile_global(self: *Compiler, inst: *Ir.Inst) !void {
     switch (inst.*) {
         // .push_i32 => |*push_i32| c.BinaryenConst(self.module, c.BinaryenLiteralInt32(push_i32)),
         // @todo: factorize this in a good way ?
@@ -60,9 +62,22 @@ pub fn compile(self: *Compiler, inst: *Ir.Inst) !void {
             );
         },
         // .begin_func => |*begin_func| {
+        //     const body = self.compile()
+        //     const func_ref = c.BinaryenAddFunction(
+        //         self.module,
+        //         self.to_c_str(begin_func.name),
+        //         try self.binaryen.arguments(self.allocator, begin_func.args), // ?
+        //         self.binaryen.primitive(begin_func.ret),
+        //         var_types.ptr,
+        //         @intCast(var_types.len),
+        //         body,
+        //     );
         //     // self.binaryen
         // },
-        else => return CompileError.NotImplemented,
+        else => {
+            std.debug.print("hello {any}", .{inst});
+            return CompileError.NotImplemented;
+        },
     }
 }
 
@@ -110,7 +125,7 @@ const Binaryen = struct {
         return c.BinaryenAddGlobal(
             self.module,
             name,
-            self.ty(tid),
+            self.primitive(tid),
             false,
             self.constant(tid, value),
         );
@@ -125,17 +140,20 @@ const Binaryen = struct {
         return c.BinaryenAddGlobal(
             self.module,
             name,
-            self.ty(tid),
+            self.primitive(tid),
             true,
             self.constant(tid, value),
         );
     }
 
     pub fn constant(self: *Binaryen, comptime tid: Infer.TypeID, value: anytype) c.BinaryenExpressionRef {
-        return c.BinaryenConst(self.module, self.literal(tid, value));
+        return c.BinaryenConst(
+            self.module,
+            self.literal(tid, value),
+        );
     }
 
-    pub fn ty(self: *Binaryen, comptime tid: Infer.TypeID) c.BinaryenType {
+    pub fn primitive(self: *Binaryen, tid: Infer.TypeID) c.BinaryenType {
         _ = self;
         return switch (tid) {
             .i32, .bool => c.BinaryenTypeInt32(),
@@ -158,9 +176,39 @@ const Binaryen = struct {
             else => unreachable,
         };
     }
+
+    pub fn arguments(self: *Binaryen, allocator: *std.mem.Allocator, args_tid: []Infer.TypeID) !c.BinaryenType {
+        //@todo free
+        var args = try allocator.alloc(c.BinaryenType, args_tid.len);
+        for (args_tid, 0..) |tid, i| {
+            args[i] = self.primitive(tid);
+        }
+        return c.BinaryenTypeCreate(
+            @ptrCast(args),
+            args.len,
+        );
+    }
 };
 
+const global_instructions = blk: {
+    var set = std.EnumSet(Tag(Ir.Inst)).initEmpty();
+
+    set.insert(.global_i32);
+    set.insert(.global_i64);
+    set.insert(.global_f32);
+    set.insert(.global_f64);
+    set.insert(.begin_func);
+
+    break :blk set;
+};
+
+fn is_global_instruction(inst: *Ir.Inst) bool {
+    return global_instructions.contains(activeTag(inst.*));
+}
+
 const std = @import("std");
+const Tag = std.meta.Tag;
+const activeTag = std.meta.activeTag;
 const c = @cImport({
     @cInclude("binaryen-c.h");
 });

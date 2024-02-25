@@ -66,37 +66,38 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!Inst {
             },
             else => IrError.NotImplemented,
         },
-        .VarInit => |*var_init| switch (get_sem_tid(to_sem(var_init.initializer))) {
+        .VarInit => |*var_init| switch (get_sem_tid(as_sem(var_init.initializer))) {
             .i32 => Inst{
                 .local_i32 = var_init.orig_expr.VarInit.name.lexeme, // stack ?
             },
             else => IrError.NotImplemented,
         },
-        .ConstInit => |*const_init| switch (get_sem_tid(to_sem(const_init.initializer))) {
+        .ConstInit => |*const_init| switch (get_sem_tid(as_sem(const_init.initializer))) {
             .i32 => Inst{
                 .global_i32 = .{
                     .name = const_init.orig_expr.ConstInit.name.lexeme, // stack ?
-                    .value = try self.eval(to_sem(const_init.initializer), i32),
+                    .value = try self.eval(as_sem(const_init.initializer), i32),
                 },
             },
             .i64 => Inst{
                 .global_i64 = .{
                     .name = const_init.orig_expr.ConstInit.name.lexeme, // stack ?
-                    .value = try self.eval(to_sem(const_init.initializer), i64),
+                    .value = try self.eval(as_sem(const_init.initializer), i64),
                 },
             },
             .f32 => Inst{
                 .global_f32 = .{
                     .name = const_init.orig_expr.ConstInit.name.lexeme, // stack ?
-                    .value = try self.eval(to_sem(const_init.initializer), f32),
+                    .value = try self.eval(as_sem(const_init.initializer), f32),
                 },
             },
             .f64 => Inst{
                 .global_f32 = .{
                     .name = const_init.orig_expr.ConstInit.name.lexeme, // stack ?
-                    .value = try self.eval(to_sem(const_init.initializer), f32),
+                    .value = try self.eval(as_sem(const_init.initializer), f32),
                 },
             },
+            .func => try self.convert(as_sem(const_init.initializer)),
             else => IrError.NotImplemented,
         },
         .Function => |*function| blk: {
@@ -104,7 +105,7 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!Inst {
             for (function.type_node.function.args, 0..) |arg, i| {
                 args[i] = arg.get_tid();
             }
-            const name = if (function.orig_expr.Function.name) |name| name.lexeme else "anon";
+            const name = if (function.orig_expr.Function.name) |name| name.lexeme else "anonymous";
             const begin_func = Inst{
                 .begin_func = .{
                     .name = name,
@@ -113,8 +114,7 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!Inst {
                 },
             };
             try self.emit(begin_func);
-            // try self.instructions.append(self.allocator, begin_func);
-            const body = try self.convert(to_sem(function.body));
+            const body = try self.convert(as_sem(function.body));
             try self.emit(body);
             break :blk Inst{ .end_func = name };
         },
@@ -135,7 +135,7 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!Inst {
 //     const name = sem.orig_expr.ConstInit.name.lexeme;
 //     return .{
 //         .name = name,
-//         .value = try self.eval(to_sem(sem.initializer), T),
+//         .value = try self.eval(as_sem(sem.initializer), T),
 //     };
 // }
 
@@ -153,5 +153,5 @@ fn eval(self: *Ir, sem: *Infer.Sem, comptime ExpectedType: type) !ExpectedType {
 
 const Infer = @import("./infer.zig");
 const get_sem_tid = @import("./infer.zig").get_sem_tid;
-const to_sem = @import("./infer.zig").to_sem;
+const as_sem = @import("./infer.zig").as_sem;
 const std = @import("std");

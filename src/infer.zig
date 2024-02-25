@@ -28,11 +28,11 @@ pub fn get_sem_tid(sem: *Sem) TypeID {
     };
 }
 
-pub fn to_sems(ptr: *anyopaque) []*Sem {
+pub fn as_sems(ptr: *anyopaque) []*Sem {
     return @alignCast(@ptrCast(ptr));
 }
 
-pub fn to_sem(ptr: *anyopaque) *Sem {
+pub fn as_sem(ptr: *anyopaque) *Sem {
     return @alignCast(@ptrCast(ptr));
 }
 
