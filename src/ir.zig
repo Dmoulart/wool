@@ -2,11 +2,13 @@ allocator: std.mem.Allocator,
 
 instructions: std.ArrayListUnmanaged(Inst),
 
+function_variables: Stack([]const u8),
+
 const Ir = @This();
 
 pub const Inst = union(enum) {
     push_i32: i32,
-    local_i32: []const u8,
+    local_i32: u32,
 
     // make one global instruction ?
     global_i32: Inst.Global(i32),
@@ -16,6 +18,9 @@ pub const Inst = union(enum) {
 
     begin_func: BeginFunc,
     end_func: []const u8,
+
+    begin_block: void,
+    end_block: void,
 
     pub fn Global(comptime T: type) type {
         return struct {
@@ -37,6 +42,7 @@ pub fn init(allocator: std.mem.Allocator) Ir {
     return .{
         .allocator = allocator,
         .instructions = .{},
+        .function_variables = Stack([]const u8).init(allocator),
     };
 }
 
@@ -67,8 +73,15 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!Inst {
             else => IrError.NotImplemented,
         },
         .VarInit => |*var_init| switch (get_sem_tid(as_sem(var_init.initializer))) {
-            .i32 => Inst{
-                .local_i32 = var_init.orig_expr.VarInit.name.lexeme, // stack ?
+            .i32 => blk: {
+                const name = var_init.orig_expr.VarInit.name.lexeme;
+                const local_ident = try self.function_variables.push(name);
+
+                try self.emit(try self.convert(as_sem(var_init.initializer)));
+
+                break :blk Inst{
+                    .local_i32 = local_ident, // stack ?
+                };
             },
             else => IrError.NotImplemented,
         },
@@ -101,11 +114,18 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!Inst {
             else => IrError.NotImplemented,
         },
         .Function => |*function| blk: {
+            try self.function_variables.clear();
             var args = try self.allocator.alloc(Infer.TypeID, function.type_node.function.args.len);
+
             for (function.type_node.function.args, 0..) |arg, i| {
                 args[i] = arg.get_tid();
             }
-            const name = if (function.orig_expr.Function.name) |name| name.lexeme else "anonymous";
+
+            const name = if (function.orig_expr.Function.name) |name|
+                name.lexeme
+            else
+                "anonymous";
+
             const begin_func = Inst{
                 .begin_func = .{
                     .name = name,
@@ -113,31 +133,26 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!Inst {
                     .args = args,
                 },
             };
+
             try self.emit(begin_func);
             const body = try self.convert(as_sem(function.body));
             try self.emit(body);
+
             break :blk Inst{ .end_func = name };
+        },
+        .Block => |*block| blk: {
+            try self.emit(Inst{ .begin_block = {} });
+            for (block.exprs) |expr| {
+                try self.emit(try self.convert(as_sem(expr)));
+            }
+            break :blk Inst{ .end_block = {} };
         },
         else => {
             std.debug.print("\nNot Implemented = {any}\n", .{sem});
             return IrError.NotImplemented;
         },
-        // .ConstInit => |*const_init| Inst{
-        //     .global = .{
-        //         .name = const_init.orig_expr.name,
-        //         .ty = const_init.orig_expr.name,
-        //     },
-        // },
     };
 }
-
-// fn global(self: *Ir, comptime T: type, sem: *Infer.Sem) Inst.Global(T) {
-//     const name = sem.orig_expr.ConstInit.name.lexeme;
-//     return .{
-//         .name = name,
-//         .value = try self.eval(as_sem(sem.initializer), T),
-//     };
-// }
 
 fn eval(self: *Ir, sem: *Infer.Sem, comptime ExpectedType: type) !ExpectedType {
     _ = self;
@@ -151,7 +166,9 @@ fn eval(self: *Ir, sem: *Infer.Sem, comptime ExpectedType: type) !ExpectedType {
     };
 }
 
-const Infer = @import("./infer.zig");
-const get_sem_tid = @import("./infer.zig").get_sem_tid;
-const as_sem = @import("./infer.zig").as_sem;
 const std = @import("std");
+const Infer = @import("./infer.zig");
+const as_sem = @import("./infer.zig").as_sem;
+const get_sem_tid = @import("./infer.zig").get_sem_tid;
+
+const Stack = @import("./Stack.zig").Stack;
