@@ -8,6 +8,8 @@ const Ir = @This();
 
 pub const Inst = union(enum) {
     push_i32: i32,
+    add_i32: void,
+
     local_i32: u32,
 
     // make one global instruction ?
@@ -146,6 +148,93 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!Inst {
                 try self.emit(try self.convert(as_sem(expr)));
             }
             break :blk Inst{ .end_block = {} };
+        },
+        .Binary => |*binary| blk: {
+            try self.emit(try self.convert(as_sem(binary.left)));
+            try self.emit(try self.convert(as_sem(binary.right)));
+
+            const op = binary.orig_expr.Binary.op.type;
+
+            break :blk switch (op) {
+                .PLUS => switch (get_sem_tid(as_sem(binary))) {
+                    .number, .i32 => Inst{ .add_i32 = {} },
+                    else => unreachable,
+                },
+                else => unreachable,
+            };
+            // switch (binary.orig_expr.Binary.op.type) {
+            //     .PLUS => switch (get_sem_tid(as_sem(binary))) {
+            //         .i32 => c.BinaryenAddInt32(),
+            //         .i64 => c.BinaryenAddInt64(),
+            //         .f32 => c.BinaryenAddFloat32(),
+            //         .f64 => c.BinaryenAddFloat64(),
+            //         else => unreachable,
+            //     },
+            // .MINUS => switch (get_sem_tid(as_sem(binary))) {
+            //     .i32 => c.BinaryenSubInt32(),
+            //     .i64 => c.BinaryenSubInt64(),
+            //     .f32 => c.BinaryenSubFloat32(),
+            //     .f64 => c.BinaryenSubFloat64(),
+            //     else => unreachable,
+            // },
+            // .STAR => switch (get_sem_tid(as_sem(binary))) {
+            //     .i32 => c.BinaryenMulInt32(),
+            //     .i64 => c.BinaryenMulInt64(),
+            //     .f32 => c.BinaryenMulFloat32(),
+            //     .f64 => c.BinaryenMulFloat64(),
+            //     else => unreachable,
+            // },
+            // .SLASH => switch (get_sem_tid(as_sem(binary))) {
+            //     .i32 => c.BinaryenDivSInt32(), // div s ? div u ?,
+            //     .i64 => c.BinaryenDivSInt64(),
+            //     .f32 => c.BinaryenDivFloat32(),
+            //     .f64 => c.BinaryenDivFloat64(),
+            //     else => unreachable,
+            // },
+            // .EQUAL_EQUAL => switch (get_sem_tid(as_sem(binary))) {
+            //     .i32 => c.BinaryenEqInt32(),
+            //     .i64 => c.BinaryenEqInt64(),
+            //     .f32 => c.BinaryenEqFloat32(),
+            //     .f64 => c.BinaryenEqFloat64(),
+            //     else => unreachable,
+            // },
+            // .BANG_EQUAL => switch (get_sem_tid(as_sem(binary))) {
+            //     .i32 => c.BinaryenNeInt32(),
+            //     .i64 => c.BinaryenNeInt64(),
+            //     .f32 => c.BinaryenNeFloat32(),
+            //     .f64 => c.BinaryenNeFloat64(),
+            //     else => unreachable,
+            // },
+            // .GREATER => switch (get_sem_tid(as_sem(binary))) {
+            //     .i32 => c.BinaryenGtSInt32(),
+            //     .i64 => c.BinaryenGtSInt64(),
+            //     .f32 => c.BinaryenGtFloat32(),
+            //     .f64 => c.BinaryenGtFloat64(),
+            //     else => unreachable,
+            // },
+            // .GREATER_EQUAL => switch (get_sem_tid(as_sem(binary))) {
+            //     .i32 => c.BinaryenGeSInt32(),
+            //     .i64 => c.BinaryenGeSInt64(),
+            //     .f32 => c.BinaryenGeFloat32(),
+            //     .f64 => c.BinaryenGeFloat64(),
+            //     else => unreachable,
+            // },
+            // .LESS => switch (get_sem_tid(as_sem(binary))) {
+            //     .i32 => c.BinaryenLtSInt32(),
+            //     .i64 => c.BinaryenLtSInt64(),
+            //     .f32 => c.BinaryenLtFloat32(),
+            //     .f64 => c.BinaryenLtFloat64(),
+            //     else => unreachable,
+            // },
+            // .LESS_EQUAL => switch (get_sem_tid(as_sem(binary))) {
+            //     .i32 => c.BinaryenLeSInt32(),
+            //     .i64 => c.BinaryenLeSInt64(),
+            //     .f32 => c.BinaryenLeFloat32(),
+            //     .f64 => c.BinaryenLeFloat64(),
+            //     else => unreachable,
+            // },
+
+            // else => unreachable,
         },
         else => {
             std.debug.print("\nNot Implemented = {any}\n", .{sem});

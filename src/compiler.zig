@@ -113,6 +113,16 @@ pub fn compile_expr(self: *Compiler, inst: *Ir.Inst) anyerror!c.BinaryenExpressi
             const value = self.current_env.?.stack.pop();
             break :blk c.BinaryenLocalSet(self.binaryen.module, index, value);
         },
+        .add_i32 => blk: {
+            const right = self.current_env.?.stack.pop();
+            const left = self.current_env.?.stack.pop();
+            break :blk c.BinaryenBinary(
+                self.binaryen.module,
+                c.BinaryenAddInt32(),
+                left,
+                right,
+            );
+        },
         .begin_block => blk: {
             var refs = try self.compile_until(.end_block);
             break :blk c.BinaryenBlock(
@@ -248,7 +258,7 @@ const Binaryen = struct {
     pub fn primitive(self: *Binaryen, tid: Infer.TypeID) c.BinaryenType {
         _ = self;
         return switch (tid) {
-            .i32, .bool => c.BinaryenTypeInt32(),
+            .i32, .bool, .number => c.BinaryenTypeInt32(),
             .i64 => c.BinaryenTypeInt64(),
             .f32 => c.BinaryenTypeFloat32(),
             .f64 => c.BinaryenTypeFloat64(),

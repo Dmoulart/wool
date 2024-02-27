@@ -1,5 +1,7 @@
 
--> { a: i32 = 0 }
+add :: -> { 
+  1 + 1
+}
 
 /* add_poly :: first, second -> 
 {
