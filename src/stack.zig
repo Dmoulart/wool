@@ -21,7 +21,7 @@ pub fn Stack(comptime T: type) type {
         }
 
         pub fn push(self: *Stack(T), item: T) !u32 {
-            if (self.count > self.capacity) {
+            if (self.count >= self.capacity) {
                 try self.grow();
             }
 

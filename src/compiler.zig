@@ -2,8 +2,8 @@ allocator: std.mem.Allocator,
 ir: []Ir.Inst,
 binaryen: Binaryen,
 instruction_cursor: usize,
-environments: std.ArrayListUnmanaged(Environment),
 current_env: ?*Environment,
+environments: std.ArrayListUnmanaged(Environment),
 
 const CompileError = error{NotImplemented};
 
@@ -22,36 +22,37 @@ pub fn init(allocator: std.mem.Allocator, ir: []Ir.Inst) Compiler {
 
 pub fn compile_program(self: *Compiler) !void {
     while (self.next_instruction()) |instruction| {
-        try self.compile(@constCast(instruction));
+        _ = try self.compile(@constCast(instruction));
     }
 }
-
-// pub fn compile_until(self: *Compiler, tag: Tag(Ir.Inst)) !void {
-//     while (!self.is_at_end() and !self.next_instruction_is(tag)) {
-//         var inst = self.next_instruction().?;
-//         try self.compile(inst);
-//     }
-// }
 
 pub fn compile_until(self: *Compiler, tag: Tag(Ir.Inst)) ![]c.BinaryenExpressionRef {
     var refs: std.ArrayListUnmanaged(c.BinaryenExpressionRef) = .{};
 
     while (!self.is_at_end() and !self.next_instruction_is(tag)) {
         var inst = self.next_instruction().?;
-        var ref = try self.compile_expr(inst);
-        try refs.append(self.allocator, ref);
+
+        if (try self.compile(inst)) |ref| {
+            try refs.append(self.allocator, ref);
+        }
     }
 
     return refs.items;
 }
 
-pub fn compile(self: *Compiler, inst: *Ir.Inst) !void {
+pub fn compile(self: *Compiler, inst: *Ir.Inst) !?c.BinaryenExpressionRef {
     if (is_global_instruction(inst)) {
         try self.compile_global(inst);
-    } else {
-        _ = try self.compile_expr(inst);
+        return null;
+    } else if (is_value_instruction(inst)) {
+        try self.compile_value(inst);
+        return null;
+    } else if (is_no_return_instruction(inst)) {
+        return null;
     }
+    return try self.compile_expr(inst);
 }
+
 pub fn compile_global(self: *Compiler, inst: *Ir.Inst) !void {
     switch (inst.*) {
         // @todo: factorize this in a good way ?
@@ -97,7 +98,6 @@ pub fn compile_global(self: *Compiler, inst: *Ir.Inst) !void {
                 @intCast(self.current_env.?.local_types.items.len),
                 body,
             );
-            // self.binaryen
         },
         else => {
             std.debug.print("hello {any}", .{inst});
@@ -107,11 +107,12 @@ pub fn compile_global(self: *Compiler, inst: *Ir.Inst) !void {
 }
 
 pub fn compile_expr(self: *Compiler, inst: *Ir.Inst) anyerror!c.BinaryenExpressionRef {
-    // c.BinaryenLocal
-    // c.BinaryenLocalSet(module: BinaryenModuleRef, index: BinaryenIndex, value: BinaryenExpressionRef)
     const expr = switch (inst.*) {
-        .push_i32 => |*push_i32| self.binaryen.constant(.i32, push_i32.*),
-        // .local_i32 => |*local_i32| => ,
+        .local_i32 => blk: {
+            const index = self.current_env.?.stack.count - 1;
+            const value = self.current_env.?.stack.pop();
+            break :blk c.BinaryenLocalSet(self.binaryen.module, index, value);
+        },
         .begin_block => blk: {
             var refs = try self.compile_until(.end_block);
             break :blk c.BinaryenBlock(
@@ -122,14 +123,26 @@ pub fn compile_expr(self: *Compiler, inst: *Ir.Inst) anyerror!c.BinaryenExpressi
                 c.BinaryenTypeAuto(),
             );
         },
-        else => CompileError.NotImplemented,
+        else => {
+            std.debug.print("not impl {any}", .{inst});
+            return CompileError.NotImplemented;
+        },
     };
 
-    // if(self.current_env)|env|{
-    //     env.add_local_type(local_type: c.BinaryenType)
-    // }
-
     return expr;
+}
+
+pub fn compile_value(self: *Compiler, inst: *Ir.Inst) anyerror!void {
+    switch (inst.*) {
+        .push_i32 => |*push_i32| {
+            const constant = self.binaryen.constant(.i32, push_i32.*);
+            _ = try self.current_env.?.stack.push(constant);
+        },
+        else => {
+            std.debug.print("not impl {any}", .{inst});
+            return CompileError.NotImplemented;
+        },
+    }
 }
 
 pub fn next_instruction(self: *Compiler) ?*Ir.Inst {
@@ -283,6 +296,30 @@ const global_instructions = blk: {
 
 fn is_global_instruction(inst: *Ir.Inst) bool {
     return global_instructions.contains(activeTag(inst.*));
+}
+
+const no_return_instructions = blk: {
+    var set = std.EnumSet(Tag(Ir.Inst)).initEmpty();
+
+    set.insert(.end_block);
+    set.insert(.end_func);
+
+    break :blk set;
+};
+
+fn is_no_return_instruction(inst: *Ir.Inst) bool {
+    return no_return_instructions.contains(activeTag(inst.*));
+}
+
+const value_instructions = blk: {
+    var set = std.EnumSet(Tag(Ir.Inst)).initEmpty();
+
+    set.insert(.push_i32);
+
+    break :blk set;
+};
+fn is_value_instruction(inst: *Ir.Inst) bool {
+    return value_instructions.contains(activeTag(inst.*));
 }
 
 const std = @import("std");
