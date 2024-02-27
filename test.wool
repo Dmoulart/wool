@@ -1,6 +1,6 @@
 
 add :: -> { 
-  1 + 1
+  1 + 1 + 1
 }
 
 /* add_poly :: first, second -> 

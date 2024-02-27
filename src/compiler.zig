@@ -116,12 +116,14 @@ pub fn compile_expr(self: *Compiler, inst: *Ir.Inst) anyerror!c.BinaryenExpressi
         .add_i32 => blk: {
             const right = self.current_env.?.stack.pop();
             const left = self.current_env.?.stack.pop();
-            break :blk c.BinaryenBinary(
+            const add = c.BinaryenBinary(
                 self.binaryen.module,
                 c.BinaryenAddInt32(),
                 left,
                 right,
             );
+            _ = try self.current_env.?.stack.push(add);
+            break :blk add;
         },
         .begin_block => blk: {
             var refs = try self.compile_until(.end_block);
