@@ -109,19 +109,19 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
             }),
             else => IrError.NotImplemented,
         },
-        .VarInit => |*var_init| blk: {
-            const name = var_init.orig_expr.VarInit.name.lexeme;
-            const local_ident = try self.function_variables.push(name);
+        // .VarInit => |*var_init| blk: {
+        //     const name = var_init.orig_expr.VarInit.name.lexeme;
+        //     const local_ident = try self.function_variables.push(name);
 
-            try self.emit(try self.convert(as_sem(var_init.initializer)));
+        //     const value = try self.create_inst(try self.convert(as_sem(var_init.initializer)));
 
-            break :blk try self.create_inst(switch (get_sem_tid(as_sem(var_init.initializer))) {
-                .i32 => Inst{
-                    .local_i32 = local_ident, // stack ?
-                },
-                else => return IrError.NotImplemented,
-            });
-        },
+        //     break :blk try self.create_inst(switch (get_sem_tid(as_sem(var_init.initializer))) {
+        //         .i32 => Inst{
+        //             .local_i32 = .{.ident = local_ident, value: }, // stack ?
+        //         },
+        //         else => return IrError.NotImplemented,
+        //     });
+        // },
         .ConstInit => |*const_init| switch (get_sem_tid(as_sem(const_init.initializer))) {
             .number, .i32 => try self.create_inst(.{
                 .global_i32 = .{

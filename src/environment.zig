@@ -17,6 +17,11 @@ pub fn deinit(self: *@This()) void {
     self.stack.deinit();
 }
 
+pub fn new_local(self: *@This(), ty: c.BinaryenType) !usize {
+    try self.local_types.append(ty);
+    return self.local_types.items.len;
+}
+
 pub fn add_local_type(self: *@This(), local_type: c.BinaryenType) !void {
     try self.local_types.append(local_type);
 }
