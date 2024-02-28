@@ -56,13 +56,13 @@ fn run(src: []const u8, allocator: std.mem.Allocator) !void {
     const sems = try infer.infer_program();
     var ir = Ir.init(allocator);
 
-    var program = try ir.emit_program(sems);
+    var program = try ir.convert_program(sems);
     try jsonPrint(program, "./ir.json");
 
-    var compiler = Compiler.init(allocator, program);
-    try compiler.compile_program();
+    // var compiler = Compiler.init(allocator, program);
+    // try compiler.compile_program();
 
-    try compiler.write();
+    // try compiler.write();
 
     // try jsonPrint(sems., "./sems.json");
 
