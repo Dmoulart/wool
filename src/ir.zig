@@ -10,15 +10,21 @@ const Ir = @This();
 
 pub const Inst = union(enum) {
     const_i32: i32,
-    // add_i32: void,
 
     global_i32: Inst.Global(i32),
 
-    local_i32: u32,
+    local_i32: struct {
+        ident: u32,
+        value: *Inst, // could be not i32 ?
+    },
 
     add_i32: Binary,
 
     func: Func,
+
+    block: struct {
+        insts: []*Inst,
+    },
 
     pub fn Global(comptime T: type) type {
         return struct {
@@ -40,38 +46,6 @@ pub const Inst = union(enum) {
     };
 };
 
-// pub const Inst = union(enum) {
-//     push_i32: i32,
-//     add_i32: void,
-
-//     local_i32: u32,
-
-//     // make one global instruction ?
-//     global_i32: Inst.Global(i32),
-//     global_i64: Inst.Global(i64),
-//     global_f32: Inst.Global(f32),
-//     global_f64: Inst.Global(f64),
-
-//     begin_func: BeginFunc,
-//     end_func: []const u8,
-
-//     begin_block: void,
-//     end_block: void,
-
-//     pub fn Global(comptime T: type) type {
-//         return struct {
-//             name: []const u8,
-//             value: T,
-//         };
-//     }
-
-//     pub const BeginFunc = struct {
-//         name: []const u8,
-//         args: []Infer.TypeID,
-//         ret: Infer.TypeID,
-//     };
-// };
-
 const IrError = error{NotImplemented};
 
 pub fn init(allocator: std.mem.Allocator) Ir {
@@ -91,11 +65,6 @@ pub fn convert_program(self: *Ir, sems: []*Infer.Sem) ![]*Inst {
     return self.program.items;
 }
 
-// pub fn emit_instruction(self: *Ir, sem: *Infer.Sem) !void {
-//     const inst = try self.convert(sem);
-//     try self.emit(inst);
-// }
-
 pub fn emit(self: *Ir, inst: *Inst) !void {
     try self.program.append(self.allocator, inst);
 }
@@ -109,19 +78,22 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
             }),
             else => IrError.NotImplemented,
         },
-        // .VarInit => |*var_init| blk: {
-        //     const name = var_init.orig_expr.VarInit.name.lexeme;
-        //     const local_ident = try self.function_variables.push(name);
+        .VarInit => |*var_init| blk: {
+            const name = var_init.orig_expr.VarInit.name.lexeme;
+            const local_ident = try self.function_variables.push(name);
 
-        //     const value = try self.create_inst(try self.convert(as_sem(var_init.initializer)));
+            const value = try self.convert(as_sem(var_init.initializer));
 
-        //     break :blk try self.create_inst(switch (get_sem_tid(as_sem(var_init.initializer))) {
-        //         .i32 => Inst{
-        //             .local_i32 = .{.ident = local_ident, value: }, // stack ?
-        //         },
-        //         else => return IrError.NotImplemented,
-        //     });
-        // },
+            break :blk try self.create_inst(switch (get_sem_tid(as_sem(var_init.initializer))) {
+                .i32 => .{
+                    .local_i32 = .{
+                        .ident = local_ident,
+                        .value = value,
+                    }, // stack ?
+                },
+                else => return IrError.NotImplemented,
+            });
+        },
         .ConstInit => |*const_init| switch (get_sem_tid(as_sem(const_init.initializer))) {
             .number, .i32 => try self.create_inst(.{
                 .global_i32 = .{
@@ -173,13 +145,17 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
                 },
             });
         },
-        // .Block => |*block| blk: {
-        //     try self.emit(Inst{ .begin_block = {} });
-        //     for (block.exprs) |expr| {
-        //         try self.emit(try self.convert(as_sem(expr)));
-        //     }
-        //     break :blk Inst{ .end_block = {} };
-        // },
+        .Block => |*block| blk: {
+            const insts = try self.allocator.alloc(*Inst, block.exprs.len);
+            for (block.exprs, 0..) |expr, i| {
+                insts[i] = try self.convert(as_sem(expr));
+            }
+            break :blk try self.create_inst(
+                .{
+                    .block = .{ .insts = insts },
+                },
+            );
+        },
         .Binary => |*binary| blk: {
             const left = try self.convert(as_sem(binary.left));
             const right = try self.convert(as_sem(binary.right));

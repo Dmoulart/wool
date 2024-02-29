@@ -5,7 +5,7 @@ instruction_cursor: usize,
 current_env: ?*Environment,
 environments: std.ArrayListUnmanaged(Environment),
 
-const CompileError = error{NotImplemented};
+const CompileError = error{ NotImplemented, ExpectedExpression };
 
 pub fn init(allocator: std.mem.Allocator, ir: []*Ir.Inst) Compiler {
     return .{
@@ -45,21 +45,21 @@ pub fn compile_global(self: *Compiler, inst: *Ir.Inst) !void {
                 global.value,
             );
         },
-        // .func => |*func| {
-        //     try self.use_new_environment();
-        //     // either a block or a single expression ?
-        //     const body = try self.compile_expr(self.next_instruction().?);
+        .func => |*func| {
+            try self.use_new_environment();
+            // either a block or a single expression ?
+            const body = try self.compile_expr(func.body);
 
-        //     _ = c.BinaryenAddFunction(
-        //         self.binaryen.module,
-        //         self.to_c_str(func.name),
-        //         try self.binaryen.arguments(&self.allocator, func.args), // ?
-        //         self.binaryen.primitive(func.ret),
-        //         self.current_env.?.local_types.items.ptr,
-        //         @intCast(self.current_env.?.local_types.items.len),
-        //         body,
-        //     );
-        // },
+            _ = c.BinaryenAddFunction(
+                self.binaryen.module,
+                self.to_c_str(func.name),
+                try self.binaryen.arguments(&self.allocator, func.args), // ?
+                self.binaryen.primitive(func.ret),
+                self.current_env.?.local_types.items.ptr,
+                @intCast(self.current_env.?.local_types.items.len),
+                body,
+            );
+        },
         else => {
             std.debug.print("hello {any}", .{inst});
             return CompileError.NotImplemented;
@@ -69,28 +69,41 @@ pub fn compile_global(self: *Compiler, inst: *Ir.Inst) !void {
 
 pub fn compile_expr(self: *Compiler, inst: *Ir.Inst) anyerror!c.BinaryenExpressionRef {
     const expr = switch (inst.*) {
-        // .local_i32 => |const_i32| blk: {
-        //     // if(self.current_function())|env|{
+        .local_i32 => |local_i32| blk: {
+            // if(self.current_function())|env|{
 
-        //     // }
-        //     const index = try self.current_env.?.new_local(c.BinaryenTypeInt32());
-        //     const value = self.binaryen.constant(.i32, const_i32);
-        //     break :blk c.BinaryenLocalSet(self.binaryen.module, index, value);
-        // },
-        .add_i32 => blk: {
-            const right = self.current_env.?.stack.pop();
-            const left = self.current_env.?.stack.pop();
-            const add = c.BinaryenBinary(
+            // }
+            const index = try self.current_env.?.new_local(c.BinaryenTypeInt32());
+            // const value = self.binaryen.constant(.i32, local_i32);
+            const value = try self.compile_expr(local_i32.value) orelse return CompileError.ExpectedExpression; // Could fail
+            break :blk c.BinaryenLocalSet(self.binaryen.module, @intCast(index), value);
+        },
+        .add_i32 => |add_i32| blk: {
+            const right = try self.compile_expr(add_i32.left);
+            const left = try self.compile_expr(add_i32.right);
+            break :blk c.BinaryenBinary(
                 self.binaryen.module,
                 c.BinaryenAddInt32(),
                 left,
                 right,
             );
-            _ = try self.current_env.?.stack.push(add);
-            break :blk add;
         },
-        .const_i32 => |*const_i32| {
-            return self.binaryen.constant(.i32, const_i32.*);
+        .const_i32 => |const_i32| {
+            return self.binaryen.constant(.i32, const_i32);
+        },
+        .block => |*block| {
+            //@todo:mem dealloc
+            const refs = try self.allocator.alloc(c.BinaryenExpressionRef, block.insts.len);
+            for (block.insts, 0..) |child_inst, i| {
+                refs[i] = try self.compile_expr(child_inst);
+            }
+            return c.BinaryenBlock(
+                self.binaryen.module,
+                null,
+                @ptrCast(refs),
+                @intCast(refs.len),
+                c.BinaryenTypeAuto(),
+            );
         },
 
         else => {
