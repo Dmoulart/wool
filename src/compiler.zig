@@ -108,6 +108,114 @@ pub fn compile_expr(self: *Compiler, inst: *Ir.Inst) anyerror!c.BinaryenExpressi
         .add_f64 => |bin| {
             return try self.binary(.f64, .PLUS, bin);
         },
+        .sub_i32 => |bin| {
+            return try self.binary(.i32, .MINUS, bin);
+        },
+        .sub_i64 => |bin| {
+            return try self.binary(.i64, .MINUS, bin);
+        },
+        .sub_f32 => |bin| {
+            return try self.binary(.f32, .MINUS, bin);
+        },
+        .sub_f64 => |bin| {
+            return try self.binary(.f64, .MINUS, bin);
+        },
+        .mul_i32 => |bin| {
+            return try self.binary(.i32, .STAR, bin);
+        },
+        .mul_i64 => |bin| {
+            return try self.binary(.i64, .STAR, bin);
+        },
+        .mul_f32 => |bin| {
+            return try self.binary(.f32, .STAR, bin);
+        },
+        .mul_f64 => |bin| {
+            return try self.binary(.f64, .STAR, bin);
+        },
+        .div_i32 => |bin| {
+            return try self.binary(.i32, .SLASH, bin);
+        },
+        .div_i64 => |bin| {
+            return try self.binary(.i64, .SLASH, bin);
+        },
+        .div_f32 => |bin| {
+            return try self.binary(.f32, .SLASH, bin);
+        },
+        .div_f64 => |bin| {
+            return try self.binary(.f64, .SLASH, bin);
+        },
+        .eq_i32 => |bin| {
+            return try self.binary(.i32, .EQUAL_EQUAL, bin);
+        },
+        .eq_i64 => |bin| {
+            return try self.binary(.i64, .EQUAL_EQUAL, bin);
+        },
+        .eq_f32 => |bin| {
+            return try self.binary(.f32, .EQUAL_EQUAL, bin);
+        },
+        .eq_f64 => |bin| {
+            return try self.binary(.f64, .EQUAL_EQUAL, bin);
+        },
+        .neq_i32 => |bin| {
+            return try self.binary(.i32, .BANG_EQUAL, bin);
+        },
+        .neq_i64 => |bin| {
+            return try self.binary(.i64, .BANG_EQUAL, bin);
+        },
+        .neq_f32 => |bin| {
+            return try self.binary(.f32, .BANG_EQUAL, bin);
+        },
+        .neq_f64 => |bin| {
+            return try self.binary(.f64, .BANG_EQUAL, bin);
+        },
+        .gt_i32 => |bin| {
+            return try self.binary(.i32, .GREATER, bin);
+        },
+        .gt_i64 => |bin| {
+            return try self.binary(.i64, .GREATER, bin);
+        },
+        .gt_f32 => |bin| {
+            return try self.binary(.f32, .GREATER, bin);
+        },
+        .gt_f64 => |bin| {
+            return try self.binary(.f64, .GREATER, bin);
+        },
+        .ge_i32 => |bin| {
+            return try self.binary(.i32, .GREATER_EQUAL, bin);
+        },
+        .ge_i64 => |bin| {
+            return try self.binary(.i64, .GREATER_EQUAL, bin);
+        },
+        .ge_f32 => |bin| {
+            return try self.binary(.f32, .GREATER_EQUAL, bin);
+        },
+        .ge_f64 => |bin| {
+            return try self.binary(.f64, .GREATER_EQUAL, bin);
+        },
+        .lt_i32 => |bin| {
+            return try self.binary(.i32, .LESS, bin);
+        },
+        .lt_i64 => |bin| {
+            return try self.binary(.i64, .LESS, bin);
+        },
+        .lt_f32 => |bin| {
+            return try self.binary(.f32, .LESS, bin);
+        },
+        .lt_f64 => |bin| {
+            return try self.binary(.f64, .LESS, bin);
+        },
+        .le_i32 => |bin| {
+            return try self.binary(.i32, .LESS_EQUAL, bin);
+        },
+        .le_i64 => |bin| {
+            return try self.binary(.i64, .LESS_EQUAL, bin);
+        },
+        .le_f32 => |bin| {
+            return try self.binary(.f32, .LESS_EQUAL, bin);
+        },
+        .le_f64 => |bin| {
+            return try self.binary(.f64, .LESS_EQUAL, bin);
+        },
         .block => |*block| {
             //@todo:mem dealloc
             const refs = try self.allocator.alloc(c.BinaryenExpressionRef, block.insts.len);

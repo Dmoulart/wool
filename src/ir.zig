@@ -29,6 +29,51 @@ pub const Inst = union(enum) {
     add_f32: Binary,
     add_f64: Binary,
 
+    sub_i32: Binary,
+    sub_i64: Binary,
+    sub_f32: Binary,
+    sub_f64: Binary,
+
+    mul_i32: Binary,
+    mul_i64: Binary,
+    mul_f32: Binary,
+    mul_f64: Binary,
+
+    div_i32: Binary,
+    div_i64: Binary,
+    div_f32: Binary,
+    div_f64: Binary,
+
+    eq_i32: Binary,
+    eq_i64: Binary,
+    eq_f32: Binary,
+    eq_f64: Binary,
+
+    neq_i32: Binary,
+    neq_i64: Binary,
+    neq_f32: Binary,
+    neq_f64: Binary,
+
+    gt_i32: Binary,
+    gt_i64: Binary,
+    gt_f32: Binary,
+    gt_f64: Binary,
+
+    ge_i32: Binary,
+    ge_i64: Binary,
+    ge_f32: Binary,
+    ge_f64: Binary,
+
+    lt_i32: Binary,
+    lt_i64: Binary,
+    lt_f32: Binary,
+    lt_f64: Binary,
+
+    le_i32: Binary,
+    le_i64: Binary,
+    le_f32: Binary,
+    le_f64: Binary,
+
     func: Func,
 
     block: struct {
@@ -58,16 +103,6 @@ pub const Inst = union(enum) {
         ret: Infer.TypeID,
         body: *Inst,
     };
-
-    pub fn type_of(comptime inst: Inst) Infer.TypeID {
-        return switch (inst) {
-            .value_i32, .local_i32, .global_i32, .add_i32 => .i32,
-            .value_i64, .local_i64, .global_i64, .add_i64 => .i64,
-            .value_f32, .local_f32, .global_f32, .add_f32 => .f32,
-            .value_f64, .local_f64, .global_f64, .add_f64 => .f64,
-            else => unreachable,
-        };
-    }
 };
 
 const IrError = error{NotImplemented};
@@ -210,46 +245,170 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
 
             const op = binary.orig_expr.Binary.op.type;
 
-            return switch (op) {
-                .PLUS => switch (get_sem_tid(as_sem(binary))) {
-                    .number, .i32 => try self.create_inst(
-                        .{
-                            .add_i32 = .{
-                                .left = left,
-                                .right = right,
-                            },
-                        },
-                    ),
-                    .i64 => try self.create_inst(
-                        .{
-                            .add_i64 = .{
-                                .left = left,
-                                .right = right,
-                            },
-                        },
-                    ),
-                    .float, .f32 => try self.create_inst(
-                        .{
-                            .add_f32 = .{
-                                .left = left,
-                                .right = right,
-                            },
-                        },
-                    ),
-                    .f64 => try self.create_inst(
-                        .{
-                            .add_f64 = .{
-                                .left = left,
-                                .right = right,
-                            },
-                        },
-                    ),
-                    else => IrError.NotImplemented,
-                },
-                else => IrError.NotImplemented,
+            const tid = get_sem_tid(as_sem(binary));
+
+            const values = .{
+                .left = left,
+                .right = right,
             };
+
+            const inst: Ir.Inst = switch (op) {
+                .PLUS => switch (tid) {
+                    .number, .i32 => .{
+                        .add_i32 = values,
+                    },
+                    .i64 => .{
+                        .add_i64 = values,
+                    },
+                    .float, .f32 => .{
+                        .add_f32 = values,
+                    },
+                    .f64 => .{
+                        .add_f64 = values,
+                    },
+                    else => unreachable,
+                },
+                .MINUS => switch (tid) {
+                    .number, .i32 => .{
+                        .sub_i32 = values,
+                    },
+                    .i64 => .{
+                        .sub_i64 = values,
+                    },
+                    .float, .f32 => .{
+                        .sub_f32 = values,
+                    },
+                    .f64 => .{
+                        .sub_f64 = values,
+                    },
+                    else => unreachable,
+                },
+                .STAR => switch (tid) {
+                    .number, .i32 => .{
+                        .mul_i32 = values,
+                    },
+                    .i64 => .{
+                        .mul_i64 = values,
+                    },
+                    .float, .f32 => .{
+                        .mul_f32 = values,
+                    },
+                    .f64 => .{
+                        .mul_f64 = values,
+                    },
+                    else => unreachable,
+                },
+                .SLASH => switch (tid) {
+                    .number, .i32 => .{
+                        .div_i32 = values,
+                    },
+                    .i64 => .{
+                        .div_i64 = values,
+                    },
+                    .float, .f32 => .{
+                        .div_f32 = values,
+                    },
+                    .f64 => .{
+                        .div_f64 = values,
+                    },
+                    else => unreachable,
+                },
+                .EQUAL_EQUAL => switch (tid) {
+                    .number, .i32 => .{
+                        .eq_i32 = values,
+                    },
+                    .i64 => .{
+                        .eq_i64 = values,
+                    },
+                    .float, .f32 => .{
+                        .eq_f32 = values,
+                    },
+                    .f64 => .{
+                        .eq_f64 = values,
+                    },
+                    else => unreachable,
+                },
+                .BANG_EQUAL => switch (tid) {
+                    .number, .i32 => .{
+                        .neq_i32 = values,
+                    },
+                    .i64 => .{
+                        .neq_i64 = values,
+                    },
+                    .float, .f32 => .{
+                        .neq_f32 = values,
+                    },
+                    .f64 => .{
+                        .neq_f64 = values,
+                    },
+                    else => unreachable,
+                },
+                .GREATER => switch (tid) {
+                    .number, .i32 => .{
+                        .gt_i32 = values,
+                    },
+                    .i64 => .{
+                        .gt_i64 = values,
+                    },
+                    .float, .f32 => .{
+                        .gt_f32 = values,
+                    },
+                    .f64 => .{
+                        .gt_f64 = values,
+                    },
+                    else => unreachable,
+                },
+                .GREATER_EQUAL => switch (tid) {
+                    .number, .i32 => .{
+                        .ge_i32 = values,
+                    },
+                    .i64 => .{
+                        .ge_i64 = values,
+                    },
+                    .float, .f32 => .{
+                        .ge_f32 = values,
+                    },
+                    .f64 => .{
+                        .ge_f64 = values,
+                    },
+                    else => unreachable,
+                },
+                .LESS => switch (tid) {
+                    .number, .i32 => .{
+                        .lt_i32 = values,
+                    },
+                    .i64 => .{
+                        .lt_i64 = values,
+                    },
+                    .float, .f32 => .{
+                        .lt_f32 = values,
+                    },
+                    .f64 => .{
+                        .lt_f64 = values,
+                    },
+                    else => unreachable,
+                },
+                .LESS_EQUAL => switch (tid) {
+                    .number, .i32 => .{
+                        .le_i32 = values,
+                    },
+                    .i64 => .{
+                        .le_i64 = values,
+                    },
+                    .float, .f32 => .{
+                        .le_f32 = values,
+                    },
+                    .f64 => .{
+                        .le_f64 = values,
+                    },
+                    else => unreachable,
+                },
+                else => return IrError.NotImplemented,
+            };
+
+            return try self.create_inst(inst);
         },
-       
+
         else => {
             std.debug.print("\nNot Implemented = {any}\n", .{sem});
             return IrError.NotImplemented;
