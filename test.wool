@@ -3,14 +3,36 @@
  // does not work
 // my_bool :: 1 == 1
 
-my_bool :: 1234 + 1234
+global_var :: 1234 + 1234
 
 a :: -> { 
   // i : i32 = 1 * 1 + 1 - 123 - 312 / 123
 
   i : i64 = 1 
 
-  c := i == my_bool
+  c := i == global_var
+
+  d : i64 = if c 
+    { 
+      global_var + 1 
+      global_var
+    } 
+    else 
+    { 
+      i + 1 
+      i
+    }
+
+  /* @does not work
+  d : i64 = if c 
+    { 
+      global_var 
+    } 
+    else 
+    { 
+      i 
+    }
+    */
 }
 
 /* 

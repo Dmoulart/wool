@@ -88,6 +88,8 @@ pub const Inst = union(enum) {
 
     func: Func,
 
+    @"if": If,
+
     block: struct {
         insts: []*Inst,
     },
@@ -116,6 +118,12 @@ pub const Inst = union(enum) {
         args: []Infer.TypeID,
         ret: Infer.TypeID,
         body: *Inst,
+    };
+
+    pub const If = struct {
+        then_branch: *Inst,
+        else_branch: ?*Inst,
+        condition: *Inst,
     };
 };
 
@@ -476,6 +484,20 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
         else => {
             std.debug.print("\nNot Implemented = {any}\n", .{sem});
             return IrError.NotImplemented;
+        },
+        //  condition: *const Expr,
+        // then_branch: *const Expr,
+        // else_branch: ?*const Expr,
+        .If => |*if_sem| {
+            return try self.create_inst(
+                .{
+                    .@"if" = .{
+                        .then_branch = try self.convert(as_sem(if_sem.then_branch)),
+                        .else_branch = if (if_sem.else_branch) |else_branch| try self.convert(as_sem(else_branch)) else null,
+                        .condition = try self.convert(as_sem(if_sem.condition)),
+                    },
+                },
+            );
         },
     }
 }

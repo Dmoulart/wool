@@ -283,6 +283,14 @@ pub fn compile_expr(self: *Compiler, inst: *Ir.Inst) anyerror!c.BinaryenExpressi
                 c.BinaryenTypeAuto(),
             );
         },
+        .@"if" => |*if_inst| {
+            return c.BinaryenIf(
+                self.module,
+                try self.compile_expr(if_inst.condition),
+                try self.compile_expr(if_inst.then_branch),
+                if (if_inst.else_branch) |else_branch| try self.compile_expr(else_branch) else null,
+            );
+        },
         else => {
             std.debug.print("not impl {any}", .{inst});
             return CompileError.NotImplemented;

@@ -596,8 +596,11 @@ fn call(
         const arg = try self.infer(expr_arg);
 
         var arg_type = sem_type(arg);
+
         // @warning: watch this crap
-        arg_type.variable.name = function_arg.variable.name;
+        if (tag(arg_type.*) == .variable) {
+            arg_type.variable.name = function_arg.variable.name;
+        }
 
         const call_arg = try self.get_or_create_local_node(
             function_arg,
