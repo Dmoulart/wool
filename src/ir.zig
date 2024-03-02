@@ -280,7 +280,8 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
 
             const op = binary.orig_expr.Binary.op.type;
 
-            const tid = get_sem_tid(as_sem(binary));
+            // We could have picked binary.right.
+            const tid = get_sem_tid(as_sem(binary.left));
 
             const values = .{
                 .left = left,
