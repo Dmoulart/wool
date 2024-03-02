@@ -22,7 +22,7 @@ pub const Inst = union(enum) {
     local_f32: Local,
     local_f64: Local,
 
-    ref: Local.Ident,
+    local_ref: Local.Ident,
 
     global_bool: Global(i32),
     global_i32: Global(i32),
@@ -442,13 +442,14 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
             return try self.create_inst(inst);
         },
         .Variable => |*variable| {
+            //@todo: more efficient way of handling this
             const maybe_local_ident = self.function_locals.find_index(
                 variable.orig_expr.Variable.name.lexeme,
                 find_str,
             );
             if (maybe_local_ident) |local_ident| {
                 return try self.create_inst(.{
-                    .ref = @intCast(local_ident),
+                    .local_ref = @intCast(local_ident),
                 });
             } else {
                 return IrError.CannotFindLocalVariable;
