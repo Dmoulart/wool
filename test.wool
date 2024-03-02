@@ -1,12 +1,15 @@
 
-my_bool :: true
+// does not work
+// my_bool :: 1 == 1
+
+my_bool :: 1234 + 1234
 
 a :: -> { 
   // i : i32 = 1 * 1 + 1 - 123 - 312 / 123
 
-  i := false 
+  i : i64 = 1 
 
-  c := i == true
+  c := i == my_bool
 }
 
 /* 

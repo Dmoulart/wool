@@ -4,6 +4,8 @@ instructions: std.ArrayListUnmanaged(Inst),
 
 program: std.ArrayListUnmanaged(*Inst),
 
+globals: std.StringHashMapUnmanaged(void),
+
 function_locals: Stack([]const u8),
 // function_local_types: Stack(Infer.TypeID),
 
@@ -16,13 +18,15 @@ pub const Inst = union(enum) {
     value_f32: f32,
     value_f64: f64,
 
+    local_ref: Local.Ident,
+
     local_bool: Local,
     local_i32: Local,
     local_i64: Local,
     local_f32: Local,
     local_f64: Local,
 
-    local_ref: Local.Ident,
+    global_ref: []const u8,
 
     global_bool: Global(i32),
     global_i32: Global(i32),
@@ -122,6 +126,7 @@ pub fn init(allocator: std.mem.Allocator) Ir {
         .allocator = allocator,
         .instructions = .{},
         .program = .{},
+        .globals = .{},
         .function_locals = Stack([]const u8).init(allocator),
         // .function_locals = Stack(Infer.TypeID).init(allocator),
     };
@@ -195,6 +200,9 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
         },
         .ConstInit => |*const_init| {
             const name = const_init.orig_expr.ConstInit.name.lexeme;
+
+            try self.globals.put(self.allocator, name, {});
+
             return switch (get_sem_tid(as_sem(const_init.initializer))) {
                 .bool => try self.create_inst(.{
                     .global_bool = .{
@@ -442,11 +450,20 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
             return try self.create_inst(inst);
         },
         .Variable => |*variable| {
+            const name = variable.orig_expr.Variable.name.lexeme;
+
+            if (self.globals.contains(name)) {
+                return try self.create_inst(.{
+                    .global_ref = name,
+                });
+            }
+
             //@todo: more efficient way of handling this
             const maybe_local_ident = self.function_locals.find_index(
                 variable.orig_expr.Variable.name.lexeme,
                 find_str,
             );
+
             if (maybe_local_ident) |local_ident| {
                 return try self.create_inst(.{
                     .local_ref = @intCast(local_ident),

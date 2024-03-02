@@ -255,6 +255,20 @@ pub fn compile_expr(self: *Compiler, inst: *Ir.Inst) anyerror!c.BinaryenExpressi
         .le_f64 => |bin| {
             return try self.binary(.f64, .LESS_EQUAL, bin);
         },
+        .local_ref => |local_ref| {
+            return c.BinaryenLocalGet(
+                self.module,
+                local_ref,
+                c.BinaryenTypeAuto(),
+            );
+        },
+        .global_ref => |global_ref| {
+            return c.BinaryenGlobalGet(
+                self.module,
+                self.to_c_str(global_ref),
+                c.BinaryenTypeAuto(),
+            );
+        },
         .block => |*block| {
             //@todo:mem dealloc
             const refs = try self.allocator.alloc(c.BinaryenExpressionRef, block.insts.len);
@@ -268,9 +282,6 @@ pub fn compile_expr(self: *Compiler, inst: *Ir.Inst) anyerror!c.BinaryenExpressi
                 @intCast(refs.len),
                 c.BinaryenTypeAuto(),
             );
-        },
-        .local_ref => |local_ref| {
-            return c.BinaryenLocalGet(self.module, local_ref, c.BinaryenTypeAuto());
         },
         else => {
             std.debug.print("not impl {any}", .{inst});
