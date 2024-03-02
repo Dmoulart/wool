@@ -81,22 +81,30 @@ pub fn compile_expr(self: *Compiler, inst: *Ir.Inst) anyerror!c.BinaryenExpressi
         .value_f64 => |value_f64| {
             return self.binaryen.constant(.f64, value_f64);
         },
-        .local_i32, .local_i64, .local_f32, .local_f64 => |local| blk: {
-            const index = try self.current_env.?.new_local(self.binaryen.primitive(inst.type_of()));
-            const value = try self.compile_expr(local.value) orelse return CompileError.ExpectedExpression; // Could fail
-            break :blk c.BinaryenLocalSet(self.binaryen.module, @intCast(index), value);
+        .local_i32 => |local| {
+            return try self.declare_local(.i32, local);
         },
-        .add_i32 => |add_i32| blk: {
-            const right = try self.compile_expr(add_i32.left);
-            const left = try self.compile_expr(add_i32.right);
-            break :blk c.BinaryenBinary(
-                self.binaryen.module,
-                c.BinaryenAddInt32(),
-                left,
-                right,
-            );
+        .local_i64 => |local| {
+            return try self.declare_local(.i64, local);
         },
-
+        .local_f32 => |local| {
+            return try self.declare_local(.f32, local);
+        },
+        .local_f64 => |local| {
+            return try self.declare_local(.f64, local);
+        },
+        .add_i32 => |bin| {
+            return try self.binary(.i32, .PLUS, bin);
+        },
+        .add_i64 => |bin| {
+            return try self.binary(.i64, .PLUS, bin);
+        },
+        .add_f32 => |bin| {
+            return try self.binary(.f32, .PLUS, bin);
+        },
+        .add_f64 => |bin| {
+            return try self.binary(.f64, .PLUS, bin);
+        },
         .block => |*block| {
             //@todo:mem dealloc
             const refs = try self.allocator.alloc(c.BinaryenExpressionRef, block.insts.len);
@@ -119,6 +127,32 @@ pub fn compile_expr(self: *Compiler, inst: *Ir.Inst) anyerror!c.BinaryenExpressi
     };
 
     return expr;
+}
+
+fn declare_local(
+    self: *Compiler,
+    comptime tid: Infer.TypeID,
+    local: Ir.Inst.Local,
+) !c.BinaryenExpressionRef {
+    const index = try self.current_env.?.new_local(self.binaryen.primitive(tid));
+    const value = try self.compile_expr(local.value) orelse return CompileError.ExpectedExpression; // Could fail ?
+    return c.BinaryenLocalSet(self.binaryen.module, @intCast(index), value);
+}
+
+fn binary(
+    self: *Compiler,
+    comptime tid: Infer.TypeID,
+    comptime operator: Token.Type,
+    bin: Ir.Inst.Binary,
+) !c.BinaryenExpressionRef {
+    const right = try self.compile_expr(bin.left);
+    const left = try self.compile_expr(bin.right);
+    return c.BinaryenBinary(
+        self.binaryen.module,
+        self.binaryen.op(tid, operator),
+        left,
+        right,
+    );
 }
 
 fn current_function(self: *Compiler) ?*Environment {
@@ -231,6 +265,84 @@ const Binaryen = struct {
         );
     }
 
+    pub fn op(self: *Binaryen, comptime tid: Infer.TypeID, comptime operator: Token.Type) c.BinaryenOp {
+        _ = self;
+        return switch (operator) {
+            .PLUS => switch (tid) {
+                .i32 => c.BinaryenAddInt32(),
+                .i64 => c.BinaryenAddInt64(),
+                .f32 => c.BinaryenAddFloat32(),
+                .f64 => c.BinaryenAddFloat64(),
+                else => unreachable,
+            },
+            .MINUS => switch (tid) {
+                .i32 => c.BinaryenSubInt32(),
+                .i64 => c.BinaryenSubInt64(),
+                .f32 => c.BinaryenSubFloat32(),
+                .f64 => c.BinaryenSubFloat64(),
+                else => unreachable,
+            },
+            .STAR => switch (tid) {
+                .i32 => c.BinaryenMulInt32(),
+                .i64 => c.BinaryenMulInt64(),
+                .f32 => c.BinaryenMulFloat32(),
+                .f64 => c.BinaryenMulFloat64(),
+                else => unreachable,
+            },
+            .SLASH => switch (tid) {
+                .i32 => c.BinaryenDivSInt32(), // div s ? div u ?,
+                .i64 => c.BinaryenDivSInt64(),
+                .f32 => c.BinaryenDivFloat32(),
+                .f64 => c.BinaryenDivFloat64(),
+                else => unreachable,
+            },
+            .EQUAL_EQUAL => switch (tid) {
+                .i32 => c.BinaryenEqInt32(),
+                .i64 => c.BinaryenEqInt64(),
+                .f32 => c.BinaryenEqFloat32(),
+                .f64 => c.BinaryenEqFloat64(),
+                else => unreachable,
+            },
+            .BANG_EQUAL => switch (tid) {
+                .i32 => c.BinaryenNeInt32(),
+                .i64 => c.BinaryenNeInt64(),
+                .f32 => c.BinaryenNeFloat32(),
+                .f64 => c.BinaryenNeFloat64(),
+                else => unreachable,
+            },
+            .GREATER => switch (tid) {
+                .i32 => c.BinaryenGtSInt32(),
+                .i64 => c.BinaryenGtSInt64(),
+                .f32 => c.BinaryenGtFloat32(),
+                .f64 => c.BinaryenGtFloat64(),
+                else => unreachable,
+            },
+            .GREATER_EQUAL => switch (tid) {
+                .i32 => c.BinaryenGeSInt32(),
+                .i64 => c.BinaryenGeSInt64(),
+                .f32 => c.BinaryenGeFloat32(),
+                .f64 => c.BinaryenGeFloat64(),
+                else => unreachable,
+            },
+            .LESS => switch (tid) {
+                .i32 => c.BinaryenLtSInt32(),
+                .i64 => c.BinaryenLtSInt64(),
+                .f32 => c.BinaryenLtFloat32(),
+                .f64 => c.BinaryenLtFloat64(),
+                else => unreachable,
+            },
+            .LESS_EQUAL => switch (tid) {
+                .i32 => c.BinaryenLeSInt32(),
+                .i64 => c.BinaryenLeSInt64(),
+                .f32 => c.BinaryenLeFloat32(),
+                .f64 => c.BinaryenLeFloat64(),
+                else => unreachable,
+            },
+
+            else => unreachable,
+        };
+    }
+
     pub fn constant(self: *Binaryen, comptime tid: Infer.TypeID, value: anytype) c.BinaryenExpressionRef {
         return c.BinaryenConst(
             self.module,
@@ -321,7 +433,9 @@ const activeTag = std.meta.activeTag;
 const c = @cImport({
     @cInclude("binaryen-c.h");
 });
-const Compiler = @This();
+const Token = @import("./token.zig");
 const Infer = @import("./infer.zig");
 const Ir = @import("./ir.zig");
 const Environment = @import("./environment.zig");
+
+const Compiler = @This();
