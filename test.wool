@@ -6,7 +6,7 @@ a :: -> {
 
   i := false 
 
-  c := true == true
+  c := i == true
 }
 
 /* 

@@ -58,6 +58,20 @@ pub fn Stack(comptime T: type) type {
             return self.items[self.count - 1];
         }
 
+        pub fn find_index(self: *Stack(T), target: T, cb: *const fn (item: T, target: T) bool) ?usize {
+            if (self.count == 0) {
+                return null;
+            }
+
+            for (self.items, 0..) |item, i| {
+                if (cb(item, target)) {
+                    return i;
+                }
+            }
+
+            return null;
+        }
+
         pub fn clear(self: *Stack(T)) !void {
             self.items = try self.allocator.realloc(self.items, 1);
             self.capacity = self.items.len;

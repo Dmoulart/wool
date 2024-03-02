@@ -269,7 +269,9 @@ pub fn compile_expr(self: *Compiler, inst: *Ir.Inst) anyerror!c.BinaryenExpressi
                 c.BinaryenTypeAuto(),
             );
         },
-
+        .ref => |ref| {
+            return c.BinaryenLocalGet(self.module, ref, c.BinaryenTypeAuto());
+        },
         else => {
             std.debug.print("not impl {any}", .{inst});
             return CompileError.NotImplemented;

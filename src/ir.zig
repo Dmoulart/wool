@@ -4,7 +4,8 @@ instructions: std.ArrayListUnmanaged(Inst),
 
 program: std.ArrayListUnmanaged(*Inst),
 
-function_variables: Stack([]const u8),
+function_locals: Stack([]const u8),
+// function_local_types: Stack(Infer.TypeID),
 
 const Ir = @This();
 
@@ -20,6 +21,8 @@ pub const Inst = union(enum) {
     local_i64: Local,
     local_f32: Local,
     local_f64: Local,
+
+    ref: Local.Ident,
 
     global_bool: Global(i32),
     global_i32: Global(i32),
@@ -93,7 +96,9 @@ pub const Inst = union(enum) {
     }
 
     pub const Local = struct {
-        ident: u32,
+        pub const Ident = u32;
+
+        ident: Ident,
         value: *Inst,
     };
 
@@ -110,14 +115,15 @@ pub const Inst = union(enum) {
     };
 };
 
-const IrError = error{NotImplemented};
+const IrError = error{ NotImplemented, CannotFindLocalVariable };
 
 pub fn init(allocator: std.mem.Allocator) Ir {
     return .{
         .allocator = allocator,
         .instructions = .{},
         .program = .{},
-        .function_variables = Stack([]const u8).init(allocator),
+        .function_locals = Stack([]const u8).init(allocator),
+        // .function_locals = Stack(Infer.TypeID).init(allocator),
     };
 }
 
@@ -156,7 +162,10 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
         },
         .VarInit => |*var_init| {
             const name = var_init.orig_expr.VarInit.name.lexeme;
-            const local_ident = try self.function_variables.push(name);
+            const tid = get_sem_tid(as_sem(var_init.initializer));
+
+            const local_ident = try self.function_locals.push(name);
+            // _ = try self.function_local_types.push(tid);
 
             const value = try self.convert(as_sem(var_init.initializer));
 
@@ -165,7 +174,7 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
                 .value = value,
             };
 
-            return try self.create_inst(switch (get_sem_tid(as_sem(var_init.initializer))) {
+            return try self.create_inst(switch (tid) {
                 .i32 => .{
                     .local_i32 = local_value,
                 },
@@ -223,7 +232,8 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
             };
         },
         .Function => |*function| {
-            try self.function_variables.clear();
+            try self.function_locals.clear();
+            // try self.function_local_types.clear();
             var args = try self.allocator.alloc(Infer.TypeID, function.type_node.function.args.len);
 
             for (function.type_node.function.args, 0..) |arg, i| {
@@ -431,12 +441,28 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
 
             return try self.create_inst(inst);
         },
-
+        .Variable => |*variable| {
+            const maybe_local_ident = self.function_locals.find_index(
+                variable.orig_expr.Variable.name.lexeme,
+                find_str,
+            );
+            if (maybe_local_ident) |local_ident| {
+                return try self.create_inst(.{
+                    .ref = @intCast(local_ident),
+                });
+            } else {
+                return IrError.CannotFindLocalVariable;
+            }
+        },
         else => {
             std.debug.print("\nNot Implemented = {any}\n", .{sem});
             return IrError.NotImplemented;
         },
     }
+}
+
+fn find_str(item: []const u8, target: []const u8) bool {
+    return std.mem.eql(u8, item, target);
 }
 
 fn create_inst(self: *Ir, inst: Inst) !*Inst {
