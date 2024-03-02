@@ -1,8 +1,13 @@
 allocator: std.mem.Allocator,
+
 ir: []*Ir.Inst,
-binaryen: Binaryen,
+
+module: c.BinaryenModuleRef,
+
 instruction_cursor: usize,
+
 current_env: ?*Environment,
+
 environments: std.ArrayListUnmanaged(Environment),
 
 const CompileError = error{ NotImplemented, ExpectedExpression };
@@ -11,9 +16,7 @@ pub fn init(allocator: std.mem.Allocator, ir: []*Ir.Inst) Compiler {
     return .{
         .allocator = allocator,
         .ir = ir,
-        .binaryen = Binaryen.init(
-            c.BinaryenModuleCreate(),
-        ),
+        .module = c.BinaryenModuleCreate(),
         .instruction_cursor = 1,
         .environments = .{},
         .current_env = null,
@@ -39,7 +42,7 @@ pub fn compile_global(self: *Compiler, inst: *Ir.Inst) !void {
     switch (inst.*) {
         // @todo: factorize this in a good way ?
         .global_i32 => |*global| {
-            _ = self.binaryen.add_immutable_global(
+            _ = self.add_immutable_global(
                 self.to_c_str(global.name),
                 .i32,
                 global.value,
@@ -51,10 +54,10 @@ pub fn compile_global(self: *Compiler, inst: *Ir.Inst) !void {
             const body = try self.compile_expr(func.body);
 
             _ = c.BinaryenAddFunction(
-                self.binaryen.module,
+                self.module,
                 self.to_c_str(func.name),
-                try self.binaryen.arguments(&self.allocator, func.args), // ?
-                self.binaryen.primitive(func.ret),
+                try self.arguments(func.args), // ?
+                primitive(func.ret),
                 self.current_env.?.local_types.items.ptr,
                 @intCast(self.current_env.?.local_types.items.len),
                 body,
@@ -70,16 +73,16 @@ pub fn compile_global(self: *Compiler, inst: *Ir.Inst) !void {
 pub fn compile_expr(self: *Compiler, inst: *Ir.Inst) anyerror!c.BinaryenExpressionRef {
     const expr = switch (inst.*) {
         .value_i32 => |value_i32| {
-            return self.binaryen.constant(.i32, value_i32);
+            return self.constant(.i32, value_i32);
         },
         .value_i64 => |value_i64| {
-            return self.binaryen.constant(.i64, value_i64);
+            return self.constant(.i64, value_i64);
         },
         .value_f32 => |value_f32| {
-            return self.binaryen.constant(.f32, value_f32);
+            return self.constant(.f32, value_f32);
         },
         .value_f64 => |value_f64| {
-            return self.binaryen.constant(.f64, value_f64);
+            return self.constant(.f64, value_f64);
         },
         .local_i32 => |local| {
             return try self.declare_local(.i32, local);
@@ -112,7 +115,7 @@ pub fn compile_expr(self: *Compiler, inst: *Ir.Inst) anyerror!c.BinaryenExpressi
                 refs[i] = try self.compile_expr(child_inst);
             }
             return c.BinaryenBlock(
-                self.binaryen.module,
+                self.module,
                 null,
                 @ptrCast(refs),
                 @intCast(refs.len),
@@ -134,9 +137,9 @@ fn declare_local(
     comptime tid: Infer.TypeID,
     local: Ir.Inst.Local,
 ) !c.BinaryenExpressionRef {
-    const index = try self.current_env.?.new_local(self.binaryen.primitive(tid));
+    const index = try self.current_env.?.new_local(primitive(tid));
     const value = try self.compile_expr(local.value) orelse return CompileError.ExpectedExpression; // Could fail ?
-    return c.BinaryenLocalSet(self.binaryen.module, @intCast(index), value);
+    return c.BinaryenLocalSet(self.module, @intCast(index), value);
 }
 
 fn binary(
@@ -148,8 +151,8 @@ fn binary(
     const right = try self.compile_expr(bin.left);
     const left = try self.compile_expr(bin.right);
     return c.BinaryenBinary(
-        self.binaryen.module,
-        self.binaryen.op(tid, operator),
+        self.module,
+        op(tid, operator),
         left,
         right,
     );
@@ -159,41 +162,6 @@ fn current_function(self: *Compiler) ?*Environment {
     return if (self.current_env) |env| env else null;
 }
 
-// pub fn compile_value(self: *Compiler, inst: *Ir.Inst) anyerror!void {
-//     switch (inst.*) {
-//         .push_i32 => |*push_i32| {
-//             const constant = self.binaryen.constant(.i32, push_i32.*);
-//             _ = try self.current_env.?.stack.push(constant);
-//         },
-//         else => {
-//             std.debug.print("not impl {any}", .{inst});
-//             return CompileError.NotImplemented;
-//         },
-//     }
-// }
-
-// pub fn next_instruction(self: *Compiler) ?*Ir.Inst {
-//     self.instruction_cursor += 1;
-
-//     if (self.is_at_end()) {
-//         return null;
-//     }
-
-//     return &self.ir[self.instruction_cursor - 2];
-// }
-
-// pub fn next_instruction_is(self: *Compiler, tag: Tag(Ir.Inst)) bool {
-//     if (self.is_at_end()) {
-//         return false;
-//     }
-
-//     return activeTag(self.ir[self.instruction_cursor - 2]) == tag;
-// }
-
-// pub fn is_at_end(self: *Compiler) bool {
-//     return self.instruction_cursor - 2 >= self.ir.len;
-// }
-
 pub fn use_new_environment(self: *Compiler) !void {
     var new_env = try self.environments.addOne(self.allocator);
     new_env.* = Environment.init(self.allocator);
@@ -201,11 +169,11 @@ pub fn use_new_environment(self: *Compiler) !void {
 }
 
 pub fn write(self: *Compiler) !void {
-    c.BinaryenModulePrint(self.binaryen.module);
+    c.BinaryenModulePrint(self.module);
 
     var buffer: [10_000]u8 = undefined;
 
-    const out = c.BinaryenModuleAllocateAndWriteText(self.binaryen.module);
+    const out = c.BinaryenModuleAllocateAndWriteText(self.module);
 
     const code = try std.fmt.bufPrintZ(&buffer, "{s}", .{out});
 
@@ -221,172 +189,157 @@ pub fn write(self: *Compiler) !void {
     _ = try file.writeAll(code);
 }
 
+pub fn add_immutable_global(
+    self: *Compiler,
+    name: [*:0]const u8,
+    comptime tid: Infer.TypeID,
+    value: anytype,
+) c.BinaryenGlobalRef {
+    return c.BinaryenAddGlobal(
+        self.module,
+        name,
+        primitive(tid),
+        false,
+        self.constant(tid, value),
+    );
+}
+
+pub fn add_mutable_global(
+    self: *Compiler,
+    name: [*:0]const u8,
+    comptime tid: Infer.TypeID,
+    value: anytype,
+) c.BinaryenExpressionRef {
+    return c.BinaryenAddGlobal(
+        self.module,
+        name,
+        primitive(tid),
+        true,
+        self.constant(tid, value),
+    );
+}
+
+pub fn op(comptime tid: Infer.TypeID, comptime operator: Token.Type) c.BinaryenOp {
+    return switch (operator) {
+        .PLUS => switch (tid) {
+            .i32 => c.BinaryenAddInt32(),
+            .i64 => c.BinaryenAddInt64(),
+            .f32 => c.BinaryenAddFloat32(),
+            .f64 => c.BinaryenAddFloat64(),
+            else => unreachable,
+        },
+        .MINUS => switch (tid) {
+            .i32 => c.BinaryenSubInt32(),
+            .i64 => c.BinaryenSubInt64(),
+            .f32 => c.BinaryenSubFloat32(),
+            .f64 => c.BinaryenSubFloat64(),
+            else => unreachable,
+        },
+        .STAR => switch (tid) {
+            .i32 => c.BinaryenMulInt32(),
+            .i64 => c.BinaryenMulInt64(),
+            .f32 => c.BinaryenMulFloat32(),
+            .f64 => c.BinaryenMulFloat64(),
+            else => unreachable,
+        },
+        .SLASH => switch (tid) {
+            .i32 => c.BinaryenDivSInt32(), // div s ? div u ?,
+            .i64 => c.BinaryenDivSInt64(),
+            .f32 => c.BinaryenDivFloat32(),
+            .f64 => c.BinaryenDivFloat64(),
+            else => unreachable,
+        },
+        .EQUAL_EQUAL => switch (tid) {
+            .i32 => c.BinaryenEqInt32(),
+            .i64 => c.BinaryenEqInt64(),
+            .f32 => c.BinaryenEqFloat32(),
+            .f64 => c.BinaryenEqFloat64(),
+            else => unreachable,
+        },
+        .BANG_EQUAL => switch (tid) {
+            .i32 => c.BinaryenNeInt32(),
+            .i64 => c.BinaryenNeInt64(),
+            .f32 => c.BinaryenNeFloat32(),
+            .f64 => c.BinaryenNeFloat64(),
+            else => unreachable,
+        },
+        .GREATER => switch (tid) {
+            .i32 => c.BinaryenGtSInt32(),
+            .i64 => c.BinaryenGtSInt64(),
+            .f32 => c.BinaryenGtFloat32(),
+            .f64 => c.BinaryenGtFloat64(),
+            else => unreachable,
+        },
+        .GREATER_EQUAL => switch (tid) {
+            .i32 => c.BinaryenGeSInt32(),
+            .i64 => c.BinaryenGeSInt64(),
+            .f32 => c.BinaryenGeFloat32(),
+            .f64 => c.BinaryenGeFloat64(),
+            else => unreachable,
+        },
+        .LESS => switch (tid) {
+            .i32 => c.BinaryenLtSInt32(),
+            .i64 => c.BinaryenLtSInt64(),
+            .f32 => c.BinaryenLtFloat32(),
+            .f64 => c.BinaryenLtFloat64(),
+            else => unreachable,
+        },
+        .LESS_EQUAL => switch (tid) {
+            .i32 => c.BinaryenLeSInt32(),
+            .i64 => c.BinaryenLeSInt64(),
+            .f32 => c.BinaryenLeFloat32(),
+            .f64 => c.BinaryenLeFloat64(),
+            else => unreachable,
+        },
+
+        else => unreachable,
+    };
+}
+
+pub fn constant(self: *Compiler, comptime tid: Infer.TypeID, value: anytype) c.BinaryenExpressionRef {
+    return c.BinaryenConst(
+        self.module,
+        literal(tid, value),
+    );
+}
+
+pub fn primitive(tid: Infer.TypeID) c.BinaryenType {
+    return switch (tid) {
+        .i32, .bool, .number => c.BinaryenTypeInt32(),
+        .i64 => c.BinaryenTypeInt64(),
+        .f32 => c.BinaryenTypeFloat32(),
+        .f64 => c.BinaryenTypeFloat64(),
+        .void => c.BinaryenTypeNone(),
+        else => unreachable,
+    };
+}
+
+pub fn literal(comptime tid: Infer.TypeID, value: anytype) c.BinaryenLiteral {
+    return switch (tid) {
+        .i32, .bool => c.BinaryenLiteralInt32(value),
+        .i64 => c.BinaryenLiteralInt64(value),
+        .f32 => c.BinaryenLiteralFloat32(value),
+        .f64 => c.BinaryenLiteralFloat64(value),
+        else => unreachable,
+    };
+}
+
+pub fn arguments(self: *Compiler, args_tid: []Infer.TypeID) !c.BinaryenType {
+    //@todo free
+    var args = try self.allocator.alloc(c.BinaryenType, args_tid.len);
+    for (args_tid, 0..) |tid, i| {
+        args[i] = primitive(tid);
+    }
+    return c.BinaryenTypeCreate(
+        @ptrCast(args),
+        @intCast(args.len),
+    );
+}
+
 fn to_c_str(self: *Compiler, str: []const u8) [*:0]const u8 {
     //@todo horror museum + memory leak
     return @ptrCast(self.allocator.dupeZ(u8, str) catch unreachable);
 }
-
-const Binaryen = struct {
-    module: c.BinaryenModuleRef,
-
-    pub fn init(module: c.BinaryenModuleRef) Binaryen {
-        return .{
-            .module = module,
-        };
-    }
-
-    pub fn add_immutable_global(
-        self: *Binaryen,
-        name: [*:0]const u8,
-        comptime tid: Infer.TypeID,
-        value: anytype,
-    ) c.BinaryenGlobalRef {
-        return c.BinaryenAddGlobal(
-            self.module,
-            name,
-            self.primitive(tid),
-            false,
-            self.constant(tid, value),
-        );
-    }
-
-    pub fn add_mutable_global(
-        self: *Binaryen,
-        name: [*:0]const u8,
-        comptime tid: Infer.TypeID,
-        value: anytype,
-    ) c.BinaryenExpressionRef {
-        return c.BinaryenAddGlobal(
-            self.module,
-            name,
-            self.primitive(tid),
-            true,
-            self.constant(tid, value),
-        );
-    }
-
-    pub fn op(self: *Binaryen, comptime tid: Infer.TypeID, comptime operator: Token.Type) c.BinaryenOp {
-        _ = self;
-        return switch (operator) {
-            .PLUS => switch (tid) {
-                .i32 => c.BinaryenAddInt32(),
-                .i64 => c.BinaryenAddInt64(),
-                .f32 => c.BinaryenAddFloat32(),
-                .f64 => c.BinaryenAddFloat64(),
-                else => unreachable,
-            },
-            .MINUS => switch (tid) {
-                .i32 => c.BinaryenSubInt32(),
-                .i64 => c.BinaryenSubInt64(),
-                .f32 => c.BinaryenSubFloat32(),
-                .f64 => c.BinaryenSubFloat64(),
-                else => unreachable,
-            },
-            .STAR => switch (tid) {
-                .i32 => c.BinaryenMulInt32(),
-                .i64 => c.BinaryenMulInt64(),
-                .f32 => c.BinaryenMulFloat32(),
-                .f64 => c.BinaryenMulFloat64(),
-                else => unreachable,
-            },
-            .SLASH => switch (tid) {
-                .i32 => c.BinaryenDivSInt32(), // div s ? div u ?,
-                .i64 => c.BinaryenDivSInt64(),
-                .f32 => c.BinaryenDivFloat32(),
-                .f64 => c.BinaryenDivFloat64(),
-                else => unreachable,
-            },
-            .EQUAL_EQUAL => switch (tid) {
-                .i32 => c.BinaryenEqInt32(),
-                .i64 => c.BinaryenEqInt64(),
-                .f32 => c.BinaryenEqFloat32(),
-                .f64 => c.BinaryenEqFloat64(),
-                else => unreachable,
-            },
-            .BANG_EQUAL => switch (tid) {
-                .i32 => c.BinaryenNeInt32(),
-                .i64 => c.BinaryenNeInt64(),
-                .f32 => c.BinaryenNeFloat32(),
-                .f64 => c.BinaryenNeFloat64(),
-                else => unreachable,
-            },
-            .GREATER => switch (tid) {
-                .i32 => c.BinaryenGtSInt32(),
-                .i64 => c.BinaryenGtSInt64(),
-                .f32 => c.BinaryenGtFloat32(),
-                .f64 => c.BinaryenGtFloat64(),
-                else => unreachable,
-            },
-            .GREATER_EQUAL => switch (tid) {
-                .i32 => c.BinaryenGeSInt32(),
-                .i64 => c.BinaryenGeSInt64(),
-                .f32 => c.BinaryenGeFloat32(),
-                .f64 => c.BinaryenGeFloat64(),
-                else => unreachable,
-            },
-            .LESS => switch (tid) {
-                .i32 => c.BinaryenLtSInt32(),
-                .i64 => c.BinaryenLtSInt64(),
-                .f32 => c.BinaryenLtFloat32(),
-                .f64 => c.BinaryenLtFloat64(),
-                else => unreachable,
-            },
-            .LESS_EQUAL => switch (tid) {
-                .i32 => c.BinaryenLeSInt32(),
-                .i64 => c.BinaryenLeSInt64(),
-                .f32 => c.BinaryenLeFloat32(),
-                .f64 => c.BinaryenLeFloat64(),
-                else => unreachable,
-            },
-
-            else => unreachable,
-        };
-    }
-
-    pub fn constant(self: *Binaryen, comptime tid: Infer.TypeID, value: anytype) c.BinaryenExpressionRef {
-        return c.BinaryenConst(
-            self.module,
-            self.literal(tid, value),
-        );
-    }
-
-    pub fn primitive(self: *Binaryen, tid: Infer.TypeID) c.BinaryenType {
-        _ = self;
-        return switch (tid) {
-            .i32, .bool, .number => c.BinaryenTypeInt32(),
-            .i64 => c.BinaryenTypeInt64(),
-            .f32 => c.BinaryenTypeFloat32(),
-            .f64 => c.BinaryenTypeFloat64(),
-            .void => c.BinaryenTypeNone(),
-            else => unreachable,
-        };
-    }
-
-    pub fn literal(self: *Binaryen, comptime tid: Infer.TypeID, value: anytype) c.BinaryenLiteral {
-        _ = self;
-
-        return switch (tid) {
-            .i32, .bool => c.BinaryenLiteralInt32(value),
-            .i64 => c.BinaryenLiteralInt64(value),
-            .f32 => c.BinaryenLiteralFloat32(value),
-            .f64 => c.BinaryenLiteralFloat64(value),
-            else => unreachable,
-        };
-    }
-
-    pub fn arguments(self: *Binaryen, allocator: *std.mem.Allocator, args_tid: []Infer.TypeID) !c.BinaryenType {
-        //@todo free
-        var args = try allocator.alloc(c.BinaryenType, args_tid.len);
-        for (args_tid, 0..) |tid, i| {
-            args[i] = self.primitive(tid);
-        }
-        return c.BinaryenTypeCreate(
-            @ptrCast(args),
-            @intCast(args.len),
-        );
-    }
-};
-
 const global_instructions = blk: {
     var set = std.EnumSet(Tag(Ir.Inst)).initEmpty();
 
