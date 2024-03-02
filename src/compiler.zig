@@ -177,6 +177,9 @@ pub fn compile_expr(self: *Compiler, inst: *Ir.Inst) anyerror!c.BinaryenExpressi
         .div_f64 => |bin| {
             return try self.binary(.f64, .SLASH, bin);
         },
+        .eq_bool => |bin| {
+            return try self.binary(.bool, .EQUAL_EQUAL, bin);
+        },
         .eq_i32 => |bin| {
             return try self.binary(.i32, .EQUAL_EQUAL, bin);
         },
@@ -188,6 +191,9 @@ pub fn compile_expr(self: *Compiler, inst: *Ir.Inst) anyerror!c.BinaryenExpressi
         },
         .eq_f64 => |bin| {
             return try self.binary(.f64, .EQUAL_EQUAL, bin);
+        },
+        .neq_bool => |bin| {
+            return try self.binary(.bool, .BANG_EQUAL, bin);
         },
         .neq_i32 => |bin| {
             return try self.binary(.i32, .BANG_EQUAL, bin);
@@ -391,14 +397,14 @@ pub fn op(comptime tid: Infer.TypeID, comptime operator: Token.Type) c.BinaryenO
             else => unreachable,
         },
         .EQUAL_EQUAL => switch (tid) {
-            .i32 => c.BinaryenEqInt32(),
+            .i32, .bool => c.BinaryenEqInt32(),
             .i64 => c.BinaryenEqInt64(),
             .f32 => c.BinaryenEqFloat32(),
             .f64 => c.BinaryenEqFloat64(),
             else => unreachable,
         },
         .BANG_EQUAL => switch (tid) {
-            .i32 => c.BinaryenNeInt32(),
+            .i32, .bool => c.BinaryenNeInt32(),
             .i64 => c.BinaryenNeInt64(),
             .f32 => c.BinaryenNeFloat32(),
             .f64 => c.BinaryenNeFloat64(),

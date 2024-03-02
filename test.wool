@@ -4,7 +4,9 @@ my_bool :: true
 a :: -> { 
   // i : i32 = 1 * 1 + 1 - 123 - 312 / 123
 
-  i := false
+  i := false 
+
+  c := true == true
 }
 
 /* 

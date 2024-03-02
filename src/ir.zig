@@ -47,11 +47,13 @@ pub const Inst = union(enum) {
     div_f32: Binary,
     div_f64: Binary,
 
+    eq_bool: Binary,
     eq_i32: Binary,
     eq_i64: Binary,
     eq_f32: Binary,
     eq_f64: Binary,
 
+    neq_bool: Binary,
     neq_i32: Binary,
     neq_i64: Binary,
     neq_f32: Binary,
@@ -329,6 +331,9 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
                     else => unreachable,
                 },
                 .EQUAL_EQUAL => switch (tid) {
+                    .bool => .{
+                        .eq_bool = values,
+                    },
                     .number, .i32 => .{
                         .eq_i32 = values,
                     },
@@ -344,6 +349,9 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
                     else => unreachable,
                 },
                 .BANG_EQUAL => switch (tid) {
+                    .bool => .{
+                        .neq_bool = values,
+                    },
                     .number, .i32 => .{
                         .neq_i32 = values,
                     },
