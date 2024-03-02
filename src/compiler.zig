@@ -40,11 +40,38 @@ pub fn compile(self: *Compiler, inst: *Ir.Inst) !?c.BinaryenExpressionRef {
 
 pub fn compile_global(self: *Compiler, inst: *Ir.Inst) !void {
     switch (inst.*) {
-        // @todo: factorize this in a good way ?
+        .global_bool => |*global| {
+            _ = self.add_immutable_global(
+                self.to_c_str(global.name),
+                .bool,
+                global.value,
+            );
+        },
         .global_i32 => |*global| {
             _ = self.add_immutable_global(
                 self.to_c_str(global.name),
                 .i32,
+                global.value,
+            );
+        },
+        .global_i64 => |*global| {
+            _ = self.add_immutable_global(
+                self.to_c_str(global.name),
+                .i64,
+                global.value,
+            );
+        },
+        .global_f32 => |*global| {
+            _ = self.add_immutable_global(
+                self.to_c_str(global.name),
+                .f32,
+                global.value,
+            );
+        },
+        .global_f64 => |*global| {
+            _ = self.add_immutable_global(
+                self.to_c_str(global.name),
+                .f64,
                 global.value,
             );
         },
@@ -72,6 +99,9 @@ pub fn compile_global(self: *Compiler, inst: *Ir.Inst) !void {
 
 pub fn compile_expr(self: *Compiler, inst: *Ir.Inst) anyerror!c.BinaryenExpressionRef {
     const expr = switch (inst.*) {
+        .value_bool => |value_bool| {
+            return self.constant(.bool, value_bool);
+        },
         .value_i32 => |value_i32| {
             return self.constant(.i32, value_i32);
         },
@@ -83,6 +113,9 @@ pub fn compile_expr(self: *Compiler, inst: *Ir.Inst) anyerror!c.BinaryenExpressi
         },
         .value_f64 => |value_f64| {
             return self.constant(.f64, value_f64);
+        },
+        .local_bool => |local| {
+            return self.declare_local(.bool, local);
         },
         .local_i32 => |local| {
             return try self.declare_local(.i32, local);
@@ -424,7 +457,8 @@ pub fn primitive(tid: Infer.TypeID) c.BinaryenType {
 
 pub fn literal(comptime tid: Infer.TypeID, value: anytype) c.BinaryenLiteral {
     return switch (tid) {
-        .i32, .bool => c.BinaryenLiteralInt32(value),
+        .bool => if (value == 1) c.BinaryenLiteralInt32(1) else c.BinaryenLiteralInt32(0),
+        .i32 => c.BinaryenLiteralInt32(value),
         .i64 => c.BinaryenLiteralInt64(value),
         .f32 => c.BinaryenLiteralFloat32(value),
         .f64 => c.BinaryenLiteralFloat64(value),
@@ -451,11 +485,12 @@ fn to_c_str(self: *Compiler, str: []const u8) [*:0]const u8 {
 const global_instructions = blk: {
     var set = std.EnumSet(Tag(Ir.Inst)).initEmpty();
 
+    set.insert(.global_bool);
     set.insert(.global_i32);
+    set.insert(.global_i64);
+    set.insert(.global_f32);
+    set.insert(.global_f64);
     set.insert(.func);
-    // set.insert(.global_i64);
-    // set.insert(.global_f32);
-    // set.insert(.global_f64);
 
     break :blk set;
 };

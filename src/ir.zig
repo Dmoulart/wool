@@ -9,20 +9,23 @@ function_variables: Stack([]const u8),
 const Ir = @This();
 
 pub const Inst = union(enum) {
+    value_bool: i32,
     value_i32: i32,
     value_i64: i64,
     value_f32: f32,
     value_f64: f64,
 
+    local_bool: Local,
     local_i32: Local,
     local_i64: Local,
     local_f32: Local,
     local_f64: Local,
 
-    global_i32: Inst.Global(i32),
-    global_i64: Inst.Global(i64),
-    global_f32: Inst.Global(f32),
-    global_f64: Inst.Global(f64),
+    global_bool: Global(i32),
+    global_i32: Global(i32),
+    global_i64: Global(i64),
+    global_f32: Global(f32),
+    global_f64: Global(f64),
 
     add_i32: Binary,
     add_i64: Binary,
@@ -144,6 +147,9 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
             .f64 => try self.create_inst(.{
                 .value_f64 = try std.fmt.parseFloat(f64, literal.orig_expr.Literal.value.Number),
             }),
+            .bool => try self.create_inst(.{
+                .value_bool = if (literal.orig_expr.Literal.value.Boolean) 1 else 0,
+            }),
             else => IrError.NotImplemented,
         },
         .VarInit => |*var_init| {
@@ -170,34 +176,43 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
                 .f64 => .{
                     .local_f64 = local_value,
                 },
+                .bool => .{
+                    .local_bool = local_value,
+                },
                 else => return IrError.NotImplemented,
             });
         },
         .ConstInit => |*const_init| {
             const name = const_init.orig_expr.ConstInit.name.lexeme;
             return switch (get_sem_tid(as_sem(const_init.initializer))) {
+                .bool => try self.create_inst(.{
+                    .global_bool = .{
+                        .name = name,
+                        .value = try self.eval(as_sem(const_init.initializer), bool, i32),
+                    },
+                }),
                 .number, .i32 => try self.create_inst(.{
                     .global_i32 = .{
                         .name = name,
-                        .value = try self.eval(as_sem(const_init.initializer), i32),
+                        .value = try self.eval(as_sem(const_init.initializer), i32, i32),
                     },
                 }),
                 .i64 => try self.create_inst(.{
                     .global_i64 = .{
                         .name = name,
-                        .value = try self.eval(as_sem(const_init.initializer), i64),
+                        .value = try self.eval(as_sem(const_init.initializer), i64, i64),
                     },
                 }),
                 .float, .f32 => try self.create_inst(.{
                     .global_f32 = .{
                         .name = name,
-                        .value = try self.eval(as_sem(const_init.initializer), f32),
+                        .value = try self.eval(as_sem(const_init.initializer), f32, f32),
                     },
                 }),
                 .f64 => try self.create_inst(.{
                     .global_f64 = .{
                         .name = name,
-                        .value = try self.eval(as_sem(const_init.initializer), f64),
+                        .value = try self.eval(as_sem(const_init.initializer), f64, f64),
                     },
                 }),
                 .func => try self.convert(as_sem(const_init.initializer)),
@@ -422,20 +437,29 @@ fn create_inst(self: *Ir, inst: Inst) !*Inst {
     return inst_ptr;
 }
 
-fn eval(self: *Ir, sem: *Infer.Sem, comptime ExpectedType: type) !ExpectedType {
+fn eval(self: *Ir, sem: *Infer.Sem, comptime InputType: type, comptime ReturnType: type) !ReturnType {
     return switch (sem.*) {
-        .Literal => |*literal| switch (ExpectedType) {
-            i32, i64 => try std.fmt.parseInt(ExpectedType, literal.orig_expr.Literal.value.Number, 10),
-            f32, f64 => try std.fmt.parseFloat(ExpectedType, literal.orig_expr.Literal.value.Number),
+        .Literal => |*literal| switch (InputType) {
+            bool => if (literal.orig_expr.Literal.value.Boolean) 1 else 0,
+            i32, i64 => try std.fmt.parseInt(InputType, literal.orig_expr.Literal.value.Number, 10),
+            f32, f64 => try std.fmt.parseFloat(InputType, literal.orig_expr.Literal.value.Number),
             else => IrError.NotImplemented,
         },
         .Binary => |*binary| blk: {
-            const left = try self.eval(as_sem(binary.left), ExpectedType);
-            const right = try self.eval(as_sem(binary.right), ExpectedType);
+            const left = try self.eval(as_sem(binary.left), InputType, ReturnType);
+            const right = try self.eval(as_sem(binary.right), InputType, ReturnType);
 
             break :blk switch (binary.orig_expr.Binary.op.type) {
                 .PLUS => left + right,
                 .MINUS => left - right,
+                .STAR => left * right,
+                .SLASH => @divTrunc(left, right), //@todo divison
+                .GREATER => if (left > right) 1 else 0,
+                .GREATER_EQUAL => if (left >= right) 1 else 0,
+                .LESS => if (left < right) 1 else 0,
+                .LESS_EQUAL => if (left <= right) 1 else 0,
+                .EQUAL_EQUAL => if (left == right) 1 else 0,
+                .BANG_EQUAL => if (left != right) 1 else 0,
                 else => IrError.NotImplemented,
             };
         },
