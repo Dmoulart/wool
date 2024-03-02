@@ -69,13 +69,21 @@ pub fn compile_global(self: *Compiler, inst: *Ir.Inst) !void {
 
 pub fn compile_expr(self: *Compiler, inst: *Ir.Inst) anyerror!c.BinaryenExpressionRef {
     const expr = switch (inst.*) {
-        .local_i32 => |local_i32| blk: {
-            // if(self.current_function())|env|{
-
-            // }
-            const index = try self.current_env.?.new_local(c.BinaryenTypeInt32());
-            // const value = self.binaryen.constant(.i32, local_i32);
-            const value = try self.compile_expr(local_i32.value) orelse return CompileError.ExpectedExpression; // Could fail
+        .value_i32 => |value_i32| {
+            return self.binaryen.constant(.i32, value_i32);
+        },
+        .value_i64 => |value_i64| {
+            return self.binaryen.constant(.i64, value_i64);
+        },
+        .value_f32 => |value_f32| {
+            return self.binaryen.constant(.f32, value_f32);
+        },
+        .value_f64 => |value_f64| {
+            return self.binaryen.constant(.f64, value_f64);
+        },
+        .local_i32, .local_i64, .local_f32, .local_f64 => |local| blk: {
+            const index = try self.current_env.?.new_local(self.binaryen.primitive(inst.type_of()));
+            const value = try self.compile_expr(local.value) orelse return CompileError.ExpectedExpression; // Could fail
             break :blk c.BinaryenLocalSet(self.binaryen.module, @intCast(index), value);
         },
         .add_i32 => |add_i32| blk: {
@@ -88,9 +96,7 @@ pub fn compile_expr(self: *Compiler, inst: *Ir.Inst) anyerror!c.BinaryenExpressi
                 right,
             );
         },
-        .const_i32 => |const_i32| {
-            return self.binaryen.constant(.i32, const_i32);
-        },
+
         .block => |*block| {
             //@todo:mem dealloc
             const refs = try self.allocator.alloc(c.BinaryenExpressionRef, block.insts.len);

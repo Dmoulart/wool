@@ -18,8 +18,9 @@ pub fn deinit(self: *@This()) void {
 }
 
 pub fn new_local(self: *@This(), ty: c.BinaryenType) !usize {
+    const i = self.local_types.items.len;
     try self.local_types.append(ty);
-    return self.local_types.items.len;
+    return i;
 }
 
 pub fn add_local_type(self: *@This(), local_type: c.BinaryenType) !void {

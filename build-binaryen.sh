@@ -5,7 +5,6 @@ set -ex
 DIR=$PWD/binaryen
 JOBS=8
 
-# just use zig oh god
 export CC="$(which zig) cc"
 export CXX="$(which zig) c++"
 

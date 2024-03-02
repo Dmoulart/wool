@@ -9,16 +9,25 @@ function_variables: Stack([]const u8),
 const Ir = @This();
 
 pub const Inst = union(enum) {
-    const_i32: i32,
+    value_i32: i32,
+    value_i64: i64,
+    value_f32: f32,
+    value_f64: f64,
+
+    local_i32: Local,
+    local_i64: Local,
+    local_f32: Local,
+    local_f64: Local,
 
     global_i32: Inst.Global(i32),
-
-    local_i32: struct {
-        ident: u32,
-        value: *Inst, // could be not i32 ?
-    },
+    global_i64: Inst.Global(i64),
+    global_f32: Inst.Global(f32),
+    global_f64: Inst.Global(f64),
 
     add_i32: Binary,
+    add_i64: Binary,
+    add_f32: Binary,
+    add_f64: Binary,
 
     func: Func,
 
@@ -33,6 +42,11 @@ pub const Inst = union(enum) {
         };
     }
 
+    pub const Local = struct {
+        ident: u32,
+        value: *Inst,
+    };
+
     pub const Binary = struct {
         left: *Inst,
         right: *Inst,
@@ -44,6 +58,16 @@ pub const Inst = union(enum) {
         ret: Infer.TypeID,
         body: *Inst,
     };
+
+    pub fn type_of(inst: Inst) Infer.TypeID {
+        return switch (inst) {
+            .value_i32, .local_i32, .global_i32, .add_i32 => .i32,
+            .value_i64, .local_i64, .global_i64, .add_i64 => .i64,
+            .value_f32, .local_f32, .global_f32, .add_f32 => .f32,
+            .value_f64, .local_f64, .global_f64, .add_f64 => .f64,
+            else => unreachable,
+        };
+    }
 };
 
 const IrError = error{NotImplemented};
@@ -70,60 +94,83 @@ pub fn emit(self: *Ir, inst: *Inst) !void {
 }
 
 pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
-    return switch (sem.*) {
-        .Literal => |*literal| switch (get_sem_tid(sem)) {
+    switch (sem.*) {
+        .Literal => |*literal| return switch (get_sem_tid(sem)) {
             //temporary, Number should be narrowed in Infer phase or an error should be thrown
             .number, .i32 => try self.create_inst(.{
-                .const_i32 = try std.fmt.parseInt(i32, literal.orig_expr.Literal.value.Number, 10),
+                .value_i32 = try std.fmt.parseInt(i32, literal.orig_expr.Literal.value.Number, 10),
+            }),
+            .i64 => try self.create_inst(.{
+                .value_i64 = try std.fmt.parseInt(i64, literal.orig_expr.Literal.value.Number, 10),
+            }),
+            .float, .f32 => try self.create_inst(.{
+                .value_f32 = try std.fmt.parseFloat(f32, literal.orig_expr.Literal.value.Number),
+            }),
+            .f64 => try self.create_inst(.{
+                .value_f64 = try std.fmt.parseFloat(f64, literal.orig_expr.Literal.value.Number),
             }),
             else => IrError.NotImplemented,
         },
-        .VarInit => |*var_init| blk: {
+        .VarInit => |*var_init| {
             const name = var_init.orig_expr.VarInit.name.lexeme;
             const local_ident = try self.function_variables.push(name);
 
             const value = try self.convert(as_sem(var_init.initializer));
 
-            break :blk try self.create_inst(switch (get_sem_tid(as_sem(var_init.initializer))) {
+            const local_value = .{
+                .ident = local_ident,
+                .value = value,
+            };
+
+            return try self.create_inst(switch (get_sem_tid(as_sem(var_init.initializer))) {
                 .i32 => .{
-                    .local_i32 = .{
-                        .ident = local_ident,
-                        .value = value,
-                    }, // stack ?
+                    .local_i32 = local_value,
+                },
+                .i64 => .{
+                    .local_i64 = local_value,
+                },
+                .f32 => .{
+                    .local_f32 = local_value,
+                },
+                .f64 => .{
+                    .local_f64 = local_value,
                 },
                 else => return IrError.NotImplemented,
             });
         },
-        .ConstInit => |*const_init| switch (get_sem_tid(as_sem(const_init.initializer))) {
-            .number, .i32 => try self.create_inst(.{
-                .global_i32 = .{
-                    .name = const_init.orig_expr.ConstInit.name.lexeme, // stack ?
-                    .value = try self.eval(as_sem(const_init.initializer), i32),
-                },
-            }),
-            .func => try self.convert(as_sem(const_init.initializer)),
-            // .i64 => Inst{
-            //     .global_i64 = .{
-            //         .name = const_init.orig_expr.ConstInit.name.lexeme, // stack ?
-            //         .value = try self.eval(as_sem(const_init.initializer), i64),
-            //     },
-            // },
-            // .f32 => Inst{
-            //     .global_f32 = .{
-            //         .name = const_init.orig_expr.ConstInit.name.lexeme, // stack ?
-            //         .value = try self.eval(as_sem(const_init.initializer), f32),
-            //     },
-            // },
-            // .f64 => Inst{
-            //     .global_f32 = .{
-            //         .name = const_init.orig_expr.ConstInit.name.lexeme, // stack ?
-            //         .value = try self.eval(as_sem(const_init.initializer), f32),
-            //     },
-            // },
-            // .func => try self.convert(as_sem(const_init.initializer)),
-            else => IrError.NotImplemented,
+        .ConstInit => |*const_init| {
+            const name = const_init.orig_expr.ConstInit.name.lexeme;
+            return switch (get_sem_tid(as_sem(const_init.initializer))) {
+                .number, .i32 => try self.create_inst(.{
+                    .global_i32 = .{
+                        .name = name,
+                        .value = try self.eval(as_sem(const_init.initializer), i32),
+                    },
+                }),
+                .i64 => try self.create_inst(.{
+                    .global_i64 = .{
+                        .name = name,
+                        .value = try self.eval(as_sem(const_init.initializer), i64),
+                    },
+                }),
+                .float, .f32 => try self.create_inst(.{
+                    .global_f32 = .{
+                        .name = name,
+                        .value = try self.eval(as_sem(const_init.initializer), f32),
+                    },
+                }),
+                .f64 => try self.create_inst(.{
+                    .global_f64 = .{
+                        .name = name,
+                        .value = try self.eval(as_sem(const_init.initializer), f64),
+                    },
+                }),
+                .func => try self.convert(as_sem(const_init.initializer)),
+
+                else => IrError.NotImplemented,
+            };
         },
-        .Function => |*function| blk: {
+        .Function => |*function| {
             try self.function_variables.clear();
             var args = try self.allocator.alloc(Infer.TypeID, function.type_node.function.args.len);
 
@@ -136,7 +183,7 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
             else
                 "anonymous";
 
-            break :blk try self.create_inst(.{
+            return try self.create_inst(.{
                 .func = .{
                     .name = name,
                     .ret = function.type_node.function.return_type.get_tid(),
@@ -145,28 +192,53 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
                 },
             });
         },
-        .Block => |*block| blk: {
+        .Block => |*block| {
+            //@todo:mem
             const insts = try self.allocator.alloc(*Inst, block.exprs.len);
             for (block.exprs, 0..) |expr, i| {
                 insts[i] = try self.convert(as_sem(expr));
             }
-            break :blk try self.create_inst(
+            return try self.create_inst(
                 .{
                     .block = .{ .insts = insts },
                 },
             );
         },
-        .Binary => |*binary| blk: {
+        .Binary => |*binary| {
             const left = try self.convert(as_sem(binary.left));
             const right = try self.convert(as_sem(binary.right));
 
             const op = binary.orig_expr.Binary.op.type;
 
-            break :blk switch (op) {
+            return switch (op) {
                 .PLUS => switch (get_sem_tid(as_sem(binary))) {
                     .number, .i32 => try self.create_inst(
                         .{
                             .add_i32 = .{
+                                .left = left,
+                                .right = right,
+                            },
+                        },
+                    ),
+                    .i64 => try self.create_inst(
+                        .{
+                            .add_i64 = .{
+                                .left = left,
+                                .right = right,
+                            },
+                        },
+                    ),
+                    .float, .f32 => try self.create_inst(
+                        .{
+                            .add_f32 = .{
+                                .left = left,
+                                .right = right,
+                            },
+                        },
+                    ),
+                    .f64 => try self.create_inst(
+                        .{
+                            .add_f64 = .{
                                 .left = left,
                                 .right = right,
                             },
@@ -255,7 +327,7 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
             std.debug.print("\nNot Implemented = {any}\n", .{sem});
             return IrError.NotImplemented;
         },
-    };
+    }
 }
 
 fn create_inst(self: *Ir, inst: Inst) !*Inst {
