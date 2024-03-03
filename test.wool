@@ -6,7 +6,7 @@
 global_var :: 1234 + 1234
 
 a :: -> { 
-  // i : i32 = 1 * 1 + 1 - 123 - 312 / 123
+  // e : i32 = 1 * 1 + 1 - 123 - 312 / 123
 
   i :i64 = 1 
 
@@ -15,18 +15,20 @@ a :: -> {
   d := if c 1 + 1 else 2 + 123 
 
   f := d + i
- 
-  // @does not work
-  /*
-  d : i64 = if c 
-    { 
-      global_var 
-    } 
+
+  g : i64 = if c 
+      {
+        azerty := global_var
+        azerty
+      }
     else 
-    { 
-      i 
-    }
-   */
+      i  
+ /*
+  g : i64 = if c 
+      global_var 
+    else 
+      i    
+ */
 }
 
 /* 

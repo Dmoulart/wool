@@ -295,7 +295,7 @@ pub fn compile_expr(self: *Compiler, inst: *Ir.Inst) anyerror!c.BinaryenExpressi
                 null,
                 @ptrCast(refs),
                 @intCast(refs.len),
-                c.BinaryenTypeAuto(),
+                c.BinaryenTypeAuto(), //@todo : guilty of segfault !
             );
         },
         .@"if" => |*if_inst| {

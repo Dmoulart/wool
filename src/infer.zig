@@ -214,6 +214,7 @@ const TypeError = error{
     NonCallableExpression,
     GenericFunctionNotImplemented,
     CannotResolveType,
+    CircularReference,
 };
 
 const Err = ErrorReporter(TypeError);
@@ -424,7 +425,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
             if (if_expr.else_branch) |else_branch| {
                 maybe_else_branch = try self.infer(else_branch);
                 try unify(sem_type(then_branch), sem_type(maybe_else_branch.?));
-                bind(sem_type(maybe_else_branch.?), sem_type(then_branch));
+                // try bind(sem_type(maybe_else_branch.?), sem_type(then_branch));
             }
 
             return try self.create_sem(
@@ -778,7 +779,12 @@ fn unify(node_a: *TypeNode, node_b: *TypeNode) !void {
     }
 }
 
-fn bind(from: *TypeNode, to: *TypeNode) void {
+fn bind(from: *TypeNode, to: *TypeNode) !void {
+    //@todo: not sure about this
+    if (@intFromPtr(to) == @intFromPtr(from.variable.ref)) {
+        return TypeError.CircularReference;
+    }
+
     from.variable.ref = to;
 }
 
