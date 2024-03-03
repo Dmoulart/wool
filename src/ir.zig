@@ -101,6 +101,8 @@ pub const Inst = union(enum) {
         return_type: Infer.TypeID, // @todo: make a block for each type ???
     },
 
+    call: Call,
+
     pub fn Global(comptime T: type) type {
         return struct {
             name: []const u8,
@@ -137,6 +139,11 @@ pub const Inst = union(enum) {
         then_branch: *Inst,
         else_branch: ?*Inst,
         condition: *Inst,
+    };
+
+    pub const Call = struct {
+        callee: []const u8,
+        args: []*Inst,
     };
 };
 
@@ -351,10 +358,6 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
                 return IrError.CannotFindLocalVariable;
             }
         },
-        else => {
-            std.debug.print("\nNot Implemented = {any}\n", .{sem});
-            return IrError.NotImplemented;
-        },
         .Logical => |logical| {
             const tid = get_sem_tid(sem);
 
@@ -449,6 +452,28 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
             };
 
             return try self.create_inst(select_inst);
+        },
+        .Call => |*call| {
+            // @todo dynamic calls ??
+            std.debug.print("callee {any}", .{as_sem(call)});
+            // @todo horror museum
+            const function_name = call.orig_expr.Call.callee.Variable.name.lexeme;
+
+            const args = try self.allocator.alloc(*Inst, call.args.len);
+
+            for (call.args, 0..) |arg, i| {
+                args[i] = try self.convert(as_sem(arg));
+            }
+
+            return try self.create_inst(
+                .{
+                    .call = .{ .callee = function_name, .args = args },
+                },
+            );
+        },
+        else => {
+            std.debug.print("\nNot Implemented = {any}\n", .{sem});
+            return IrError.NotImplemented;
         },
     }
 }
@@ -695,6 +720,7 @@ const Token = @import("./token.zig");
 const Infer = @import("./infer.zig");
 const Expr = @import("./ast/expr.zig").Expr;
 const as_sem = @import("./infer.zig").as_sem;
+const as_sems = @import("./infer.zig").as_sems;
 const get_sem_tid = @import("./infer.zig").get_sem_tid;
 
 const Stack = @import("./Stack.zig").Stack;

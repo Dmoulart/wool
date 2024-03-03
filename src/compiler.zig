@@ -312,7 +312,21 @@ pub fn compile_expr(self: *Compiler, inst: *Ir.Inst) anyerror!c.BinaryenExpressi
                 if (if_inst.else_branch) |else_branch| try self.compile_expr(else_branch) else null,
             );
         },
+        .call => |*call| {
+            const args = try self.allocator.alloc(c.BinaryenExpressionRef, call.args.len);
 
+            for (call.args, 0..) |arg, i| {
+                args[i] = try self.compile_expr(arg);
+            }
+
+            return c.BinaryenCall(
+                self.module,
+                self.to_c_str(call.callee),
+                @ptrCast(args),
+                @intCast(args.len),
+                c.BinaryenTypeAuto(),
+            );
+        },
         else => {
             std.debug.print("not impl {any}", .{inst});
             return CompileError.NotImplemented;
