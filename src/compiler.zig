@@ -77,14 +77,16 @@ pub fn compile_global(self: *Compiler, inst: *Ir.Inst) !void {
         },
         .func => |*func| {
             try self.use_new_environment();
-
+            self.current_env.?.args_nb = @intCast(func.args.len);
             // Register the args
-            for (func.args) |arg_tid| {
-                _ = try self.current_env.?.new_local(primitive(arg_tid));
-            }
+            // for (func.args) |arg_tid| {
+            //     _ = try self.current_env.?.new_local(primitive(arg_tid));
+            // }
 
             // either a block or a single expression ?
             const body = try self.compile_expr(func.body);
+
+            // std.debug.print("self.current_env.?.local_types.items.len {}", .{self.current_env.?.local_types.items.len});
 
             _ = c.BinaryenAddFunction(
                 self.module,
@@ -327,7 +329,7 @@ fn declare_local(
     comptime tid: Infer.TypeID,
     local: Ir.Inst.Local,
 ) !c.BinaryenExpressionRef {
-    const index = try self.current_env.?.new_local(primitive(tid));
+    const index = try self.current_env.?.new_local(primitive(tid)) + self.current_env.?.args_nb;
     const value = try self.compile_expr(local.value) orelse return CompileError.ExpectedExpression; // Could fail ?
     return c.BinaryenLocalSet(self.module, @intCast(index), value);
 }

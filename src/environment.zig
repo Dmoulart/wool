@@ -1,6 +1,6 @@
 local_types: std.ArrayList(c.BinaryenType),
 
-stack: Stack(c.BinaryenExpressionRef),
+args_nb: u32 = 0,
 
 allocator: std.mem.Allocator,
 
@@ -8,13 +8,11 @@ pub fn init(allocator: std.mem.Allocator) @This() {
     return .{
         .allocator = allocator,
         .local_types = std.ArrayList(c.BinaryenType).init(allocator),
-        .stack = Stack(c.BinaryenExpressionRef).init(allocator),
     };
 }
 
 pub fn deinit(self: *@This()) void {
     self.local_types.deinit();
-    self.stack.deinit();
 }
 
 pub fn new_local(self: *@This(), ty: c.BinaryenType) !usize {
