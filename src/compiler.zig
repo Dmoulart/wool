@@ -329,7 +329,7 @@ fn declare_local(
 fn select(self: *Compiler, comptime tid: Infer.TypeID, select_inst: *Ir.Inst.Select) !c.BinaryenExpressionRef {
     return c.BinaryenSelect(
         self.module,
-        try self.compile_expr(select_inst.condition),
+        try self.compile_expr(select_inst.condition), // try self.compile_expr(select_inst.condition),
         try self.compile_expr(select_inst.then_branch),
         if (select_inst.else_branch) |else_branch|
             try self.compile_expr(else_branch)

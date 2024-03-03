@@ -546,6 +546,34 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
             );
             // return node;
         },
+        .Logical => |logical| {
+            const left = try self.infer(logical.left);
+            const right = try self.infer(logical.right);
+
+            try unify(sem_type(left), sem_type(right));
+            //@todo pay attention to circular references !! This can cause segfaults
+            try bind(sem_type(right), sem_type(left));
+
+            const node = try self.new_type_node(
+                .{
+                    .variable = .{
+                        .name = "logical",
+                        .ref = sem_type(left),
+                    },
+                },
+            );
+
+            return try self.create_sem(
+                .{
+                    .Logical = .{
+                        .type_node = node,
+                        .orig_expr = expr,
+                        .left = left,
+                        .right = right,
+                    },
+                },
+            );
+        },
         else => unreachable,
     };
 }

@@ -6,12 +6,24 @@
 //@todo:infer not working for 123 infering
 // d := if c 1 + 1 else 2 + 123 
 
+
+main :: -> {
+  // i : i64 = 10 and 20
+  a : i64  = 10
+  b : i64  = 20
+  i := a > b
+}
+
+
+
+
+/*
 global_var :: 1234 + 1234
 
 a :: -> { 
   // e : i32 = 1 * 1 + 1 - 123 - 312 / 123
 
-  i :i64 = 1 
+  i : i64 = 1 or 0
 
   c := i == global_var
 
@@ -34,6 +46,13 @@ a :: -> {
       i    
  */
 }
+
+*/
+
+
+
+
+
 
 /* 
 add :: -> { 

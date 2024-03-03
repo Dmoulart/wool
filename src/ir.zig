@@ -505,6 +505,40 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
             std.debug.print("\nNot Implemented = {any}\n", .{sem});
             return IrError.NotImplemented;
         },
+        .Logical => |logical| {
+            // const tid = get_sem_tid(sem);
+
+            const left = try self.convert(as_sem(logical.left));
+            const right = try self.convert(as_sem(logical.right));
+
+            //@todo refacto with if
+            const values = switch (logical.orig_expr.Logical.op.type) {
+                .AND => .{
+                    .condition = left,
+                    .then_branch = right,
+                    .else_branch = left,
+                },
+                .OR => .{
+                    .condition = left,
+                    .then_branch = left,
+                    .else_branch = right,
+                },
+                else => unreachable,
+            };
+
+            return try self.create_inst(.{ .@"if" = values });
+
+            // const select_inst: Inst = switch (tid) {
+            //     .bool => .{ .select_bool = values },
+            //     .i32 => .{ .select_i32 = values },
+            //     .i64 => .{ .select_i64 = values },
+            //     .f32 => .{ .select_f32 = values },
+            //     .f64 => .{ .select_f64 = values },
+            //     else => unreachable,
+            // };
+
+            // return try self.create_inst(select_inst);
+        },
         .If => |*if_sem| {
             const tid = get_sem_tid(as_sem(if_sem));
 
