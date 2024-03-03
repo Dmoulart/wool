@@ -7,11 +7,11 @@
 // d := if c 1 + 1 else 2 + 123 
 
 
-main :: -> {
+main :: what i32, why i32 -> {
   a := true
   b := true
   
-  i : i64 = if a or b 1 else 0
+  i : i64 = if true 1 else 0
 
   /*a : i64  = 10
   b : i64  = 20

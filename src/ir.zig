@@ -264,7 +264,11 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
                         .value = try self.eval(as_sem(const_init.initializer), f64, f64),
                     },
                 }),
-                .func => try self.convert(as_sem(const_init.initializer)),
+                .func => {
+                    const func_inst = try self.convert(as_sem(const_init.initializer));
+                    func_inst.func.name = name; //@todo hack to get the name. Find a better way.
+                    return func_inst;
+                },
 
                 else => IrError.NotImplemented,
             };

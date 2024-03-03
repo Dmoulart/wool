@@ -77,6 +77,12 @@ pub fn compile_global(self: *Compiler, inst: *Ir.Inst) !void {
         },
         .func => |*func| {
             try self.use_new_environment();
+
+            // Register the args
+            for (func.args) |arg_tid| {
+                _ = try self.current_env.?.new_local(primitive(arg_tid));
+            }
+
             // either a block or a single expression ?
             const body = try self.compile_expr(func.body);
 
