@@ -361,6 +361,7 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
 
             const op = logical.orig_expr.Logical.op.type;
 
+            // this is not needed for i32
             const bin = try self.create_inst(try binary(
                 tid,
                 if (op == .AND) .BANG_EQUAL else .EQUAL_EQUAL,

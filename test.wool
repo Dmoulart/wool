@@ -6,6 +6,7 @@
 //@todo:infer not working for 123 infering
 // d := if c 1 + 1 else 2 + 123 
 
+add :: a i32, b i32 -> i32 a + b
 
 main :: what i32, why i32 -> {
   a := true
