@@ -98,6 +98,7 @@ pub const Inst = union(enum) {
 
     block: struct {
         insts: []*Inst,
+        return_type: Infer.TypeID, // @todo: make a block for each type ???
     },
 
     pub fn Global(comptime T: type) type {
@@ -285,12 +286,19 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
         .Block => |*block| {
             //@todo:mem
             const insts = try self.allocator.alloc(*Inst, block.exprs.len);
+
+            const return_type: Infer.TypeID = if (block.exprs.len == 0)
+                .void
+            else
+                get_sem_tid(as_sem(block.exprs[block.exprs.len - 1]));
+
             for (block.exprs, 0..) |expr, i| {
                 insts[i] = try self.convert(as_sem(expr));
             }
+
             return try self.create_inst(
                 .{
-                    .block = .{ .insts = insts },
+                    .block = .{ .insts = insts, .return_type = return_type },
                 },
             );
         },

@@ -1,7 +1,10 @@
 
 
- // does not work
+// @todo:infer not working
 // my_bool :: 1 == 1
+
+//@todo:infer not working for 123 infering
+// d := if c 1 + 1 else 2 + 123 
 
 global_var :: 1234 + 1234
 
@@ -12,17 +15,15 @@ a :: -> {
 
   c := i == global_var
 
-  d := if c 1 + 1 else 2 + 123 
-
-  f := d + i
+  // f := d + i
 
   g : i64 = if c 
-      {
-        azerty := global_var
-        azerty
-      }
-    else 
-      i  
+    {
+      azerty := global_var
+      azerty
+    }
+      else 
+    i
  /*
   g : i64 = if c 
       global_var 
