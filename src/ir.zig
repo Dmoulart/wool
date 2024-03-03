@@ -280,6 +280,8 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
 
             for (function.type_node.function.args, 0..) |arg, i| {
                 args[i] = arg.get_tid();
+                // @todo this is fucking awful !!
+                _ = try self.function_locals.push(function.orig_expr.Function.args.?[i].expr.Variable.name.lexeme);
             }
 
             const name = if (function.orig_expr.Function.name) |name|
