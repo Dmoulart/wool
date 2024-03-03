@@ -4,9 +4,7 @@ ast: []*const Expr,
 
 type_nodes: std.ArrayListUnmanaged(TypeNode),
 
-sems: std.AutoArrayHashMapUnmanaged(*const Expr, *TypeNode),
-
-sems2: std.ArrayListUnmanaged(Sem),
+sems: std.ArrayListUnmanaged(Sem),
 
 typed_ast: std.ArrayListUnmanaged(*Sem),
 
@@ -147,8 +145,6 @@ pub const TypeNode = union(enum) {
             },
             .function => {
                 unreachable;
-
-                // self.function.return_type.set_tid(tid);
             },
         }
     }
@@ -223,7 +219,7 @@ const TypeError = error{
 const Err = ErrorReporter(TypeError);
 
 pub fn init(allocator: std.mem.Allocator, ast: []*Expr) @This() {
-    return .{ .allocator = allocator, .ast = ast, .env = Env.init(allocator), .type_nodes = .{}, .sems = .{}, .sems2 = .{}, .typed_ast = .{} };
+    return .{ .allocator = allocator, .ast = ast, .env = Env.init(allocator), .type_nodes = .{}, .sems = .{}, .typed_ast = .{} };
 }
 
 pub fn infer_program(self: *@This()) anyerror![]*Sem {
@@ -232,8 +228,7 @@ pub fn infer_program(self: *@This()) anyerror![]*Sem {
         try self.typed_ast.append(self.allocator, t_expr);
     }
 
-    try self.write_sems_to_file();
-    // try self.write_sems_to_file2();
+    // try self.write_sems_to_file();
 
     return self.typed_ast.items;
 }
@@ -297,11 +292,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
 
             try unify(variable, sem_type(value));
 
-            self.put_sem(assign.value, sem_type(value));
-
             const node = try self.new_type(.void);
-
-            self.put_sem(expr, node);
 
             const sem = try self.create_sem(
                 .{
@@ -317,8 +308,6 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
         },
         .Grouping => |*grouping| {
             var expr_sem = try self.infer(grouping.expr);
-
-            self.put_sem(expr, sem_type(expr_sem));
 
             return try self.create_sem(
                 .{
@@ -359,9 +348,6 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
                 builtin,
                 args,
             );
-
-            self.put_sem(expr, call_infos.return_type);
-
             // const sem = Sem.init(
             //     expr,
             //     .{
@@ -387,15 +373,11 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
         .Literal => |*literal| {
             const node = try self.new_type(type_of(literal.value));
 
-            // node.type.size = try size_of(literal.value);
-
             const variable = try self.new_type_node(
                 .{
                     .variable = .{ .name = "T", .ref = node }, // @todo make name other than T does not work in binary
                 },
             );
-
-            self.put_sem(expr, variable);
 
             return try self.create_sem(
                 .{
@@ -409,8 +391,6 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
         .Variable => |*variable| {
             const node = try self.env.get(variable.name.lexeme);
 
-            self.put_sem(expr, node);
-
             return try self.create_sem(
                 .{
                     .Variable = .{
@@ -422,14 +402,13 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
         },
         .If => |*if_expr| {
             const condition = try self.infer(if_expr.condition);
-            const bool_condition = try self.new_type(.bool);
 
-            try unify(sem_type(condition), bool_condition);
-            self.put_sem(if_expr.condition, sem_type(condition));
+            try unify(
+                sem_type(condition),
+                try self.new_type(.bool),
+            );
 
             const then_branch = try self.infer(if_expr.then_branch);
-
-            self.put_sem(if_expr.then_branch, sem_type(then_branch));
 
             const node = try self.new_type_node(
                 .{
@@ -444,19 +423,21 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
 
             if (if_expr.else_branch) |else_branch| {
                 maybe_else_branch = try self.infer(else_branch);
-                try unify(node, sem_type(maybe_else_branch.?));
-                self.put_sem(else_branch, sem_type(maybe_else_branch.?));
+                try unify(sem_type(then_branch), sem_type(maybe_else_branch.?));
+                bind(sem_type(maybe_else_branch.?), sem_type(then_branch));
             }
 
-            self.put_sem(expr, node);
-
-            return try self.create_sem(.{ .If = .{
-                .condition = condition,
-                .then_branch = then_branch,
-                .else_branch = maybe_else_branch,
-                .orig_expr = expr,
-                .type_node = node,
-            } });
+            return try self.create_sem(
+                .{
+                    .If = .{
+                        .condition = condition,
+                        .then_branch = then_branch,
+                        .else_branch = maybe_else_branch,
+                        .orig_expr = expr,
+                        .type_node = node,
+                    },
+                },
+            );
         },
         .Block => |*block| {
             var sems = try self.allocator.alloc(*anyopaque, block.exprs.len);
@@ -472,8 +453,6 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
             else
                 try self.new_type(.void);
 
-            self.put_sem(expr, return_type);
-
             try self.env.end_local_scope(false); // @todo generic block ?????
 
             return try self.create_sem(
@@ -488,7 +467,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
         },
         .Import => {
             const node = try self.new_type(.any);
-            self.put_sem(expr, node);
+
             return try self.create_sem(
                 .{
                     .Import = .{
@@ -504,11 +483,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
 
             try unify(bool_condition, sem_type(condition));
 
-            self.put_sem(while_expr.condition, sem_type(condition));
-
             const body = try self.infer(while_expr.body);
-
-            self.put_sem(expr, sem_type(body));
 
             return try self.create_sem(.{
                 .While = .{
@@ -530,13 +505,11 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
                     // const func_expr = try self.env.get_function(func.name);
                     // const new_func = try self.instanciate_function(callee, func_expr, call_expr.args);
                     // const node = try self.call(&new_func.function, call_expr.args);
-                    // self.put_sem(expr, node);
                     // pretty_print(new_func);
                     // return node;
                 }
 
                 const call_infos = try self.call(func, call_expr.args);
-                self.put_sem(expr, call_infos.return_type);
 
                 return try self.create_sem(
                     .{
@@ -559,7 +532,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
                 null,
             );
             // try self.env.define_function(func.name.?.lexeme, expr);
-            self.put_sem(expr, function_infos.type_node);
+
             return try self.create_sem(
                 .{
                     .Function = .{
@@ -617,13 +590,9 @@ fn call(
         if (tag(call_arg.*) == .variable and tag(arg_type.*) == .variable and call_arg != arg_type) {
             if (std.mem.eql(u8, function_arg.variable.name, call_arg.variable.name)) {
                 arg_type.variable.ref = call_arg;
+                //@todo use bind
             }
         }
-
-        self.put_sem(
-            expr_arg,
-            call_arg,
-        );
 
         args_sems[i] = arg;
     }
@@ -809,6 +778,10 @@ fn unify(node_a: *TypeNode, node_b: *TypeNode) !void {
     }
 }
 
+fn bind(from: *TypeNode, to: *TypeNode) void {
+    from.variable.ref = to;
+}
+
 fn new_type_node(self: *@This(), type_node: TypeNode) !*TypeNode {
     var tn_ptr = try self.type_nodes.addOne(self.allocator);
     tn_ptr.* = type_node;
@@ -924,13 +897,8 @@ fn type_of(value: Expr.Literal.Value) TypeID {
 //     };
 // }
 
-fn put_sem(self: *@This(), expr: *const Expr, node: *TypeNode) void {
-    // @todo:err try to find a way to handle the allocations error
-    self.sems.put(self.allocator, expr, node) catch unreachable;
-}
-
 fn create_sem(self: *@This(), sem: Sem) !*Sem {
-    var sem_ptr = try self.sems2.addOne(self.allocator);
+    var sem_ptr = try self.sems.addOne(self.allocator);
     sem_ptr.* = sem;
     return sem_ptr;
 }
@@ -1212,54 +1180,8 @@ const builtins_types = std.ComptimeStringMap(
     },
 );
 
-pub fn log_sems(self: *@This()) !void {
-    std.debug.print("\n#####SEMS-STATE\n", .{});
-    var iter = self.sems.iterator();
-    while (iter.next()) |entry| {
-        var ptr = switch (entry.value_ptr.*.*) {
-            .variable => |variable| variable.ref,
-            .type => entry.value_ptr.*,
-        };
-        pretty_print(entry.key_ptr.*);
-        std.debug.print("\nREF_PTR: {}\n", .{@intFromPtr(
-            ptr,
-        )});
-        std.debug.print("\nNODE_PTR: {}\n\n", .{@intFromPtr(
-            entry.value_ptr.*,
-        )});
-    }
-}
-
 pub fn write_sems_to_file2(self: *@This()) !void {
-    // try jsonPrint(self.sems2.items, "./types_2.json");
-    std.debug.print("\n{any}\n", .{self.sems2.items});
-}
-
-pub fn write_sems_to_file(self: *@This()) !void {
-    var types = std.ArrayList(struct {
-        type: *TypeNode,
-        expr: *const Expr,
-        ptr: usize,
-    }).init(self.allocator);
-
-    var iter = self.sems.iterator();
-    while (iter.next()) |entry| {
-        var ptr = switch (entry.value_ptr.*.*) {
-            .variable => |variable| variable.ref,
-            .type, .function => entry.value_ptr.*,
-        };
-        try types.append(
-            .{
-                .type = entry.value_ptr.*,
-                .expr = entry.key_ptr.*,
-                .ptr = @intFromPtr(
-                    ptr,
-                ),
-            },
-        );
-    }
-
-    try jsonPrint(types.items, "./types.json");
+    std.debug.print("\n{any}\n", .{self.sems.items});
 }
 
 const Env = struct {
