@@ -8,10 +8,14 @@
 
 
 main :: -> {
-  // i : i64 = 10 and 20
-  a : i64  = 10
+  a := true
+  b := true
+  
+  i : i64 = if a or b 1 else 0
+
+  /*a : i64  = 10
   b : i64  = 20
-  i := a > b
+  i := a > b */
 }
 
 
