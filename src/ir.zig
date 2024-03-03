@@ -86,11 +86,15 @@ pub const Inst = union(enum) {
     le_f32: Binary,
     le_f64: Binary,
 
+    select_bool: Select,
+    select_i32: Select,
+    select_i64: Select,
+    select_f32: Select,
+    select_f64: Select,
+
     func: Func,
 
     @"if": If,
-
-    select: Select,
 
     block: struct {
         insts: []*Inst,
@@ -520,15 +524,22 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
                 );
             }
 
-            return try self.create_inst(
-                .{
-                    .select = .{
-                        .then_branch = then_branch,
-                        .else_branch = else_branch,
-                        .condition = condition,
-                    },
-                },
-            );
+            const values: Inst.Select = .{
+                .then_branch = then_branch,
+                .else_branch = else_branch,
+                .condition = condition,
+            };
+
+            const select_inst: Inst = switch (tid) {
+                .bool => .{ .select_bool = values },
+                .i32 => .{ .select_i32 = values },
+                .i64 => .{ .select_i64 = values },
+                .f32 => .{ .select_f32 = values },
+                .f64 => .{ .select_f64 = values },
+                else => unreachable,
+            };
+
+            return try self.create_inst(select_inst);
         },
     }
 }

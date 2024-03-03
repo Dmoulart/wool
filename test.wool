@@ -12,12 +12,7 @@ a :: -> {
 
   c := i == global_var
 
-  d : i64 = if c {
-      inner := 1
-      inner
-    }
-    else 
-      i
+  d : i64 = if c 1 else 2
  
   // @does not work
   /*

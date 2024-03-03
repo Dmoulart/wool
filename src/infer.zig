@@ -429,14 +429,6 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
 
             const then_branch = try self.infer(if_expr.then_branch);
 
-            var maybe_else_branch: ?*Sem = null;
-
-            if (if_expr.else_branch) |else_branch| {
-                maybe_else_branch = try self.infer(else_branch);
-                try unify(sem_type(then_branch), sem_type(maybe_else_branch.?));
-                self.put_sem(else_branch, sem_type(maybe_else_branch.?));
-            }
-
             self.put_sem(if_expr.then_branch, sem_type(then_branch));
 
             const node = try self.new_type_node(
@@ -447,6 +439,14 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
                     },
                 },
             );
+
+            var maybe_else_branch: ?*Sem = null;
+
+            if (if_expr.else_branch) |else_branch| {
+                maybe_else_branch = try self.infer(else_branch);
+                try unify(node, sem_type(maybe_else_branch.?));
+                self.put_sem(else_branch, sem_type(maybe_else_branch.?));
+            }
 
             self.put_sem(expr, node);
 

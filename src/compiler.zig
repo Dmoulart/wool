@@ -255,6 +255,21 @@ pub fn compile_expr(self: *Compiler, inst: *Ir.Inst) anyerror!c.BinaryenExpressi
         .le_f64 => |bin| {
             return try self.binary(.f64, .LESS_EQUAL, bin);
         },
+        .select_bool => |*sel| {
+            return try self.select(.bool, sel);
+        },
+        .select_i32 => |*sel| {
+            return try self.select(.i32, sel);
+        },
+        .select_i64 => |*sel| {
+            return try self.select(.i64, sel);
+        },
+        .select_f32 => |*sel| {
+            return try self.select(.f32, sel);
+        },
+        .select_f64 => |*sel| {
+            return try self.select(.f64, sel);
+        },
         .local_ref => |local_ref| {
             return c.BinaryenLocalGet(
                 self.module,
@@ -291,15 +306,7 @@ pub fn compile_expr(self: *Compiler, inst: *Ir.Inst) anyerror!c.BinaryenExpressi
                 if (if_inst.else_branch) |else_branch| try self.compile_expr(else_branch) else null,
             );
         },
-        .select => |*select| {
-            return c.BinaryenSelect(
-                self.module,
-                try self.compile_expr(select.condition),
-                try self.compile_expr(select.then_branch),
-                if (select.else_branch) |else_branch| try self.compile_expr(else_branch) else null,
-                c.BinaryenTypeInt64(),
-            );
-        },
+
         else => {
             std.debug.print("not impl {any}", .{inst});
             return CompileError.NotImplemented;
@@ -317,6 +324,19 @@ fn declare_local(
     const index = try self.current_env.?.new_local(primitive(tid));
     const value = try self.compile_expr(local.value) orelse return CompileError.ExpectedExpression; // Could fail ?
     return c.BinaryenLocalSet(self.module, @intCast(index), value);
+}
+
+fn select(self: *Compiler, comptime tid: Infer.TypeID, select_inst: *Ir.Inst.Select) !c.BinaryenExpressionRef {
+    return c.BinaryenSelect(
+        self.module,
+        try self.compile_expr(select_inst.condition),
+        try self.compile_expr(select_inst.then_branch),
+        if (select_inst.else_branch) |else_branch|
+            try self.compile_expr(else_branch)
+        else
+            null,
+        primitive(tid),
+    );
 }
 
 fn binary(
