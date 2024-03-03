@@ -329,7 +329,7 @@ fn declare_local(
     comptime tid: Infer.TypeID,
     local: Ir.Inst.Local,
 ) !c.BinaryenExpressionRef {
-    const index = try self.current_env.?.new_local(primitive(tid)) + self.current_env.?.args_nb;
+    const index = try self.current_env.?.new_local(primitive(tid));
     const value = try self.compile_expr(local.value) orelse return CompileError.ExpectedExpression; // Could fail ?
     return c.BinaryenLocalSet(self.module, @intCast(index), value);
 }
