@@ -90,6 +90,8 @@ pub const Inst = union(enum) {
 
     @"if": If,
 
+    select: Select,
+
     block: struct {
         insts: []*Inst,
     },
@@ -121,6 +123,12 @@ pub const Inst = union(enum) {
     };
 
     pub const If = struct {
+        then_branch: *Inst,
+        else_branch: ?*Inst,
+        condition: *Inst,
+    };
+
+    pub const Select = struct {
         then_branch: *Inst,
         else_branch: ?*Inst,
         condition: *Inst,
@@ -485,16 +493,39 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
             std.debug.print("\nNot Implemented = {any}\n", .{sem});
             return IrError.NotImplemented;
         },
-        //  condition: *const Expr,
-        // then_branch: *const Expr,
-        // else_branch: ?*const Expr,
         .If => |*if_sem| {
+            const tid = get_sem_tid(as_sem(if_sem));
+
+            const condition = try self.convert(as_sem(if_sem.condition));
+
+            const then_branch = try self.convert(as_sem(if_sem.then_branch));
+
+            const else_branch = if (if_sem.else_branch) |else_branch|
+                try self.convert(as_sem(else_branch))
+            else
+                null;
+
+            // @todo real opti detection ??
+            const needs_branching = tid == .void;
+
+            if (needs_branching) {
+                return try self.create_inst(
+                    .{
+                        .@"if" = .{
+                            .then_branch = then_branch,
+                            .else_branch = else_branch,
+                            .condition = condition,
+                        },
+                    },
+                );
+            }
+
             return try self.create_inst(
                 .{
-                    .@"if" = .{
-                        .then_branch = try self.convert(as_sem(if_sem.then_branch)),
-                        .else_branch = if (if_sem.else_branch) |else_branch| try self.convert(as_sem(else_branch)) else null,
-                        .condition = try self.convert(as_sem(if_sem.condition)),
+                    .select = .{
+                        .then_branch = then_branch,
+                        .else_branch = else_branch,
+                        .condition = condition,
                     },
                 },
             );
@@ -543,6 +574,8 @@ fn eval(self: *Ir, sem: *Infer.Sem, comptime InputType: type, comptime ReturnTyp
 }
 
 const std = @import("std");
+const meta = std.meta;
+const activeTag = std.meta.activeTag;
 const Infer = @import("./infer.zig");
 const as_sem = @import("./infer.zig").as_sem;
 const get_sem_tid = @import("./infer.zig").get_sem_tid;

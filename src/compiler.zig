@@ -291,6 +291,15 @@ pub fn compile_expr(self: *Compiler, inst: *Ir.Inst) anyerror!c.BinaryenExpressi
                 if (if_inst.else_branch) |else_branch| try self.compile_expr(else_branch) else null,
             );
         },
+        .select => |*select| {
+            return c.BinaryenSelect(
+                self.module,
+                try self.compile_expr(select.condition),
+                try self.compile_expr(select.then_branch),
+                if (select.else_branch) |else_branch| try self.compile_expr(else_branch) else null,
+                c.BinaryenTypeInt64(),
+            );
+        },
         else => {
             std.debug.print("not impl {any}", .{inst});
             return CompileError.NotImplemented;
