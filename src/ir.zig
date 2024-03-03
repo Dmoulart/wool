@@ -363,7 +363,7 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
 
             const bin = try self.create_inst(try binary(
                 tid,
-                if (op == .AND) .GREATER else .EQUAL_EQUAL,
+                if (op == .AND) .BANG_EQUAL else .EQUAL_EQUAL,
                 left,
                 try self.create_inst(try literal(tid, if (tid == .bool) Expr.Literal.Value{
                     .Boolean = true, //@todo  this sucks
