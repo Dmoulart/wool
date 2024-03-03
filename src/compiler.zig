@@ -78,17 +78,11 @@ pub fn compile_global(self: *Compiler, inst: *Ir.Inst) !void {
         .func => |*func| {
             try self.use_new_environment();
             self.current_env.?.args_nb = @intCast(func.args.len);
-            // Register the args
-            // for (func.args) |arg_tid| {
-            //     _ = try self.current_env.?.new_local(primitive(arg_tid));
-            // }
 
             // either a block or a single expression ?
             const body = try self.compile_expr(func.body);
 
-            // std.debug.print("self.current_env.?.local_types.items.len {}", .{self.current_env.?.local_types.items.len});
-
-            _ = c.BinaryenAddFunction(
+            const func_ref = c.BinaryenAddFunction(
                 self.module,
                 self.to_c_str(func.name),
                 try self.arguments(func.args), // ?
@@ -97,6 +91,10 @@ pub fn compile_global(self: *Compiler, inst: *Ir.Inst) !void {
                 @intCast(self.current_env.?.local_types.items.len),
                 body,
             );
+
+            if (std.mem.eql(u8, func.name, "main")) {
+                c.BinaryenSetStart(self.module, func_ref);
+            }
         },
         else => {
             std.debug.print("hello {any}", .{inst});

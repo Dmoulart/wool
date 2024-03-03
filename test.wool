@@ -8,7 +8,7 @@
 
 add :: a i32, b i32 -> i32 a + b
 
-main :: what i32, why i32 -> {
+main :: -> {
   a := true
   b := true
   
