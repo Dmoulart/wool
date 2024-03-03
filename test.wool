@@ -17,13 +17,16 @@ a :: -> {
 
   // f := d + i
 
+  d := if c 1 + 1 else 2 + 123 
+
   g : i64 = if c 
     {
       azerty := global_var
       azerty
     }
       else 
-    i
+    d
+
  /*
   g : i64 = if c 
       global_var 

@@ -425,7 +425,8 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
             if (if_expr.else_branch) |else_branch| {
                 maybe_else_branch = try self.infer(else_branch);
                 try unify(sem_type(then_branch), sem_type(maybe_else_branch.?));
-                // try bind(sem_type(maybe_else_branch.?), sem_type(then_branch));
+                //@todo pay attention to circular references !! This can cause segfaults
+                try bind(sem_type(maybe_else_branch.?), sem_type(then_branch));
             }
 
             return try self.create_sem(
