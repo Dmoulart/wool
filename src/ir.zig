@@ -94,6 +94,8 @@ pub const Inst = union(enum) {
 
     func: Func,
 
+    extern_func: ExternFunc,
+
     @"if": If,
 
     block: struct {
@@ -120,6 +122,12 @@ pub const Inst = union(enum) {
     pub const Binary = struct {
         left: *Inst,
         right: *Inst,
+    };
+
+    pub const ExternFunc = struct {
+        name: []const u8,
+        args: []Infer.TypeID,
+        ret: Infer.TypeID,
     };
 
     pub const Func = struct {
@@ -183,25 +191,9 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
             // };
             return try self.create_inst(try literal(tid, lit.orig_expr.Literal.value));
         },
-        // .Literal => |*lit| return switch (get_sem_tid(sem)) {
-        //     //temporary, Number should be narrowed in Infer phase or an error should be thrown
-        //     .number, .i32 => try self.create_inst(.{
-        //         .value_i32 = try std.fmt.parseInt(i32, literal.orig_expr.Literal.value.Number, 10),
-        //     }),
-        //     .i64 => try self.create_inst(.{
-        //         .value_i64 = try std.fmt.parseInt(i64, literal.orig_expr.Literal.value.Number, 10),
-        //     }),
-        //     .float, .f32 => try self.create_inst(.{
-        //         .value_f32 = try std.fmt.parseFloat(f32, literal.orig_expr.Literal.value.Number),
-        //     }),
-        //     .f64 => try self.create_inst(.{
-        //         .value_f64 = try std.fmt.parseFloat(f64, literal.orig_expr.Literal.value.Number),
-        //     }),
-        //     .bool => try self.create_inst(.{
-        //         .value_bool = if (literal.orig_expr.Literal.value.Boolean) 1 else 0,
-        //     }),
-        //     else => IrError.NotImplemented,
-        // },
+        .Grouping => |grouping| {
+            return try self.convert(as_sem(grouping.expr));
+        },
         .VarInit => |*var_init| {
             const name = var_init.orig_expr.VarInit.name.lexeme;
             const tid = get_sem_tid(as_sem(var_init.initializer));

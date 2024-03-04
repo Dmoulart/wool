@@ -98,6 +98,16 @@ pub const TypeID = enum(TypeBits) {
             else => unreachable,
         };
     }
+
+    pub fn TypeOf(comptime self: TypeID) TypeID {
+        return switch (self) {
+            .i32 => i32,
+            .i64 => i64,
+            .f32 => f32,
+            .f64 => f64,
+            else => unreachable,
+        };
+    }
 };
 
 const MonoType = struct {

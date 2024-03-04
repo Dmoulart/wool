@@ -1,6 +1,11 @@
 
+main :: -> {
+  a : i32 = (1 + 2 + 3) * 2
+  
+}
 
-// @todo:infer not working
+/*
+// @todo: comptime calculation not working
 // my_bool :: 1 == 1
 
 //@todo:infer not working for 123 infering
@@ -22,7 +27,7 @@ main :: -> {
   i := a > b */
 }
 
-
+*/
 
 
 /*
