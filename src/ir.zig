@@ -447,7 +447,6 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
         },
         .Call => |*call| {
             // @todo dynamic calls ??
-            std.debug.print("callee {any}", .{as_sem(call)});
             // @todo horror museum
             const function_name = call.orig_expr.Call.callee.Variable.name.lexeme;
 

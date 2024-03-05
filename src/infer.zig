@@ -849,7 +849,7 @@ fn new_type_from_token(self: *@This(), maybe_token: ?*const Token) !*TypeNode {
         .{
             .type = .{
                 .tid = if (maybe_token) |token|
-                    try type_from_str(token.lexeme)
+                    try tid_from_str(token.lexeme)
                 else
                     .any,
                 // .size = null,
@@ -976,9 +976,11 @@ pub fn jsonPrint(value: anytype, file_path: []const u8) !void {
     _ = try file.writeAll(try out.toOwnedSlice());
 }
 
-pub fn type_from_str(str: []const u8) !TypeID {
+pub fn tid_from_str(str: []const u8) !TypeID {
     // optimize this
-    if (std.mem.eql(u8, str, "i32")) {
+    if (std.mem.indexOf(u8, str, "->")) |_| {
+        return .func;
+    } else if (std.mem.eql(u8, str, "i32")) {
         return .i32;
     } else if (std.mem.eql(u8, str, "i64")) {
         return .i64;

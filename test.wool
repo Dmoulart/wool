@@ -1,7 +1,11 @@
+add :: a i32, b i32 -> i32 a + b
+
+log : i32 -> void
+    : from console import log
 
 main :: -> {
-  a : i32 = (1 + 2 + 3) * 2
-  
+  a := 1
+  b := if add(1 a) == 1 true else false
 }
 
 /*
@@ -18,7 +22,7 @@ main :: -> {
   b := true
   
   i : i64 = if true or true and a or b
-     add(1 2)
+     add(2 1)
     else
      0
 

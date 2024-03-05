@@ -362,7 +362,9 @@ fn const_init(self: *Self) ParserError!*Expr {
     // must be before declared_type check !
     const implicit_type = self.match(&.{.COLON_COLON});
 
-    const declared_type = self.check(.COLON) and self.check_next(1, .IDENTIFIER) and self.check_next(2, .COLON);
+    const declared_type = self.check(.COLON) and
+        self.check_next(1, .IDENTIFIER) and
+        self.check_next(2, .COLON);
 
     const is_const = declared_type or implicit_type;
 
@@ -383,13 +385,9 @@ fn const_init(self: *Self) ParserError!*Expr {
 
             const equals = self.previous();
 
-            const @"type" = try self.consume(
-                .IDENTIFIER,
-                ParserError.MissingFunctionType,
-                "Missing type",
-            );
+            const @"type" = self.advance();
 
-            // eat semicolon
+            // eat last colon
             _ = self.advance();
 
             const value = try self.expression();
@@ -428,7 +426,9 @@ fn var_init(self: *Self) ParserError!*Expr {
 
     const implicit_type = self.match(&.{.COLON_EQUAL});
 
-    const declared_type = self.check(.COLON) and self.check_next(1, .IDENTIFIER) and self.check_next(2, .EQUAL);
+    const declared_type = self.check(.COLON) and
+        self.check_next(1, .IDENTIFIER) and
+        self.check_next(2, .EQUAL);
 
     const is_var = implicit_type or declared_type;
 
@@ -448,11 +448,7 @@ fn var_init(self: *Self) ParserError!*Expr {
             _ = self.advance();
             const equals = self.previous();
 
-            const @"type" = try self.consume(
-                .IDENTIFIER,
-                ParserError.MissingFunctionType,
-                "Missing type",
-            );
+            const @"type" = self.advance();
 
             // eat equal
             _ = self.advance();
