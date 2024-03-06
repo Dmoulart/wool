@@ -125,9 +125,8 @@ pub const Inst = union(enum) {
     };
 
     pub const ExternFunc = struct {
-        name: []const u8,
-        args: []Infer.TypeID,
-        ret: Infer.TypeID,
+        namespace: []const u8,
+        member: []const u8,
     };
 
     pub const Func = struct {
@@ -265,8 +264,22 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
                 }),
                 .func => {
                     const func_inst = try self.convert(as_sem(const_init.initializer));
-                    func_inst.func.name = name; //@todo hack to get the name. Find a better way.
+                    if (activeTag(func_inst.*) == .func) {
+                        func_inst.func.name = name; //@todo hack to get the name. Find a better way.
+
+                    }
                     return func_inst;
+                },
+                .extern_func => {
+                    //@todo wow this is really crazy
+                    const namespace = as_sem(const_init.initializer).Import.orig_expr.Import.namespace.lexeme;
+                    const member = as_sem(const_init.initializer).Import.orig_expr.Import.member.lexeme;
+                    return try self.create_inst(.{
+                        .extern_func = .{
+                            .namespace = namespace,
+                            .member = member,
+                        },
+                    });
                 },
 
                 else => IrError.NotImplemented,
@@ -462,6 +475,19 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
                 },
             );
         },
+
+        .Import => |*import| {
+            //@todo wow this is really crazy
+            const namespace = as_sem(import).Import.orig_expr.Import.namespace.lexeme;
+            const member = as_sem(import).Import.orig_expr.Import.member.lexeme;
+            return try self.create_inst(.{
+                .extern_func = .{
+                    .namespace = namespace,
+                    .member = member,
+                },
+            });
+        },
+
         else => {
             std.debug.print("\nNot Implemented = {any}\n", .{sem});
             return IrError.NotImplemented;

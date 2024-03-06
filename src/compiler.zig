@@ -96,6 +96,16 @@ pub fn compile_global(self: *Compiler, inst: *Ir.Inst) !void {
                 c.BinaryenSetStart(self.module, func_ref);
             }
         },
+        .extern_func => |*extern_func| {
+            c.BinaryenAddFunctionImport(
+                self.module,
+                self.to_c_str(extern_func.member),
+                self.to_c_str(extern_func.namespace),
+                self.to_c_str(extern_func.member),
+                c.BinaryenTypeInt32(),
+                c.BinaryenTypeNone(),
+            );
+        },
         else => {
             std.debug.print("hello {any}", .{inst});
             return CompileError.NotImplemented;
@@ -566,6 +576,7 @@ const global_instructions = blk: {
     set.insert(.global_i64);
     set.insert(.global_f32);
     set.insert(.global_f64);
+    set.insert(.extern_func);
     set.insert(.func);
 
     break :blk set;
@@ -573,30 +584,6 @@ const global_instructions = blk: {
 
 fn is_global_instruction(inst: *Ir.Inst) bool {
     return global_instructions.contains(activeTag(inst.*));
-}
-
-// const no_return_instructions = blk: {
-//     var set = std.EnumSet(Tag(Ir.Inst)).initEmpty();
-
-//     set.insert(.end_block);
-//     set.insert(.end_func);
-
-//     break :blk set;
-// };
-
-// fn is_no_return_instruction(inst: *Ir.Inst) bool {
-//     return no_return_instructions.contains(activeTag(inst.*));
-// }
-
-const value_instructions = blk: {
-    var set = std.EnumSet(Tag(Ir.Inst)).initEmpty();
-
-    set.insert(.const_i32);
-
-    break :blk set;
-};
-fn is_value_instruction(inst: *Ir.Inst) bool {
-    return value_instructions.contains(activeTag(inst.*));
 }
 
 const std = @import("std");

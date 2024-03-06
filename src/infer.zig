@@ -57,6 +57,8 @@ const VOID_TYPE: TypeBits = 1 << 11 | ANY_TYPE | TERMINAL_TYPE;
 
 const TERMINAL_TYPE: TypeBits = 1 << 12;
 
+const EXTERN_FUNC_TYPE: TypeBits = 1 << 13 | ANY_TYPE;
+
 pub const TypeID = enum(TypeBits) {
     any = ANY_TYPE,
     number = NUMBER_TYPE,
@@ -70,6 +72,7 @@ pub const TypeID = enum(TypeBits) {
     string = STRING_TYPE,
     void = VOID_TYPE,
     func = FUNC_TYPE,
+    extern_func = EXTERN_FUNC_TYPE, //@temp we'll use type expressions later
 
     pub fn is_subtype_of(child: TypeID, parent: TypeID) bool {
         return (@intFromEnum(parent) & @intFromEnum(child)) == @intFromEnum(parent);
@@ -478,7 +481,18 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
             );
         },
         .Import => {
-            const node = try self.new_type(.any);
+            const args = try self.allocator.alloc(*TypeNode, 1);
+            args[0] = try self.new_type(.i32);
+
+            const node = try self.new_type_node(
+                .{
+                    .function = .{
+                        .args = args,
+                        .name = null,
+                        .return_type = try self.new_type(.void),
+                    },
+                },
+            );
 
             return try self.create_sem(
                 .{
@@ -611,7 +625,7 @@ fn call(
         var arg_type = sem_type(arg);
 
         // @warning: watch this crap
-        if (tag(arg_type.*) == .variable) {
+        if (tag(arg_type.*) == .variable and tag(function_arg.*) == .variable) {
             arg_type.variable.name = function_arg.variable.name;
         }
 
@@ -643,60 +657,60 @@ fn call(
     };
 }
 
-fn function2(self: *@This(), expr: *const Expr, maybe_args: ?[]*TypeNode, maybe_return_type: ?*TypeNode) anyerror!*TypeNode {
-    const func_expr = expr.Function;
+// fn function2(self: *@This(), expr: *const Expr, maybe_args: ?[]*TypeNode, maybe_return_type: ?*TypeNode) anyerror!*TypeNode {
+//     const func_expr = expr.Function;
 
-    // if (func_expr.name == null) {
-    //     return TypeError.AnonymousFunctionsNotImplemented;
-    // }
+//     // if (func_expr.name == null) {
+//     //     return TypeError.AnonymousFunctionsNotImplemented;
+//     // }
 
-    if (maybe_args) |args| {
-        if (func_expr.args != null and args.len != func_expr.args.?.len) {
-            return TypeError.WrongArgumentsNumber;
-        }
-    }
+//     if (maybe_args) |args| {
+//         if (func_expr.args != null and args.len != func_expr.args.?.len) {
+//             return TypeError.WrongArgumentsNumber;
+//         }
+//     }
 
-    self.env.begin_local_scope();
+//     self.env.begin_local_scope();
 
-    const return_type = try self.new_var_from_token("T", func_expr.type);
+//     const return_type = try self.new_var_from_token("T", func_expr.type);
 
-    var function_type: FunType = .{
-        // .name = func_expr.name.?.lexeme,
-        .name = null,
-        .args = if (func_expr.args) |args|
-            try self.allocator.alloc(*TypeNode, args.len)
-        else
-            &[_]*TypeNode{},
-        .return_type = return_type,
-    };
+//     var function_type: FunType = .{
+//         // .name = func_expr.name.?.lexeme,
+//         .name = null,
+//         .args = if (func_expr.args) |args|
+//             try self.allocator.alloc(*TypeNode, args.len)
+//         else
+//             &[_]*TypeNode{},
+//         .return_type = return_type,
+//     };
 
-    if (func_expr.args) |args| {
-        for (args, 0..) |arg, i| {
-            const node = try self.new_var_from_token("T", arg.type);
-            try self.env.define(arg.expr.Variable.name.lexeme, node);
+//     if (func_expr.args) |args| {
+//         for (args, 0..) |arg, i| {
+//             const node = try self.new_var_from_token("T", arg.type);
+//             try self.env.define(arg.expr.Variable.name.lexeme, node);
 
-            function_type.args[i] = node;
+//             function_type.args[i] = node;
 
-            if (maybe_args) |optional_args| {
-                try unify(optional_args[i], node);
-            }
-        }
-    }
+//             if (maybe_args) |optional_args| {
+//                 try unify(optional_args[i], node);
+//             }
+//         }
+//     }
 
-    const body = try self.infer(func_expr.body);
+//     const body = try self.infer(func_expr.body);
 
-    try unify(return_type, body);
+//     try unify(return_type, body);
 
-    if (maybe_return_type) |optional_return_type| {
-        try unify(optional_return_type, return_type);
-    }
+//     if (maybe_return_type) |optional_return_type| {
+//         try unify(optional_return_type, return_type);
+//     }
 
-    try self.env.end_local_scope(!function_type.is_generic());
+//     try self.env.end_local_scope(!function_type.is_generic());
 
-    // pretty_print(body);
+//     // pretty_print(body);
 
-    return try self.new_type_node(.{ .function = function_type });
-}
+//     return try self.new_type_node(.{ .function = function_type });
+// }
 
 // @todo: why anyerror
 fn function(self: *@This(), expr: *const Expr, maybe_args: ?[]*TypeNode, maybe_return_type: ?*TypeNode) anyerror!struct { body: *Sem, type_node: *TypeNode } {
@@ -838,7 +852,6 @@ fn new_type(self: *@This(), tid: TypeID) !*TypeNode {
         .{
             .type = .{
                 .tid = tid,
-                // .size = null,
             },
         },
     );
@@ -852,7 +865,6 @@ fn new_type_from_token(self: *@This(), maybe_token: ?*const Token) !*TypeNode {
                     try tid_from_str(token.lexeme)
                 else
                     .any,
-                // .size = null,
             },
         },
     );
