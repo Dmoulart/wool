@@ -1,27 +1,69 @@
+
+log :: from console import log
+
 add :: a i32, b i32 -> i32 a + b
+
+main :: a i32, b i32, c i32 -> {
+  a := 1
+
+  c : i32 = 2000
+
+  sum := if add(a 1) == 3
+    c
+  else
+    a + 101
+
+  log(sum)
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
+add :: a i32 , b i32 -> i32 a + b
 
 log :: from console import log
 
 main :: -> {
   a := 1
-  b := if add(1 a) == 1 true else false
+  b := if add(1 a) == 2 15 else 1
+  c := true
+  d := if c 1 + 1 else 2 + 123
 
-  log(1)
+  log(add(a d) + add(1 b))
 }
+*/
 
 /*
 // @todo: comptime calculation not working
 // my_bool :: 1 == 1
 
 //@todo:infer not working for 123 infering
-// d := if c 1 + 1 else 2 + 123 
+// d := if c 1 + 1 else 2 + 123
+
+// @todo: segfault! crazy right ?
+// log(add(a b) + add(b a))
 
 add :: a i64, b i64 -> i64 a + b
 
 main :: -> {
   a := true
   b := true
-  
+
   i : i64 = if true or true and a or b
      add(2 1)
     else
@@ -38,7 +80,7 @@ main :: -> {
 /*
 global_var :: 1234 + 1234
 
-a :: -> { 
+a :: -> {
   // e : i32 = 1 * 1 + 1 - 123 - 312 / 123
 
   i : i64 = 1 or 0
@@ -47,21 +89,21 @@ a :: -> {
 
   // f := d + i
 
-  d := if c 1 + 1 else 2 + 123 
+  d := if c 1 + 1 else 2 + 123
 
-  g : i64 = if c 
+  g : i64 = if c
     {
       azerty := global_var
       azerty
     }
-      else 
+      else
     d
 
  /*
-  g : i64 = if c 
-      global_var 
-    else 
-      i    
+  g : i64 = if c
+      global_var
+    else
+      i
  */
 }
 
@@ -72,12 +114,12 @@ a :: -> {
 
 
 
-/* 
-add :: -> { 
+/*
+add :: -> {
   1 + 1 + 1
 }
 */
-/* add_poly :: first, second -> 
+/* add_poly :: first, second ->
 {
   first + second
 }
@@ -95,7 +137,7 @@ main :: -> void {
 
   a = a + b
 
-  // i = add(i, b) // <- parser bug 
+  // i = add(i, b) // <- parser bug
 }
 */
 

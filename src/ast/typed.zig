@@ -60,7 +60,7 @@ pub fn Typed(comptime Ast: type) type {
 
         const DecoratedType = @Type(.{
             .Struct = .{
-                .layout = .Auto,
+                .layout = .auto,
                 .fields = expr_fields,
                 .decls = &[_]std.builtin.Type.Declaration{},
                 .is_tuple = false,
@@ -79,7 +79,7 @@ pub fn Typed(comptime Ast: type) type {
     return @Type(
         .{
             .Union = .{
-                .layout = .Auto,
+                .layout = .auto,
                 .tag_type = std.meta.FieldEnum(Ast),
                 .fields = union_fields,
                 .decls = &[_]std.builtin.Type.Declaration{},

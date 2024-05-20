@@ -15,7 +15,7 @@ fn runFile(filepath: [:0]u8) !void {
 
     var allocator = std.heap.page_allocator;
     const file_size = (try file.stat()).size;
-    var buf = try allocator.alloc(u8, file_size);
+    const buf = try allocator.alloc(u8, file_size);
 
     try file.reader().readNoEof(buf);
     try run(buf, std.heap.page_allocator);
@@ -56,7 +56,7 @@ fn run(src: []const u8, allocator: std.mem.Allocator) !void {
     const sems = try infer.infer_program();
     var ir = Ir.init(allocator);
 
-    var program = try ir.convert_program(sems);
+    const program = try ir.convert_program(sems);
     try jsonPrint(program, "./ir.json");
 
     var compiler = Compiler.init(allocator, program);

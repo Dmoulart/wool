@@ -106,7 +106,7 @@ fn scan_token(self: *Self) !void {
 }
 
 fn add_token(self: *Self, token_type: Token.Type) !void {
-    var text = self.src[self.start..self.current];
+    const text = self.src[self.start..self.current];
 
     try self.tokens.append(.{
         .type = token_type,
@@ -220,7 +220,7 @@ fn is_at_end(self: *Self) bool {
 
 fn expect_token_sequence(comptime expected: []const Token.Types, comptime src: []const u8) !void {
     var lexer = init(src, std.testing.allocator);
-    var tokens = try lexer.scan();
+    const tokens = try lexer.scan();
     defer lexer.deinit();
     return expect_token_sequence_from_tokens(expected, tokens);
 }

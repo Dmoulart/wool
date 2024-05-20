@@ -62,7 +62,7 @@ pub fn parse(self: *Self) ParserError![]*Expr {
     var exprs = std.ArrayList(*Expr).init(self.allocator);
 
     while (!self.is_at_end()) {
-        var maybe_decl = try self.declaration_expression();
+        const maybe_decl = try self.declaration_expression();
         if (maybe_decl) |decl| {
             exprs.append(decl) catch return ParserError.OutOfMemory;
         }
@@ -91,7 +91,7 @@ fn declaration_expression(self: *Self) ParserError!?*Expr {
 fn return_expr(self: *Self) ParserError!*Expr {
     const keyword = self.previous();
 
-    var value: ?*Expr = self.expression() catch |e| switch (e) {
+    const value: ?*Expr = self.expression() catch |e| switch (e) {
         ParserError.MissingExpression => null,
         else => return e,
     };
@@ -296,7 +296,7 @@ fn function(self: *Self) ParserError!*Expr {
                 args.?.append(try self.argument()) catch return ParserError.OutOfMemory;
             }
         }
-        var peek_token = self.peek();
+        const peek_token = self.peek();
 
         if (peek_token.type == .MINUS_ARROW) {
             _ = try self.consume(
@@ -358,7 +358,7 @@ fn argument(self: *Self) ParserError!Expr.Arg {
 }
 
 fn const_init(self: *Self) ParserError!*Expr {
-    var expr = try self.var_init();
+    const expr = try self.var_init();
     // must be before declared_type check !
     const implicit_type = self.match(&.{.COLON_COLON});
 
@@ -401,7 +401,7 @@ fn const_init(self: *Self) ParserError!*Expr {
 
         return switch (expr.*) {
             .Variable => |*var_expr| {
-                var name = var_expr.name;
+                const name = var_expr.name;
                 return try self.create_expr(.{
                     .ConstInit = .{
                         .name = name,
@@ -422,7 +422,7 @@ fn const_init(self: *Self) ParserError!*Expr {
 }
 
 fn var_init(self: *Self) ParserError!*Expr {
-    var expr = try self.operation_assigment();
+    const expr = try self.operation_assigment();
 
     const implicit_type = self.match(&.{.COLON_EQUAL});
 
@@ -464,7 +464,7 @@ fn var_init(self: *Self) ParserError!*Expr {
 
         return switch (expr.*) {
             .Variable => |*var_expr| {
-                var name = var_expr.name;
+                const name = var_expr.name;
                 return try self.create_expr(.{
                     .VarInit = .{
                         .name = name,
@@ -485,7 +485,7 @@ fn var_init(self: *Self) ParserError!*Expr {
 }
 
 fn operation_assigment(self: *Self) ParserError!*Expr {
-    var expr = try self.assignment();
+    const expr = try self.assignment();
 
     if (self.match(&.{ .PLUS_EQUAL, .MINUS_EQUAL, .STAR_EQUAL, .SLASH_EQUAL })) {
         const op = self.previous();
@@ -493,7 +493,7 @@ fn operation_assigment(self: *Self) ParserError!*Expr {
 
         return switch (expr.*) {
             .Variable => |*var_expr| {
-                var name = var_expr.name;
+                const name = var_expr.name;
                 return try self.create_expr(.{
                     .OperationAssign = .{
                         .name = name,
@@ -521,7 +521,7 @@ fn assignment(self: *Self) ParserError!*Expr {
 
         return switch (expr.*) {
             .Variable => |*var_expr| {
-                var name = var_expr.name;
+                const name = var_expr.name;
                 return try self.create_expr(.{
                     .Assign = .{
                         .name = name,
@@ -766,7 +766,7 @@ fn primary(self: *Self) ParserError!*Expr {
     }
 
     if (self.match(&.{.LEFT_PAREN})) {
-        var expr = try self.expression();
+        const expr = try self.expression();
         _ = try self.consume(
             .RIGHT_PAREN,
             ParserError.MissingClosingParen,
@@ -788,7 +788,7 @@ fn primary(self: *Self) ParserError!*Expr {
 }
 
 fn create_expr(self: *Self, expr: Expr) ParserError!*Expr {
-    var ptr = self.exprs.addOne() catch return ParserError.OutOfMemory;
+    const ptr = self.exprs.addOne() catch return ParserError.OutOfMemory;
     ptr.* = expr;
     return ptr;
 }

@@ -390,7 +390,7 @@ fn current_function(self: *Compiler) ?*Environment {
 }
 
 pub fn use_new_environment(self: *Compiler) !void {
-    var new_env = try self.environments.addOne(self.allocator);
+    const new_env = try self.environments.addOne(self.allocator);
     new_env.* = Environment.init(self.allocator);
     self.current_env = new_env;
 }

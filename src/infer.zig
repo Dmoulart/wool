@@ -177,7 +177,7 @@ pub const TypeNode = union(enum) {
                         .return_type = try func.return_type.clone(in),
                         .args = blk: {
                             //@todo:mem cleanup
-                            var new_args = try in.allocator.alloc(*TypeNode, func.args.len);
+                            const new_args = try in.allocator.alloc(*TypeNode, func.args.len);
                             for (new_args) |new_arg| {
                                 new_arg.* = (try new_arg.clone(in)).*;
                             }
@@ -321,7 +321,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
             return sem;
         },
         .Grouping => |*grouping| {
-            var expr_sem = try self.infer(grouping.expr);
+            const expr_sem = try self.infer(grouping.expr);
 
             return try self.create_sem(
                 .{
@@ -842,7 +842,7 @@ fn bind(from: *TypeNode, to: *TypeNode) !void {
 }
 
 fn new_type_node(self: *@This(), type_node: TypeNode) !*TypeNode {
-    var tn_ptr = try self.type_nodes.addOne(self.allocator);
+    const tn_ptr = try self.type_nodes.addOne(self.allocator);
     tn_ptr.* = type_node;
     return tn_ptr;
 }
@@ -955,7 +955,7 @@ fn type_of(value: Expr.Literal.Value) TypeID {
 // }
 
 fn create_sem(self: *@This(), sem: Sem) !*Sem {
-    var sem_ptr = try self.sems.addOne(self.allocator);
+    const sem_ptr = try self.sems.addOne(self.allocator);
     sem_ptr.* = sem;
     return sem_ptr;
 }
@@ -1064,7 +1064,7 @@ fn pretty_print(data: anytype) void {
 const BaseTypes = blk: {
     var map: std.EnumMap(TypeID, TypeNode) = .{};
 
-    inline for (std.meta.fields(TypeID)) |tid| {
+    for (std.meta.fields(TypeID)) |tid| {
         map.put(
             @enumFromInt(tid.value),
             TypeNode{
@@ -1294,8 +1294,9 @@ const Env = struct {
             // Could be a way to narrow non terminal values at the end of scope of concrete functions
             var iterator = self.local.values.iterator();
 
-            while (iterator.next()) |ty| {
-                if (!ty.value_ptr.*.get_tid().is_terminal()) {
+            while (iterator.next()) |type_node| {
+                if (!type_node.value_ptr.*.get_tid().is_terminal()) {
+                    std.debug.print("type node {}", .{type_node});
                     return TypeError.CannotResolveType;
                 }
             }
@@ -1352,7 +1353,9 @@ const Scope = struct {
 
     pub fn define(self: *Scope, name: []const u8, node: *TypeNode) !void {
         const result = try self.values.getOrPut(self.allocator, name);
-        if (result.found_existing) return TypeError.AlreadyDefinedVariable;
+        if (result.found_existing) {
+            return TypeError.AlreadyDefinedVariable;
+        }
         result.value_ptr.* = node;
     }
 
