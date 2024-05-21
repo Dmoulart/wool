@@ -4,6 +4,8 @@ const Self = @This();
 type: Type,
 lexeme: []const u8,
 line: u32,
+start: u32,
+end: u32,
 
 pub const Types = enum {
     // Single-character tokens.

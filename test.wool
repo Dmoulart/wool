@@ -8,7 +8,7 @@ main :: a i32, b i32, c i32 -> {
 
   c : i32 = 2000
 
-  sum := if add(a 1) == 3
+  sum := if add(2 1) == 3
     c
   else
     a + 101

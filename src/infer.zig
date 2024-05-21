@@ -10,6 +10,8 @@ typed_ast: std.ArrayListUnmanaged(*Sem),
 
 env: Env,
 
+err: Errors,
+
 const Infer = @This();
 
 pub const Sem = Typed(Expr);
@@ -212,7 +214,7 @@ pub const TypeNode = union(enum) {
     }
 };
 
-const TypeError = error{
+pub const InferError = error{
     TypeMismatch,
     UnknownType,
     UnknownBuiltin,
@@ -230,10 +232,16 @@ const TypeError = error{
     CircularReference,
 };
 
-const Err = ErrorReporter(TypeError);
-
 pub fn init(allocator: std.mem.Allocator, ast: []*Expr) @This() {
-    return .{ .allocator = allocator, .ast = ast, .env = Env.init(allocator), .type_nodes = .{}, .sems = .{}, .typed_ast = .{} };
+    return .{
+        .allocator = allocator,
+        .ast = ast,
+        .env = Env.init(allocator),
+        .type_nodes = .{},
+        .sems = .{},
+        .typed_ast = .{},
+        .err = Errors.init(allocator),
+    };
 }
 
 pub fn infer_program(self: *@This()) anyerror![]*Sem {
@@ -256,7 +264,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
 
             try unify(type_decl, sem_type(initializer));
 
-            try self.env.define(const_init.name.lexeme, sem_type(initializer));
+            try self.env.define(const_init.name, sem_type(initializer));
 
             return try self.create_sem(
                 .{
@@ -287,7 +295,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
 
             try unify(type_decl, sem_type(initializer));
 
-            try self.env.define(var_init.name.lexeme, sem_type(initializer));
+            try self.env.define(var_init.name, sem_type(initializer));
 
             return try self.create_sem(
                 .{
@@ -353,7 +361,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
                 .LESS_EQUAL => "<=",
                 .EQUAL_EQUAL => "==",
                 .BANG_EQUAL => "!=",
-                else => TypeError.UnknownBuiltin,
+                else => InferError.UnknownBuiltin,
             };
             // dangling ptr ? smelly ?
             const builtin = &builtins_types.get(builtin_name).?;
@@ -527,7 +535,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
             if (callee.as_function()) |*func| {
                 // @todo func.is_generic() and current context is concrete function
                 if (func.is_generic()) {
-                    return TypeError.GenericFunctionNotImplemented;
+                    return InferError.GenericFunctionNotImplemented;
                     // const func_expr = try self.env.get_function(func.name);
                     // const new_func = try self.instanciate_function(callee, func_expr, call_expr.args);
                     // const node = try self.call(&new_func.function, call_expr.args);
@@ -548,7 +556,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
                     },
                 );
             } else {
-                return TypeError.NonCallableExpression;
+                return InferError.NonCallableExpression;
             }
         },
         .Function => {
@@ -608,7 +616,7 @@ fn call(
     exprs_args: []*const Expr,
 ) anyerror!struct { args: []*Sem, return_type: *TypeNode } {
     if (func.args.len != exprs_args.len) {
-        return TypeError.WrongArgumentsNumber;
+        return InferError.WrongArgumentsNumber;
     }
 
     // @todo: just reuse one type scope. Or use another more generic object
@@ -722,7 +730,7 @@ fn function(self: *@This(), expr: *const Expr, maybe_args: ?[]*TypeNode, maybe_r
 
     if (maybe_args) |args| {
         if (func_expr.args != null and args.len != func_expr.args.?.len) {
-            return TypeError.WrongArgumentsNumber;
+            return InferError.WrongArgumentsNumber;
         }
     }
 
@@ -743,7 +751,7 @@ fn function(self: *@This(), expr: *const Expr, maybe_args: ?[]*TypeNode, maybe_r
     if (func_expr.args) |args| {
         for (args, 0..) |arg, i| {
             const node = try self.new_var_from_token("T", arg.type);
-            try self.env.define(arg.expr.Variable.name.lexeme, node);
+            try self.env.define(arg.expr.Variable.name, node);
 
             function_type.args[i] = node;
 
@@ -828,14 +836,14 @@ fn unify(node_a: *TypeNode, node_b: *TypeNode) !void {
             "\nType Mismatch --\nExpected : {}\nFound : {}\n",
             .{ a, b },
         );
-        return TypeError.TypeMismatch;
+        return InferError.TypeMismatch;
     }
 }
 
 fn bind(from: *TypeNode, to: *TypeNode) !void {
     //@todo: not sure about this
     if (@intFromPtr(to) == @intFromPtr(from.variable.ref)) {
-        return TypeError.CircularReference;
+        return InferError.CircularReference;
     }
 
     from.variable.ref = to;
@@ -890,7 +898,7 @@ fn instanciate_function(
     const func_type = func_node.function;
 
     if (func_type.args.len != new_args.len) {
-        return TypeError.WrongArgumentsNumber;
+        return InferError.WrongArgumentsNumber;
     }
 
     // use the func.clone method ?
@@ -1011,7 +1019,7 @@ pub fn tid_from_str(str: []const u8) !TypeID {
     } else if (std.mem.eql(u8, str, "Any")) {
         return .any;
     } else {
-        return TypeError.UnknownType;
+        return InferError.UnknownType;
     }
 }
 
@@ -1247,6 +1255,7 @@ const Env = struct {
     allocator: std.mem.Allocator,
     local: Scope,
     global: Scope,
+    err: Errors,
 
     current_depth: u32 = 0,
 
@@ -1255,14 +1264,23 @@ const Env = struct {
             .allocator = allocator,
             .global = Scope.init(allocator),
             .local = Scope.init(allocator),
+            .err = Errors.init(allocator),
         };
     }
 
-    pub fn define(self: *Env, name: []const u8, node: *TypeNode) !void {
+    pub fn define(self: *Env, token: *const Token, node: *TypeNode) !void {
         if (self.in_global_scope()) {
-            try self.define_global(name, node);
+            self.define_global(token.lexeme, node) catch |err| {
+                return switch (err) {
+                    inline else => |infer_err| self.err.fatal(token, infer_err),
+                };
+            };
         } else {
-            try self.define_local(name, node);
+            self.define_local(token.lexeme, node) catch |err| {
+                return switch (err) {
+                    inline else => |infer_err| self.err.fatal(token, infer_err),
+                };
+            };
         }
     }
 
@@ -1271,13 +1289,13 @@ const Env = struct {
         try self.global.define_function(name, expr);
     }
 
-    pub fn define_global(self: *Env, name: []const u8, node: *TypeNode) !void {
+    pub fn define_global(self: *Env, name: []const u8, node: *TypeNode) InferError!void {
         try self.global.define(name, node);
     }
 
-    pub fn define_local(self: *Env, name: []const u8, node: *TypeNode) !void {
+    pub fn define_local(self: *Env, name: []const u8, node: *TypeNode) InferError!void {
         return if (self.global.has(name))
-            TypeError.AlreadyDefinedVariable
+            InferError.AlreadyDefinedVariable
         else
             try self.local.define(name, node);
     }
@@ -1286,7 +1304,7 @@ const Env = struct {
         self.current_depth += 1;
     }
 
-    pub fn end_local_scope(self: *Env, must_resolve_types: bool) TypeError!void {
+    pub fn end_local_scope(self: *Env, must_resolve_types: bool) InferError!void {
         self.current_depth -= 1;
 
         if (must_resolve_types) {
@@ -1297,7 +1315,7 @@ const Env = struct {
             while (iterator.next()) |type_node| {
                 if (!type_node.value_ptr.*.get_tid().is_terminal()) {
                     std.debug.print("type node {}", .{type_node});
-                    return TypeError.CannotResolveType;
+                    return InferError.CannotResolveType;
                 }
             }
         }
@@ -1317,7 +1335,7 @@ const Env = struct {
         }
 
         return self.local.get(name) catch |err| switch (err) {
-            TypeError.UnknownVariable => try self.global.get(name),
+            InferError.UnknownVariable => try self.global.get(name),
             else => |other_error| other_error,
         };
     }
@@ -1351,20 +1369,23 @@ const Scope = struct {
         self.functions.deinit(self.allocator);
     }
 
-    pub fn define(self: *Scope, name: []const u8, node: *TypeNode) !void {
-        const result = try self.values.getOrPut(self.allocator, name);
+    pub fn define(self: *Scope, name: []const u8, node: *TypeNode) InferError!void {
+        const result = self.values.getOrPut(self.allocator, name) catch unreachable; // @todo handle basic errors ?
+
         if (result.found_existing) {
-            return TypeError.AlreadyDefinedVariable;
+            return InferError.AlreadyDefinedVariable;
         }
+
         result.value_ptr.* = node;
     }
 
     pub fn define_function(self: *Scope, name: []const u8, expr: *const Expr) !void {
         const result = try self.functions.getOrPut(self.allocator, name);
+
         if (result.found_existing) {
-            std.debug.print("hello", .{});
-            return TypeError.AlreadyDefinedFunction;
+            return InferError.AlreadyDefinedFunction;
         }
+
         result.value_ptr.* = expr;
     }
 
@@ -1373,11 +1394,11 @@ const Scope = struct {
     }
 
     pub fn get(self: *Scope, name: []const u8) !*TypeNode {
-        return self.values.get(name) orelse TypeError.UnknownVariable;
+        return self.values.get(name) orelse InferError.UnknownVariable;
     }
 
     pub fn get_function(self: *Scope, name: []const u8) !*const Expr {
-        return self.functions.get(name) orelse TypeError.UnknownFunction;
+        return self.functions.get(name) orelse InferError.UnknownFunction;
     }
 
     pub fn has(self: *Scope, name: []const u8) bool {
@@ -1395,5 +1416,5 @@ const Type = @import("./types.zig").Type;
 const Token = @import("./token.zig");
 const floatMax = std.math.floatMax;
 const maxInt = std.math.maxInt;
-const ErrorReporter = @import("./error-reporter.zig").ErrorReporter;
+const Errors = @import("./error-reporter.zig").Errors;
 const tag = std.meta.activeTag;

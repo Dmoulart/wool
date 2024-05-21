@@ -47,6 +47,8 @@ pub fn scan(self: *Self) ![]Token {
         .type = Token.Type.EOF,
         .lexeme = "",
         .line = self.line,
+        .start = self.current,
+        .end = self.current,
     });
 
     return self.tokens.items;
@@ -112,6 +114,8 @@ fn add_token(self: *Self, token_type: Token.Type) !void {
         .type = token_type,
         .lexeme = text,
         .line = self.line,
+        .start = self.start,
+        .end = self.current,
     });
 }
 
