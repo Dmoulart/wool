@@ -52,7 +52,7 @@ fn run(src: []const u8, allocator: std.mem.Allocator) !void {
     const ast = try parser.parse();
     try jsonPrint(ast, "./ast.json");
 
-    var infer = Infer.init(allocator, ast);
+    var infer = Infer.init(allocator, ast, src);
     const sems = try infer.infer_program();
     var ir = Ir.init(allocator);
 

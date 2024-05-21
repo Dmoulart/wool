@@ -28,43 +28,67 @@ pub fn ErrorReporter(comptime ErrorType: type) type {
 
 const io = std.io;
 
-pub const Errors = struct {
-    allocator: std.mem.Allocator,
+const ERROR_MSG_CONTEXT_SIZE: u32 = 20;
+pub fn Errors(comptime E: type) type {
+    return struct {
+        allocator: std.mem.Allocator,
+        src: []const u8,
 
-    pub fn init(allocator: std.mem.Allocator) Errors {
-        return .{
-            .allocator = allocator,
-        };
-    }
+        pub fn init(allocator: std.mem.Allocator, src: []const u8) Errors(E) {
+            return .{
+                .allocator = allocator,
+                .src = src,
+            };
+        }
 
-    pub fn fatal(self: *Errors, token: *const Token, comptime err: anyerror) @TypeOf(err) {
-        const stderr = io.getStdErr().writer();
-        // std.fmt
-        const msg = std.fmt.allocPrint(self.allocator, "[Line {any}] : " ++ get_error_message(err) ++ " At '{s}'.\n", .{
-            token.line,
-            token.lexeme,
-        }) catch |print_error| {
-            std.debug.print("\nError reporter cannot report error context : {s}\n", .{@errorName(print_error)});
+        pub fn fatal(self: *Errors(E), token: *const Token, err: E) @TypeOf(err) {
+            const stderr = io.getStdErr().writer();
+
+            const msg = std.fmt.allocPrint(self.allocator, "[Line {any}] : {s} At '{s}'.\n", .{
+                token.line,
+                get_error_message(err),
+                token.lexeme,
+            }) catch |print_error| {
+                std.debug.print("\nError reporter cannot report error context : {s}\n", .{@errorName(print_error)});
+                return err;
+            };
+
+            // how to handle these kind of errors ?
+            _ = stderr.write(msg) catch unreachable;
+
+            const context_start_at = if (token.start >= ERROR_MSG_CONTEXT_SIZE)
+                token.start - ERROR_MSG_CONTEXT_SIZE
+            else
+                0;
+
+            const context_end_at = if (token.end + ERROR_MSG_CONTEXT_SIZE <= self.src.len - 1)
+                token.end + ERROR_MSG_CONTEXT_SIZE
+            else
+                self.src.len - 1;
+
+            const context = self.src[context_start_at..context_end_at];
+            // std.debug.print("context {any} {any}", .{ context_start_at, context_end_at });
+            _ = stderr.write(context) catch unreachable;
+
             return err;
-        };
-        // how to handle these kind of errors ?
-        _ = stderr.write(msg) catch unreachable;
+        }
 
-        return err;
-    }
-};
-
-fn get_error_message(comptime err: anyerror) []const u8 {
-    return switch (err) {
-        InferError.FunctionArgumentsCanOnlyBeIdentifiers => "Function arguments can only be identifiers",
-        InferError.UnknownVariable => "Unknown variable",
-        InferError.TypeMismatch => "Type mismatch.",
-        InferError.CircularReference => "Circular reference.",
-        InferError.CannotResolveType => "Cannot resolve type.",
-        InferError.AllocError => "Allocation error.",
-        InferError.AlreadyDefinedFunction => "Function has already been defined.",
-        InferError.AlreadyDefinedVariable => "Identifier has already been defined.",
-        InferError.UnknownError => "Unknown error.",
-        else => "Error message not found",
+        fn get_error_message(err: E) []const u8 {
+            return switch (@TypeOf(err)) {
+                InferError => switch (err) {
+                    InferError.FunctionArgumentsCanOnlyBeIdentifiers => "Function arguments can only be identifiers",
+                    InferError.UnknownVariable => "Unknown variable",
+                    InferError.TypeMismatch => "Type mismatch.",
+                    InferError.CircularReference => "Circular reference.",
+                    InferError.CannotResolveType => "Cannot resolve type.",
+                    InferError.AllocError => "Allocation error.",
+                    InferError.AlreadyDefinedFunction => "Function has already been defined.",
+                    InferError.AlreadyDefinedVariable => "Identifier has already been defined.",
+                    InferError.UnknownError => "Unknown error.",
+                    else => "Error message not found",
+                },
+                else => "No found error message",
+            };
+        }
     };
 }

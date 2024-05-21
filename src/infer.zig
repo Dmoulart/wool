@@ -10,7 +10,9 @@ typed_ast: std.ArrayListUnmanaged(*Sem),
 
 env: Env,
 
-err: Errors,
+err: Errors(InferError),
+
+src: []const u8,
 
 const Infer = @This();
 
@@ -233,15 +235,18 @@ pub const InferError = error{
     UnknownError,
 };
 
-pub fn init(allocator: std.mem.Allocator, ast: []*Expr) @This() {
+pub fn init(allocator: std.mem.Allocator, ast: []*Expr, src: []const u8) @This() {
+    const err = Errors(InferError).init(allocator, src);
+
     return .{
         .allocator = allocator,
         .ast = ast,
-        .env = Env.init(allocator),
+        .env = Env.init(allocator, err),
         .type_nodes = .{},
         .sems = .{},
         .typed_ast = .{},
-        .err = Errors.init(allocator),
+        .err = err,
+        .src = src,
     };
 }
 
@@ -1256,32 +1261,24 @@ const Env = struct {
     allocator: std.mem.Allocator,
     local: Scope,
     global: Scope,
-    err: Errors,
+    err: Errors(InferError),
 
     current_depth: u32 = 0,
 
-    pub fn init(allocator: std.mem.Allocator) Env {
+    pub fn init(allocator: std.mem.Allocator, err: Errors(InferError)) Env {
         return .{
             .allocator = allocator,
             .global = Scope.init(allocator),
             .local = Scope.init(allocator),
-            .err = Errors.init(allocator),
+            .err = err,
         };
     }
 
-    pub fn define(self: *Env, token: *const Token, node: *TypeNode) !void {
+    pub fn define(self: *Env, token: *const Token, node: *TypeNode) InferError!void {
         if (self.in_global_scope()) {
-            self.define_global(token.lexeme, node) catch |err| {
-                return switch (err) {
-                    inline else => |infer_err| self.err.fatal(token, infer_err),
-                };
-            };
+            self.define_global(token.lexeme, node) catch |err| return self.err.fatal(token, err);
         } else {
-            self.define_local(token.lexeme, node) catch |err| {
-                return switch (err) {
-                    inline else => |infer_err| self.err.fatal(token, infer_err),
-                };
-            };
+            self.define_local(token.lexeme, node) catch |err| return self.err.fatal(token, err);
         }
     }
 
