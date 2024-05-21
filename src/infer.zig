@@ -119,7 +119,6 @@ pub const TypeID = enum(TypeBits) {
 
 const MonoType = struct {
     tid: TypeID,
-    // size: ?u64,
 };
 
 const VarType = struct {
@@ -252,8 +251,8 @@ pub fn init(allocator: std.mem.Allocator, ast: []*Expr, src: []const u8) @This()
 
 pub fn infer_program(self: *@This()) anyerror![]*Sem {
     for (self.ast) |expr| {
-        const t_expr = try self.infer(expr);
-        try self.typed_ast.append(self.allocator, t_expr);
+        const typed_expr = try self.infer(expr);
+        try self.typed_ast.append(self.allocator, typed_expr);
     }
 
     // try self.write_sems_to_file();
@@ -284,28 +283,16 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
                     },
                 },
             );
-
-            // return try self.create_sem(
-            //     .{
-            //         .expr = expr,
-            //         .typed_expr = .{
-            //             .ConstInit = .{
-            //                 .initializer = initializer,
-            //             },
-            //         },
-            //         .type = try self.new_type(.void),
-            //     },
-            // );
         },
         .VarInit => |*var_init| {
             const initializer = try self.infer(var_init.initializer);
 
-            const type_decl = if (var_init.type) |type_token|
+            const var_type = if (var_init.type) |type_token|
                 try self.new_type_from_token(type_token)
             else
                 try self.new_type(.any);
 
-            try unify(type_decl, sem_type(initializer));
+            try unify(var_type, sem_type(initializer));
 
             try self.env.define(var_init.name, sem_type(initializer));
 
@@ -320,18 +307,18 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
             );
         },
         .Assign => |*assign| {
-            const variable = try self.env.get(assign.name);
+            const variable_type = try self.env.get(assign.name);
 
-            const value = try self.infer(assign.value);
+            const assignation_type = try self.infer(assign.value);
 
-            try unify(variable, sem_type(value));
+            try unify(variable_type, sem_type(assignation_type));
 
             const node = try self.new_type(.void);
 
             const sem = try self.create_sem(
                 .{
                     .Assign = .{
-                        .value = value,
+                        .value = assignation_type,
                         .orig_expr = expr,
                         .type_node = node,
                     },
@@ -341,14 +328,15 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
             return sem;
         },
         .Grouping => |*grouping| {
-            const expr_sem = try self.infer(grouping.expr);
+            const inner_typed_expr = try self.infer(grouping.expr);
+            const grouping_type = sem_type(inner_typed_expr);
 
             return try self.create_sem(
                 .{
                     .Grouping = .{
-                        .expr = expr_sem,
+                        .expr = inner_typed_expr,
                         .orig_expr = expr,
-                        .type_node = sem_type(expr_sem),
+                        .type_node = grouping_type,
                     },
                 },
             );
@@ -405,11 +393,11 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
             );
         },
         .Literal => |*literal| {
-            const node = try self.new_type(type_of(literal.value));
+            const literal_type = try self.new_type(type_of(literal.value));
 
-            const variable = try self.new_type_node(
+            const literal_type_var = try self.new_type_node(
                 .{
-                    .variable = .{ .name = "T", .ref = node }, // @todo make name other than T does not work in binary
+                    .variable = .{ .name = "T", .ref = literal_type }, // @todo make name other than T does not work in binary
                 },
             );
 
@@ -417,7 +405,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
                 .{
                     .Literal = .{
                         .orig_expr = expr,
-                        .type_node = variable,
+                        .type_node = literal_type_var,
                     },
                 },
             );
@@ -869,9 +857,9 @@ fn bind(from: *TypeNode, to: *TypeNode) !void {
 }
 
 fn new_type_node(self: *@This(), type_node: TypeNode) !*TypeNode {
-    const tn_ptr = try self.type_nodes.addOne(self.allocator);
-    tn_ptr.* = type_node;
-    return tn_ptr;
+    const type_node_ptr = try self.type_nodes.addOne(self.allocator);
+    type_node_ptr.* = type_node;
+    return type_node_ptr;
 }
 
 fn new_type(self: *@This(), tid: TypeID) !*TypeNode {
@@ -1346,9 +1334,9 @@ const Env = struct {
             }
         }
 
-        // if (self.in_global_scope()) {
-        self.local.clear();
-        // }
+        if (self.in_global_scope()) {
+            self.local.clear();
+        }
     }
 
     pub fn in_global_scope(self: *Env) bool {

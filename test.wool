@@ -5,8 +5,17 @@ add :: a i32, b i32 -> i32 a + b
 
 main :: -> {
   a := 1
-  
-  log(add(a 3))
+
+  b := 4
+
+  c := 2000 // c :i32=2000 <- segfault
+
+  sum := if add(a b) == 3
+    c
+  else
+    a + 101
+
+  log(add(a b))
 }
 
 
