@@ -266,7 +266,10 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
         .ConstInit => |*const_init| {
             const initializer = try self.infer(const_init.initializer);
 
-            const type_decl = try self.new_type_from_token(const_init.type);
+            const type_decl = if (const_init.type) |type_token|
+                try self.new_type_from_token(type_token)
+            else
+                try self.new_type(.any);
 
             try unify(type_decl, sem_type(initializer));
 
@@ -297,7 +300,10 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
         .VarInit => |*var_init| {
             const initializer = try self.infer(var_init.initializer);
 
-            const type_decl = try self.new_type_from_token(var_init.type);
+            const type_decl = if (var_init.type) |type_token|
+                try self.new_type_from_token(type_token)
+            else
+                try self.new_type(.any);
 
             try unify(type_decl, sem_type(initializer));
 
@@ -742,7 +748,10 @@ fn function(self: *@This(), expr: *const Expr, maybe_args: ?[]*TypeNode, maybe_r
 
     self.env.begin_local_scope();
 
-    const return_type = try self.new_var_from_token("T", func_expr.type);
+    const return_type = if (func_expr.type) |token_type|
+        try self.new_var_type_from_token("T", token_type)
+    else
+        try self.new_var_type("T", try self.new_type(.any));
 
     var function_type: FunType = .{
         // .name = func_expr.name.?.lexeme,
@@ -756,7 +765,11 @@ fn function(self: *@This(), expr: *const Expr, maybe_args: ?[]*TypeNode, maybe_r
 
     if (func_expr.args) |args| {
         for (args, 0..) |arg, i| {
-            const node = try self.new_var_from_token("T", arg.type);
+            const node = if (arg.type) |type_token|
+                try self.new_var_type_from_token("T", type_token)
+            else
+                try self.new_var_type("T", try self.new_type(.any));
+
             try self.env.define(arg.expr.Variable.name, node);
 
             function_type.args[i] = node;
@@ -871,24 +884,32 @@ fn new_type(self: *@This(), tid: TypeID) !*TypeNode {
     );
 }
 
-fn new_type_from_token(self: *@This(), maybe_token: ?*const Token) !*TypeNode {
+fn new_type_from_token(self: *@This(), token: *const Token) !*TypeNode {
     return try self.new_type_node(
         .{
             .type = .{
-                .tid = if (maybe_token) |token|
-                    try tid_from_str(token.lexeme)
-                else
-                    .any,
+                .tid = try tid_from_str(token.lexeme),
             },
         },
     );
 }
 
-fn new_var_from_token(self: *@This(), name: []const u8, maybe_token: ?*const Token) !*TypeNode {
+fn new_var_type_from_token(self: *@This(), name: []const u8, token: *const Token) !*TypeNode {
     return try self.new_type_node(
         .{
             .variable = .{
-                .ref = try self.new_type_from_token(maybe_token),
+                .ref = try self.new_type_from_token(token),
+                .name = name,
+            },
+        },
+    );
+}
+
+fn new_var_type(self: *@This(), name: []const u8, type_node: *TypeNode) !*TypeNode {
+    return try self.new_type_node(
+        .{
+            .variable = .{
+                .ref = type_node,
                 .name = name,
             },
         },
@@ -1263,6 +1284,8 @@ const Env = struct {
     global: Scope,
     err: Errors(InferError),
 
+    // scopes: std.ArrayListUnmanaged(Scope),
+
     current_depth: u32 = 0,
 
     pub fn init(allocator: std.mem.Allocator, err: Errors(InferError)) Env {
@@ -1270,6 +1293,7 @@ const Env = struct {
             .allocator = allocator,
             .global = Scope.init(allocator),
             .local = Scope.init(allocator),
+            // .scopes = .{},
             .err = err,
         };
     }
@@ -1322,9 +1346,9 @@ const Env = struct {
             }
         }
 
-        if (self.in_global_scope()) {
-            self.local.clear();
-        }
+        // if (self.in_global_scope()) {
+        self.local.clear();
+        // }
     }
 
     pub fn in_global_scope(self: *Env) bool {
@@ -1380,6 +1404,10 @@ const Scope = struct {
         const result = self.values.getOrPut(self.allocator, name) catch {
             return InferError.UnknownError;
         };
+
+        // if(std.mem.eql(u8, name, "a")){
+        //     std.debug.print("ok", .{});
+        // }
 
         if (result.found_existing) {
             return InferError.AlreadyDefinedVariable;
