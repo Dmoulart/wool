@@ -40,7 +40,7 @@ pub const Errors = struct {
     pub fn fatal(self: *Errors, token: *const Token, comptime err: anyerror) @TypeOf(err) {
         const stderr = io.getStdErr().writer();
         // std.fmt
-        const msg = std.fmt.allocPrint(self.allocator, "[Line {any}] : " ++ get_error_message(err) ++ "\n", .{
+        const msg = std.fmt.allocPrint(self.allocator, "[Line {any}] : " ++ get_error_message(err) ++ " At '{s}'.\n", .{
             token.line,
             token.lexeme,
         }) catch |print_error| {
@@ -56,7 +56,15 @@ pub const Errors = struct {
 
 fn get_error_message(comptime err: anyerror) []const u8 {
     return switch (err) {
-        InferError.AlreadyDefinedVariable => "Identifier {s} has already been defined.",
-        else => "Error message not found {s}",
+        InferError.FunctionArgumentsCanOnlyBeIdentifiers => "Function arguments can only be identifiers",
+        InferError.UnknownVariable => "Unknown variable",
+        InferError.TypeMismatch => "Type mismatch.",
+        InferError.CircularReference => "Circular reference.",
+        InferError.CannotResolveType => "Cannot resolve type.",
+        InferError.AllocError => "Allocation error.",
+        InferError.AlreadyDefinedFunction => "Function has already been defined.",
+        InferError.AlreadyDefinedVariable => "Identifier has already been defined.",
+        InferError.UnknownError => "Unknown error.",
+        else => "Error message not found",
     };
 }

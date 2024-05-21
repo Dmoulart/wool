@@ -230,6 +230,7 @@ pub const InferError = error{
     GenericFunctionNotImplemented,
     CannotResolveType,
     CircularReference,
+    UnknownError,
 };
 
 pub fn init(allocator: std.mem.Allocator, ast: []*Expr) @This() {
@@ -308,7 +309,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
             );
         },
         .Assign => |*assign| {
-            const variable = try self.env.get(assign.name.lexeme);
+            const variable = try self.env.get(assign.name);
 
             const value = try self.infer(assign.value);
 
@@ -411,7 +412,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
             );
         },
         .Variable => |*variable| {
-            const node = try self.env.get(variable.name.lexeme);
+            const node = try self.env.get(variable.name);
 
             return try self.create_sem(
                 .{
@@ -530,7 +531,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
             });
         },
         .Call => |*call_expr| {
-            const function_name = call_expr.callee.Variable.name.lexeme;
+            const function_name = call_expr.callee.Variable.name;
             const callee = try self.env.get(function_name);
             if (callee.as_function()) |*func| {
                 // @todo func.is_generic() and current context is concrete function
@@ -1284,9 +1285,13 @@ const Env = struct {
         }
     }
 
-    pub fn define_function(self: *Env, name: []const u8, expr: *const Expr) !void {
+    pub fn define_function(self: *Env, token: *const Token, expr: *const Expr) InferError!void {
         // @todo regular scoping
-        try self.global.define_function(name, expr);
+        self.global.define_function(token.lexeme, expr) catch |err| {
+            return switch (err) {
+                inline else => |infer_err| self.err.fatal(token, infer_err),
+            };
+        };
     }
 
     pub fn define_global(self: *Env, name: []const u8, node: *TypeNode) InferError!void {
@@ -1329,14 +1334,19 @@ const Env = struct {
         return self.current_depth == 0;
     }
 
-    pub fn get(self: *Env, name: []const u8) !*TypeNode {
+    pub fn get(self: *Env, token: *const Token) !*TypeNode {
         if (self.in_global_scope()) {
-            return self.global.get(name);
+            return self.global.get(token.lexeme);
         }
 
-        return self.local.get(name) catch |err| switch (err) {
-            InferError.UnknownVariable => try self.global.get(name),
-            else => |other_error| other_error,
+        return self.local.get(token.lexeme) catch |err| switch (err) {
+            InferError.UnknownVariable => self.global.get(token.lexeme) catch |unknown_var_err|
+                switch (unknown_var_err) {
+                inline else => |infer_err| self.err.fatal(token, infer_err),
+            },
+            else => |other_err| switch (other_err) {
+                inline else => |infer_err| self.err.fatal(token, infer_err),
+            },
         };
     }
 
@@ -1370,7 +1380,9 @@ const Scope = struct {
     }
 
     pub fn define(self: *Scope, name: []const u8, node: *TypeNode) InferError!void {
-        const result = self.values.getOrPut(self.allocator, name) catch unreachable; // @todo handle basic errors ?
+        const result = self.values.getOrPut(self.allocator, name) catch {
+            return InferError.UnknownError;
+        };
 
         if (result.found_existing) {
             return InferError.AlreadyDefinedVariable;
@@ -1380,7 +1392,9 @@ const Scope = struct {
     }
 
     pub fn define_function(self: *Scope, name: []const u8, expr: *const Expr) !void {
-        const result = try self.functions.getOrPut(self.allocator, name);
+        const result = self.functions.getOrPut(self.allocator, name) catch {
+            return InferError.UnknownError;
+        };
 
         if (result.found_existing) {
             return InferError.AlreadyDefinedFunction;
@@ -1393,11 +1407,11 @@ const Scope = struct {
         self.values.clearAndFree(self.allocator);
     }
 
-    pub fn get(self: *Scope, name: []const u8) !*TypeNode {
+    pub fn get(self: *Scope, name: []const u8) InferError!*TypeNode {
         return self.values.get(name) orelse InferError.UnknownVariable;
     }
 
-    pub fn get_function(self: *Scope, name: []const u8) !*const Expr {
+    pub fn get_function(self: *Scope, name: []const u8) InferError!*const Expr {
         return self.functions.get(name) orelse InferError.UnknownFunction;
     }
 
