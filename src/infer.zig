@@ -263,21 +263,21 @@ pub fn infer_program(self: *@This()) anyerror![]*Sem {
 pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
     return switch (expr.*) {
         .ConstInit => |*const_init| {
-            const initializer = try self.infer(const_init.initializer);
+            const typed_initializer = try self.infer(const_init.initializer);
 
-            const type_decl = if (const_init.type) |type_token|
+            const const_type = if (const_init.type) |type_token|
                 try self.new_type_from_token(type_token)
             else
                 try self.new_type(.any);
 
-            try unify(type_decl, sem_type(initializer));
+            try unify(const_type, sem_type(typed_initializer));
 
-            try self.env.define(const_init.name, sem_type(initializer));
+            try self.env.define(const_init.name, sem_type(typed_initializer));
 
             return try self.create_sem(
                 .{
                     .ConstInit = .{
-                        .initializer = initializer,
+                        .initializer = typed_initializer,
                         .type_node = try self.new_type(.void),
                         .orig_expr = expr,
                     },
@@ -285,21 +285,21 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
             );
         },
         .VarInit => |*var_init| {
-            const initializer = try self.infer(var_init.initializer);
+            const typed_initializer = try self.infer(var_init.initializer);
 
             const var_type = if (var_init.type) |type_token|
                 try self.new_type_from_token(type_token)
             else
                 try self.new_type(.any);
 
-            try unify(var_type, sem_type(initializer));
+            try unify(var_type, sem_type(typed_initializer));
 
-            try self.env.define(var_init.name, sem_type(initializer));
+            try self.env.define(var_init.name, sem_type(typed_initializer));
 
             return try self.create_sem(
                 .{
                     .VarInit = .{
-                        .initializer = initializer,
+                        .initializer = typed_initializer,
                         .orig_expr = expr,
                         .type_node = try self.new_type(.void),
                     },
@@ -309,32 +309,28 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
         .Assign => |*assign| {
             const variable_type = try self.env.get(assign.name);
 
-            const assignation_type = try self.infer(assign.value);
+            const typed_assignation = try self.infer(assign.value);
 
-            try unify(variable_type, sem_type(assignation_type));
+            try unify(variable_type, sem_type(typed_assignation));
 
-            const node = try self.new_type(.void);
-
-            const sem = try self.create_sem(
+            return try self.create_sem(
                 .{
                     .Assign = .{
-                        .value = assignation_type,
+                        .value = typed_assignation,
                         .orig_expr = expr,
-                        .type_node = node,
+                        .type_node = try self.new_type(.void),
                     },
                 },
             );
-
-            return sem;
         },
         .Grouping => |*grouping| {
-            const inner_typed_expr = try self.infer(grouping.expr);
-            const grouping_type = sem_type(inner_typed_expr);
+            const typed_inner_expr = try self.infer(grouping.expr);
+            const grouping_type = sem_type(typed_inner_expr);
 
             return try self.create_sem(
                 .{
                     .Grouping = .{
-                        .expr = inner_typed_expr,
+                        .expr = typed_inner_expr,
                         .orig_expr = expr,
                         .type_node = grouping_type,
                     },
@@ -393,11 +389,12 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
             );
         },
         .Literal => |*literal| {
-            const literal_type = try self.new_type(type_of(literal.value));
-
-            const literal_type_var = try self.new_type_node(
+            const literal_type = try self.new_type_node(
                 .{
-                    .variable = .{ .name = "T", .ref = literal_type }, // @todo make name other than T does not work in binary
+                    .variable = .{
+                        .name = "T", // @todo make name other than T does not work in binary
+                        .ref = try self.new_type(type_of(literal.value)),
+                    },
                 },
             );
 
@@ -405,74 +402,74 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
                 .{
                     .Literal = .{
                         .orig_expr = expr,
-                        .type_node = literal_type_var,
+                        .type_node = literal_type,
                     },
                 },
             );
         },
         .Variable => |*variable| {
-            const node = try self.env.get(variable.name);
+            const variable_type = try self.env.get(variable.name);
 
             return try self.create_sem(
                 .{
                     .Variable = .{
                         .orig_expr = expr,
-                        .type_node = node,
+                        .type_node = variable_type,
                     },
                 },
             );
         },
         .If => |*if_expr| {
-            const condition = try self.infer(if_expr.condition);
+            const typed_condition = try self.infer(if_expr.condition);
 
             try unify(
-                sem_type(condition),
+                sem_type(typed_condition),
                 try self.new_type(.bool),
             );
 
-            const then_branch = try self.infer(if_expr.then_branch);
+            const typed_then_branch = try self.infer(if_expr.then_branch);
 
-            const node = try self.new_type_node(
+            const if_type = try self.new_type_node(
                 .{
                     .variable = .{
                         .name = "if",
-                        .ref = sem_type(then_branch),
+                        .ref = sem_type(typed_then_branch),
                     },
                 },
             );
 
-            var maybe_else_branch: ?*Sem = null;
+            var maybe_typed_else_branch: ?*Sem = null;
 
             if (if_expr.else_branch) |else_branch| {
-                maybe_else_branch = try self.infer(else_branch);
-                try unify(sem_type(then_branch), sem_type(maybe_else_branch.?));
+                maybe_typed_else_branch = try self.infer(else_branch);
+                try unify(sem_type(typed_then_branch), sem_type(maybe_typed_else_branch.?));
                 //@todo pay attention to circular references !! This can cause segfaults
-                try bind(sem_type(maybe_else_branch.?), sem_type(then_branch));
+                try bind(sem_type(maybe_typed_else_branch.?), sem_type(typed_then_branch));
             }
 
             return try self.create_sem(
                 .{
                     .If = .{
-                        .condition = condition,
-                        .then_branch = then_branch,
-                        .else_branch = maybe_else_branch,
+                        .condition = typed_condition,
+                        .then_branch = typed_then_branch,
+                        .else_branch = maybe_typed_else_branch,
                         .orig_expr = expr,
-                        .type_node = node,
+                        .type_node = if_type,
                     },
                 },
             );
         },
         .Block => |*block| {
-            var sems = try self.allocator.alloc(*anyopaque, block.exprs.len);
+            var typed_inner_exprs = try self.allocator.alloc(*anyopaque, block.exprs.len);
 
             self.env.begin_local_scope();
 
             for (block.exprs, 0..) |block_expr, i| {
-                sems[i] = try self.infer(block_expr);
+                typed_inner_exprs[i] = try self.infer(block_expr);
             }
 
-            const return_type = if (block.exprs.len > 0)
-                sem_type(@alignCast(@ptrCast(sems[block.exprs.len - 1])))
+            const block_return_type = if (block.exprs.len > 0)
+                sem_type(@alignCast(@ptrCast(typed_inner_exprs[block.exprs.len - 1])))
             else
                 try self.new_type(.void);
 
@@ -481,9 +478,9 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
             return try self.create_sem(
                 .{
                     .Block = .{
-                        .exprs = sems,
+                        .exprs = typed_inner_exprs,
                         .orig_expr = expr,
-                        .type_node = return_type,
+                        .type_node = block_return_type,
                     },
                 },
             );
@@ -776,9 +773,8 @@ fn function(self: *@This(), expr: *const Expr, maybe_args: ?[]*TypeNode, maybe_r
         try unify(optional_return_type, return_type);
     }
 
+    // pretty_print(return_type);
     try self.env.end_local_scope(!function_type.is_generic());
-
-    // pretty_print(body);
 
     const type_node = try self.new_type_node(.{ .function = function_type });
 
@@ -1328,14 +1324,14 @@ const Env = struct {
 
             while (iterator.next()) |type_node| {
                 if (!type_node.value_ptr.*.get_tid().is_terminal()) {
-                    std.debug.print("type node {}", .{type_node});
+                    std.debug.print("type node {}", .{type_node.value_ptr.*.get_tid()});
                     return InferError.CannotResolveType;
                 }
             }
         }
 
         if (self.in_global_scope()) {
-            self.local.clear();
+            self.local.clear(); // why ?
         }
     }
 
@@ -1349,13 +1345,9 @@ const Env = struct {
         }
 
         return self.local.get(token.lexeme) catch |err| switch (err) {
-            InferError.UnknownVariable => self.global.get(token.lexeme) catch |unknown_var_err|
-                switch (unknown_var_err) {
-                inline else => |infer_err| self.err.fatal(token, infer_err),
-            },
-            else => |other_err| switch (other_err) {
-                inline else => |infer_err| self.err.fatal(token, infer_err),
-            },
+            InferError.UnknownVariable => self.global.get(token.lexeme) catch |get_variable_err|
+                self.err.fatal(token, get_variable_err),
+            else => |other_err| self.err.fatal(token, other_err),
         };
     }
 
