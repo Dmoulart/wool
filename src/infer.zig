@@ -232,6 +232,7 @@ pub const InferError = error{
     CannotResolveType,
     CircularReference,
     UnknownError,
+    UnusedValue,
 };
 
 pub fn init(allocator: std.mem.Allocator, ast: []*Expr, src: []const u8) @This() {
@@ -1323,6 +1324,10 @@ const Env = struct {
             var iterator = self.local.values.iterator();
 
             while (iterator.next()) |type_node| {
+                if (self.local.is_unused(type_node.value_ptr.*)) {
+                    return InferError.UnusedValue;
+                }
+
                 if (!type_node.value_ptr.*.get_tid().is_terminal()) {
                     std.debug.print("type node {}", .{type_node.value_ptr.*.get_tid()});
                     return InferError.CannotResolveType;
@@ -1366,14 +1371,10 @@ const Scope = struct {
     allocator: std.mem.Allocator,
     values: std.StringArrayHashMapUnmanaged(*TypeNode),
     functions: std.StringHashMapUnmanaged(*const Expr),
-    // unused: std.AutoHashMap(*TypeNode, void),
+    unused: std.AutoHashMapUnmanaged(*TypeNode, void),
 
     pub fn init(allocator: std.mem.Allocator) Scope {
-        return .{
-            .allocator = allocator,
-            .values = .{},
-            .functions = .{},
-        };
+        return .{ .allocator = allocator, .values = .{}, .functions = .{}, .unused = .{} };
     }
 
     pub fn deinit(self: *Scope) void {
@@ -1395,6 +1396,10 @@ const Scope = struct {
         }
 
         result.value_ptr.* = node;
+
+        self.unused.put(self.allocator, node, {}) catch {
+            return InferError.UnknownError;
+        };
     }
 
     pub fn define_function(self: *Scope, name: []const u8, expr: *const Expr) !void {
@@ -1414,7 +1419,17 @@ const Scope = struct {
     }
 
     pub fn get(self: *Scope, name: []const u8) InferError!*TypeNode {
-        return self.values.get(name) orelse InferError.UnknownVariable;
+        const value = self.values.get(name);
+
+        if (value == null) {
+            return InferError.UnknownVariable;
+        }
+
+        _ = self.unused.remove(
+            value.?,
+        );
+
+        return value.?;
     }
 
     pub fn get_function(self: *Scope, name: []const u8) InferError!*const Expr {
@@ -1423,6 +1438,10 @@ const Scope = struct {
 
     pub fn has(self: *Scope, name: []const u8) bool {
         return self.values.contains(name);
+    }
+
+    pub fn is_unused(self: *Scope, node: *TypeNode) bool {
+        return self.unused.contains(node);
     }
 };
 

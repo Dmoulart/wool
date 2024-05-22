@@ -1,21 +1,25 @@
 
 log :: from console import log
 
-add :: a i32, b i32 -> i32 a + b
+sum :: a i32, b i32 -> i32 a + b
 
 main :: -> {
   a : i32 = 1
+  b : i32 = 1
+  
+  result := sum(a b) + sum(b a)
 
-  b := 4
+  log(result)
+/*
+  c := 2000 // <- segfault, get_tid circular references
 
-  c :i32 = 2000 // <- segfault, get_tid circular references
-
-  sum := if add(1 3) == 3
+  sum := if add(c 3) == c
     c
   else
     a + 101
 
   log(sum)
+  */
 }
 
 
