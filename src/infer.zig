@@ -1366,6 +1366,7 @@ const Scope = struct {
     allocator: std.mem.Allocator,
     values: std.StringArrayHashMapUnmanaged(*TypeNode),
     functions: std.StringHashMapUnmanaged(*const Expr),
+    // unused: std.AutoHashMap(*TypeNode, void),
 
     pub fn init(allocator: std.mem.Allocator) Scope {
         return .{
