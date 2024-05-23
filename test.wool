@@ -4,8 +4,14 @@ log :: from console import log
 sum :: a i32, b i32 -> i32 a + b
 
 main :: -> {
-  a : i32 = 1
-  // b : i32 = 1
+  a := 1
+  b := a + 1
+  c := b + 1
+
+  log(a)
+
+  /* 
+  b : i32 = 1
 
   result := sum(a a) + sum(a a) 
 
@@ -15,7 +21,7 @@ main :: -> {
 
   log(d)
 
-/*
+
   c := 2000 // <- segfault, get_tid circular references
 
   sum := if add(c 3) == c
