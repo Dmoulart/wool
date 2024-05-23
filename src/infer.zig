@@ -663,7 +663,10 @@ fn call(
         // Variable binding !
         if (call_arg_type_ref != call_arg_type and call_arg_type_ref.is_var() and call_arg_type.is_var()) {
             if (std.mem.eql(u8, func_arg_type.variable.name, call_arg_type_ref.variable.name)) {
-                call_arg_type.variable.ref = call_arg_type_ref;
+                // pretty_print(call_arg);
+                // std.debug.print("\nbind type var {any} to {any}\n", .{ @intFromPtr(call_arg_type.variable.ref), @intFromPtr(call_arg_type_ref) });
+                // call_arg_type.variable.ref = call_arg_type_ref;
+                try bind(call_arg_type, call_arg_type_ref);
                 //@todo use bind
             }
         }
@@ -748,19 +751,19 @@ fn function(self: *@This(), expr: *const Expr, maybe_args: ?[]*TypeNode, maybe_r
 
     self.env.begin_local_scope();
 
-    const return_type = if (func_expr.type) |token_type|
+    const func_decl_return_type = if (func_expr.type) |token_type|
         try self.new_var_type_from_token("T", token_type)
     else
         try self.new_var_type("T", try self.new_type(.any));
 
-    var function_type: FunType = .{
+    var function_decl_type: FunType = .{
         // .name = func_expr.name.?.lexeme,
         .name = null,
         .args = if (func_expr.args) |args|
             try self.allocator.alloc(*TypeNode, args.len)
         else
             &[_]*TypeNode{},
-        .return_type = return_type,
+        .return_type = func_decl_return_type,
     };
 
     if (func_expr.args) |args| {
@@ -772,7 +775,7 @@ fn function(self: *@This(), expr: *const Expr, maybe_args: ?[]*TypeNode, maybe_r
 
             try self.env.define(arg.expr.Variable.name, node);
 
-            function_type.args[i] = node;
+            function_decl_type.args[i] = node;
 
             if (maybe_args) |optional_args| {
                 try unify(optional_args[i], node);
@@ -780,22 +783,20 @@ fn function(self: *@This(), expr: *const Expr, maybe_args: ?[]*TypeNode, maybe_r
         }
     }
 
-    const body = try self.infer(func_expr.body);
+    const typed_body = try self.infer(func_expr.body);
 
-    try unify(return_type, sem_type(body));
+    try unify(func_decl_return_type, sem_type(typed_body));
 
     if (maybe_return_type) |optional_return_type| {
-        try unify(optional_return_type, return_type);
+        try unify(optional_return_type, func_decl_return_type);
     }
 
     // pretty_print(return_type);
-    try self.env.end_local_scope(!function_type.is_generic());
-
-    const type_node = try self.new_type_node(.{ .function = function_type });
+    try self.env.end_local_scope(!function_decl_type.is_generic());
 
     return .{
-        .body = body,
-        .type_node = type_node,
+        .body = typed_body,
+        .type_node = try self.new_type_node(.{ .function = function_decl_type }),
     };
 }
 
@@ -872,6 +873,16 @@ fn bind(from: *TypeNode, to: *TypeNode) !void {
     //@todo: not sure about this
     if (@intFromPtr(to) == @intFromPtr(from.variable.ref)) {
         return InferError.CircularReference;
+    }
+
+    std.debug.print("\nbind type var {any} to {any}\n", .{ @intFromPtr(from.variable.ref), @intFromPtr(to) });
+
+    // we don't need a variable to point to a terminal type. it can become the terminal type because once we have hit a terminal type
+    // we can't go deeper.
+    // @warning watch this..
+    if (to.get_tid().is_terminal()) {
+        from.* = to.*;
+        return;
     }
 
     from.variable.ref = to;
