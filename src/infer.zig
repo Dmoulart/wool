@@ -500,6 +500,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
             );
         },
         .Import => {
+            //@todo free
             const args = try self.allocator.alloc(*TypeNode, 1);
             args[0] = try self.new_type(.i32);
 
@@ -660,7 +661,7 @@ fn call(
         );
 
         // Variable binding !
-        if (call_arg_ref_type.is_var() and call_arg_type.is_var() and call_arg_ref_type != call_arg_type) {
+        if (call_arg_ref_type != call_arg_type and call_arg_ref_type.is_var() and call_arg_type.is_var()) {
             if (std.mem.eql(u8, func_arg_type.variable.name, call_arg_ref_type.variable.name)) {
                 call_arg_type.variable.ref = call_arg_ref_type;
                 //@todo use bind
@@ -672,7 +673,7 @@ fn call(
 
     return .{
         .args = args_sems,
-        .return_type = try self.get_local_node(func.return_type, type_scope),
+        .return_type = try self.get_type_ref(func.return_type, type_scope),
     };
 }
 
@@ -831,7 +832,7 @@ fn get_or_create_type_ref(self: *@This(), base_type: *TypeNode, instance_type: *
     return try self.new_type_node(base_type.*);
 }
 
-fn get_local_node(self: *@This(), node: *TypeNode, scope: *TypeScope) !*TypeNode {
+fn get_type_ref(self: *@This(), node: *TypeNode, scope: *TypeScope) !*TypeNode {
     if (node.as_var()) |variable| {
         if (scope.get(variable.name)) |registered_variable| {
             return registered_variable;
@@ -840,20 +841,24 @@ fn get_local_node(self: *@This(), node: *TypeNode, scope: *TypeScope) !*TypeNode
     return try self.new_type_node(node.*);
 }
 
-fn unify(node_a: *TypeNode, node_b: *TypeNode) !void {
-    const a = node_a.get_tid();
-    const b = node_b.get_tid();
+fn unify(type_a: *TypeNode, type_b: *TypeNode) !void {
+    const a_is_b = @intFromPtr(type_a) == @intFromPtr(type_b);
 
-    const a_is_b = @intFromPtr(node_a) == @intFromPtr(node_b);
-
-    // std.debug.print("unify a {any} b {any}\n", .{ a, b });
     if (a_is_b) {
-        std.debug.print("a is b \n", .{});
         return;
-    } else if (b.is_subtype_of(a)) {
-        node_a.set_tid(b);
+    }
+
+    const a = type_a.get_tid();
+    const b = type_b.get_tid();
+
+    if (a == b) {
+        return;
+    }
+
+    if (b.is_subtype_of(a)) {
+        type_a.set_tid(b);
     } else if (a.is_subtype_of(b)) {
-        node_b.set_tid(a);
+        type_b.set_tid(a);
     } else {
         std.debug.print(
             "\nType Mismatch --\nExpected : {}\nFound : {}\n",
