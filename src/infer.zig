@@ -663,11 +663,7 @@ fn call(
         // Variable binding !
         if (call_arg_type_ref != call_arg_type and call_arg_type_ref.is_var() and call_arg_type.is_var()) {
             if (std.mem.eql(u8, func_arg_type.variable.name, call_arg_type_ref.variable.name)) {
-                // pretty_print(call_arg);
-                // std.debug.print("\nbind type var {any} to {any}\n", .{ @intFromPtr(call_arg_type.variable.ref), @intFromPtr(call_arg_type_ref) });
-                // call_arg_type.variable.ref = call_arg_type_ref;
                 try bind(call_arg_type, call_arg_type_ref);
-                //@todo use bind
             }
         }
 
@@ -874,8 +870,6 @@ fn bind(from: *TypeNode, to: *TypeNode) !void {
     if (@intFromPtr(to) == @intFromPtr(from.variable.ref)) {
         return InferError.CircularReference;
     }
-
-    std.debug.print("\nbind type var {any} to {any}\n", .{ @intFromPtr(from.variable.ref), @intFromPtr(to) });
 
     // we don't need a variable to point to a terminal type. it can become the terminal type because once we have hit a terminal type
     // we can't go deeper.

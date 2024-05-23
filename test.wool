@@ -3,12 +3,22 @@ log :: from console import log
 
 sum :: a i32, b i32 -> i32 a + b
 
-main :: -> {
+main :: ->  {
   a := 1
+
   b := a + 1
   c := b + 1
 
-  log(a)
+  d := if sum(a b) + sum(sum(b a) - sum(a b) sum(b a) - sum(a b)) == 300
+  {
+    if b == 2 true else false
+  }
+  else
+  {
+    false
+  }
+
+  log(if d 100 else 0)
 
   /* 
   b : i32 = 1
