@@ -6,8 +6,8 @@ sum :: a i32, b i32 -> i32 a + b
 main :: -> {
   a : i32 = 1
   b : i32 = 1
-  
-  result := sum(a b) + sum(b a)
+
+  result := sum(a b) + sum(1 a)
 
   log(result)
 /*

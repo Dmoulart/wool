@@ -124,6 +124,15 @@ const MonoType = struct {
 const VarType = struct {
     name: []const u8,
     ref: *TypeNode,
+
+    // pub fn is_recursive(self: *VarType) bool {
+    //     if (self.ref.as_var()) |var_type| {
+    //         if (@intFromPtr(var_type) == @intFromPtr(var_type)) {
+    //             return true;
+    //         }
+    //         var_type.is_recursive()
+    //     }
+    // }
 };
 
 pub const FunType = struct {
@@ -208,6 +217,10 @@ pub const TypeNode = union(enum) {
 
     pub fn as_var(self: TypeNode) ?VarType {
         return if (tag(self) == .variable) self.variable else null;
+    }
+
+    pub fn is_var(self: *TypeNode) bool {
+        return tag(self.*) == .variable;
     }
 
     pub fn as_function(self: TypeNode) ?FunType {
@@ -611,9 +624,9 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
 fn call(
     self: *@This(),
     func: *const FunType,
-    exprs_args: []*const Expr,
+    call_args: []*const Expr,
 ) anyerror!struct { args: []*Sem, return_type: *TypeNode } {
-    if (func.args.len != exprs_args.len) {
+    if (func.args.len != call_args.len) {
         return InferError.WrongArgumentsNumber;
     }
 
@@ -623,38 +636,38 @@ fn call(
     try type_scope.ensureTotalCapacity(@intCast(func.args.len));
     defer type_scope.deinit();
 
-    var args_sems = try self.allocator.alloc(*Sem, exprs_args.len);
+    var args_sems = try self.allocator.alloc(*Sem, call_args.len);
 
-    for (exprs_args, func.args, 0..) |expr_arg, function_arg, i| {
-        const arg = try self.infer(expr_arg);
+    for (call_args, func.args, 0..) |call_arg, func_arg_type, i| {
+        const typed_call_arg = try self.infer(call_arg);
 
-        var arg_type = sem_type(arg);
+        var call_arg_type = sem_type(typed_call_arg);
 
         // @warning: watch this crap
-        if (tag(arg_type.*) == .variable and tag(function_arg.*) == .variable) {
-            arg_type.variable.name = function_arg.variable.name;
+        if (call_arg_type.is_var() and func_arg_type.is_var()) {
+            call_arg_type.variable.name = func_arg_type.variable.name;
         }
 
-        const call_arg = try self.get_or_create_local_node(
-            function_arg,
-            arg_type,
+        const call_arg_ref_type = try self.get_or_create_type_ref(
+            func_arg_type,
+            call_arg_type,
             type_scope,
         );
 
         try unify(
-            call_arg,
-            sem_type(arg),
+            call_arg_ref_type,
+            call_arg_type,
         );
 
         // Variable binding !
-        if (tag(call_arg.*) == .variable and tag(arg_type.*) == .variable and call_arg != arg_type) {
-            if (std.mem.eql(u8, function_arg.variable.name, call_arg.variable.name)) {
-                arg_type.variable.ref = call_arg;
+        if (call_arg_ref_type.is_var() and call_arg_type.is_var() and call_arg_ref_type != call_arg_type) {
+            if (std.mem.eql(u8, func_arg_type.variable.name, call_arg_ref_type.variable.name)) {
+                call_arg_type.variable.ref = call_arg_ref_type;
                 //@todo use bind
             }
         }
 
-        args_sems[i] = arg;
+        args_sems[i] = typed_call_arg;
     }
 
     return .{
@@ -785,13 +798,13 @@ fn function(self: *@This(), expr: *const Expr, maybe_args: ?[]*TypeNode, maybe_r
     };
 }
 
-fn get_or_create_local_node(self: *@This(), base_node: *TypeNode, local_node: *TypeNode, scope: *TypeScope) !*TypeNode {
-    if (base_node.as_var()) |variable| {
+fn get_or_create_type_ref(self: *@This(), base_type: *TypeNode, instance_type: *TypeNode, scope: *TypeScope) !*TypeNode {
+    if (base_type.as_var()) |variable| {
         if (scope.get(variable.name)) |registered_variable| {
             return registered_variable;
         } else {
-            const new_var = switch (local_node.*) {
-                .variable => local_node, // unify here ?
+            const type_ref = switch (instance_type.*) {
+                .variable => instance_type, // unify here ?
                 else => unreachable,
                 // .type => try self.create_type_node(
                 //     .{
@@ -804,18 +817,18 @@ fn get_or_create_local_node(self: *@This(), base_node: *TypeNode, local_node: *T
             };
             // Maybe the local node is not of the base node type.
             // so let's clone it and unify
-            const base_node_copy = try self.new_type_node(base_node.*);
+            const base_type_copy = try self.new_type_node(base_type.*);
 
-            try unify(new_var, base_node_copy);
+            try unify(type_ref, base_type_copy);
 
-            try scope.put(new_var.variable.name, new_var);
+            try scope.put(type_ref.variable.name, type_ref);
 
-            return new_var;
+            return type_ref;
         }
     }
 
     // return try ctx.create_var_instance(new_var);
-    return try self.new_type_node(base_node.*);
+    return try self.new_type_node(base_type.*);
 }
 
 fn get_local_node(self: *@This(), node: *TypeNode, scope: *TypeScope) !*TypeNode {
@@ -831,7 +844,13 @@ fn unify(node_a: *TypeNode, node_b: *TypeNode) !void {
     const a = node_a.get_tid();
     const b = node_b.get_tid();
 
-    if (b.is_subtype_of(a)) {
+    const a_is_b = @intFromPtr(node_a) == @intFromPtr(node_b);
+
+    // std.debug.print("unify a {any} b {any}\n", .{ a, b });
+    if (a_is_b) {
+        std.debug.print("a is b \n", .{});
+        return;
+    } else if (b.is_subtype_of(a)) {
         node_a.set_tid(b);
     } else if (a.is_subtype_of(b)) {
         node_b.set_tid(a);
