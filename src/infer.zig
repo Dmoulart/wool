@@ -649,21 +649,21 @@ fn call(
             call_arg_type.variable.name = func_arg_type.variable.name;
         }
 
-        const call_arg_ref_type = try self.get_or_create_type_ref(
+        const call_arg_type_ref = try self.get_or_create_type_ref(
             func_arg_type,
             call_arg_type,
             type_scope,
         );
 
         try unify(
-            call_arg_ref_type,
+            call_arg_type_ref,
             call_arg_type,
         );
 
         // Variable binding !
-        if (call_arg_ref_type != call_arg_type and call_arg_ref_type.is_var() and call_arg_type.is_var()) {
-            if (std.mem.eql(u8, func_arg_type.variable.name, call_arg_ref_type.variable.name)) {
-                call_arg_type.variable.ref = call_arg_ref_type;
+        if (call_arg_type_ref != call_arg_type and call_arg_type_ref.is_var() and call_arg_type.is_var()) {
+            if (std.mem.eql(u8, func_arg_type.variable.name, call_arg_type_ref.variable.name)) {
+                call_arg_type.variable.ref = call_arg_type_ref;
                 //@todo use bind
             }
         }
