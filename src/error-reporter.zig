@@ -43,24 +43,10 @@ pub fn Errors(comptime E: type) type {
             };
         }
 
-        pub fn fatal(self: *Errors(E), token: *const Token, err: E) @TypeOf(err) {
+        pub fn fatal(self: *Errors(E), err: E, args: anytype) @TypeOf(err) {
             const stderr = io.getStdErr().writer();
 
-            const context_start_at = token.start;
-
-            const context_end_at = if (token.end + ERROR_MSG_CONTEXT_SIZE <= self.src.len - 1)
-                token.end + ERROR_MSG_CONTEXT_SIZE
-            else
-                self.src.len - 1;
-
-            const context = self.src[context_start_at..context_end_at];
-
-            const msg = std.fmt.allocPrint(self.allocator, "[Line {any}] : {s} At '{s}'.\n {s}...\n", .{
-                token.line,
-                get_error_message(err),
-                token.lexeme,
-                context,
-            }) catch |print_error| {
+            const msg = std.fmt.allocPrint(self.allocator, get_error_message(err), args) catch |print_error| {
                 std.debug.print("\nError reporter cannot report error context : {s}\n", .{@errorName(print_error)});
                 return err;
             };
@@ -81,7 +67,7 @@ pub fn Errors(comptime E: type) type {
                     InferError.CannotResolveType => "Cannot resolve type.",
                     InferError.AllocError => "Allocation error.",
                     InferError.AlreadyDefinedFunction => "Function has already been defined.",
-                    InferError.AlreadyDefinedVariable => "Identifier has already been defined.",
+                    InferError.AlreadyDefinedVariable => "Identifier {s} has already been defined.",
                     InferError.UnknownError => "Unknown error.",
                     else => "Error message not found",
                 },

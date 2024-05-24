@@ -1317,9 +1317,9 @@ const Env = struct {
 
     pub fn define(self: *Env, token: *const Token, node: *TypeNode) InferError!void {
         if (self.in_global_scope()) {
-            self.define_global(token.lexeme, node) catch |err| return self.err.fatal(token, err);
+            self.define_global(token.lexeme, node) catch |err| return self.err.fatal(err, .{token.lexeme});
         } else {
-            self.define_local(token.lexeme, node) catch |err| return self.err.fatal(token, err);
+            self.define_local(token.lexeme, node) catch |err| return self.err.fatal(err, .{token.lexeme});
         }
     }
 
@@ -1383,8 +1383,8 @@ const Env = struct {
 
         return self.local.get(token.lexeme) catch |err| switch (err) {
             InferError.UnknownVariable => self.global.get(token.lexeme) catch |get_variable_err|
-                self.err.fatal(token, get_variable_err),
-            else => |other_err| self.err.fatal(token, other_err),
+                self.err.fatal(get_variable_err, .{}),
+            else => |other_err| self.err.fatal(other_err, .{}),
         };
     }
 

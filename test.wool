@@ -1,11 +1,19 @@
-
 log :: from console import log
+ 
+sum :: a, b -> a + b
 
-sum :: a i32, b i32 -> i32 a + b
+sum_f32_f32 :: a f32, b f32 -> a + b
+sum_i32_i32 :: a f32, b f32 -> a + b
 
 do_stuff :: a i32, b i32 -> { sum(a b) * sum(b a) + sum(a b) }
 
 main :: -> {
+  result := do_stuff(1 2)
+
+  log(result)
+}
+
+modify_object ::  -> {
   result := do_stuff(1 2)
 
   log(result)
