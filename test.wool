@@ -3,44 +3,12 @@ log :: from console import log
 
 sum :: a i32, b i32 -> i32 a + b
 
-main :: ->  {
-  a := 1
+do_stuff :: a i32, b i32 -> { sum(a b) * sum(b a) + sum(a b) }
 
-  b := a + 1
-  c := b + 1
-
-  d := if sum(a b) + sum(sum(b a) - sum(a b) sum(b a) - sum(a b)) == 300
-  {
-    if b == 2 true else false
-  }
-  else
-  {
-    false
-  }
-
-  log(if d 100 else 0)
-
-  /* 
-  b : i32 = 1
-
-  result := sum(a a) + sum(a a) 
+main :: -> {
+  result := do_stuff(1 2)
 
   log(result)
-
-  d := if a  1 + 1 else 2 + 123
-
-  log(d)
-
-
-  c := 2000 // <- segfault, get_tid circular references
-
-  sum := if add(c 3) == c
-    c
-  else
-    a + 101
-
-  log(sum)
-  */
 }
 
 

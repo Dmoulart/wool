@@ -76,6 +76,7 @@ pub const Expr = union(enum) {
         };
 
         value: Value,
+        token: *const Token,
     };
 
     pub const Logical = struct {
@@ -136,4 +137,48 @@ pub const Expr = union(enum) {
         namespace: *const Token,
         member: *const Token,
     };
+
+    pub fn get_src_location(self: *const Expr) struct { u32, u32 } {
+        return switch (self.*) {
+            .Literal => |*lit| .{ lit.token.start, lit.token.end },
+            .VarInit => |*var_init| .{ var_init.name.start, get_src_location(var_init.initializer)[1] },
+            .Variable => |*variable| .{ variable.name.start, variable.name.end },
+            .ConstInit => |*const_init| .{ const_init.name.start, get_src_location(const_init.initializer)[1] },
+            .Assign => |*assign| .{ assign.name.start, get_src_location(assign.value)[1] },
+            .Binary => |*binary| .{ get_src_location(binary.left)[0], get_src_location(binary.right)[1] },
+            .Call => |*call| .{ get_src_location(call.callee)[0], call.paren.end },
+            .Function => |*function| {
+                const start = if (function.name) |name|
+                    name.start
+                else if (function.args != null and function.args.?.len > 0)
+                    get_src_location(function.args.?[0].expr)[0]
+                else
+                    get_src_location(function.body)[0];
+
+                const end = get_src_location(function.body)[1];
+
+                return .{ start, end };
+            },
+            // .Arg => |*arg| {
+            //     return get_src_location(arg.expr);
+            // },
+            .Grouping => |*grouping| {
+                const start, const end = get_src_location(grouping.expr);
+                return .{ start - 1, end + 1 }; // take ( and ) into account
+            },
+            .Block => |*block| {
+                
+                if(block.exprs.len  == 0){
+                    
+                }
+            },
+
+            else => .{ 0, 0 },
+        };
+    }
+
+    pub fn get_text(self: *const Expr, src: []const u8) []const u8 {
+        const start, const end = self.get_src_location();
+        return src[start..end];
+    }
 };

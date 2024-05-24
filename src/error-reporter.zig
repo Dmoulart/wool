@@ -1,5 +1,7 @@
 const std = @import("std");
+const fmt = std.fmt;
 const Token = @import("token.zig");
+const Expr = @import("./ast/expr.zig").Expr;
 const InferError = @import("infer.zig").InferError;
 
 const al = std.heap.page_allocator;

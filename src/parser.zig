@@ -734,6 +734,7 @@ fn primary(self: *Self) ParserError!*Expr {
     if (self.match(&.{.FALSE})) {
         return try self.create_expr(.{
             .Literal = .{
+                .token = self.previous(),
                 .value = .{ .Boolean = false },
             },
         });
@@ -742,7 +743,10 @@ fn primary(self: *Self) ParserError!*Expr {
     if (self.match(&.{.TRUE})) {
         return try self.create_expr(.{
             .Literal = .{
-                .value = .{ .Boolean = true },
+                .token = self.previous(),
+                .value = .{
+                    .Boolean = true,
+                },
             },
         });
     }
@@ -750,7 +754,10 @@ fn primary(self: *Self) ParserError!*Expr {
     if (self.match(&.{.NUMBER})) {
         return try self.create_expr(.{
             .Literal = .{
-                .value = .{ .Number = self.previous().type.NUMBER },
+                .token = self.previous(),
+                .value = .{
+                    .Number = self.previous().type.NUMBER,
+                },
             },
         });
     }
@@ -758,6 +765,7 @@ fn primary(self: *Self) ParserError!*Expr {
     if (self.match(&.{.STRING})) {
         return try self.create_expr(.{
             .Literal = .{
+                .token = self.previous(),
                 .value = .{
                     .String = self.previous().type.STRING,
                 },

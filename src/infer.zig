@@ -299,6 +299,9 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
             );
         },
         .VarInit => |*var_init| {
+            // std.debug.print("var init {s}", .{get_expr_text(expr)});
+            std.debug.print("{s}", .{expr.get_text(self.src)});
+
             const typed_initializer = try self.infer(var_init.initializer);
 
             const var_type = if (var_init.type) |type_token|
@@ -838,7 +841,7 @@ fn get_type_ref(self: *@This(), node: *TypeNode, scope: *TypeScope) !*TypeNode {
     return try self.new_type_node(node.*);
 }
 
-fn unify(type_a: *TypeNode, type_b: *TypeNode) !void {
+fn unify(type_a: *TypeNode, type_b: *TypeNode) InferError!void {
     const a_is_b = @intFromPtr(type_a) == @intFromPtr(type_b);
 
     if (a_is_b) {
@@ -1485,4 +1488,5 @@ const Token = @import("./token.zig");
 const floatMax = std.math.floatMax;
 const maxInt = std.math.maxInt;
 const Errors = @import("./error-reporter.zig").Errors;
+const get_expr_text = @import("./error-reporter.zig").get_expr_text;
 const tag = std.meta.activeTag;
