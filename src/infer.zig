@@ -286,7 +286,8 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
 
             try unify(const_type, sem_type(typed_initializer));
 
-            try self.env.define(const_init.name, sem_type(typed_initializer));
+            self.env.define(const_init.name, sem_type(typed_initializer)) catch
+                return self.already_defined_variable_err(const_init.name, expr, "Constant");
 
             return try self.create_sem(
                 .{
@@ -299,9 +300,6 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
             );
         },
         .VarInit => |*var_init| {
-            // std.debug.print("var init {s}", .{get_expr_text(expr)});
-            std.debug.print("{s}", .{expr.get_text(self.src)});
-
             const typed_initializer = try self.infer(var_init.initializer);
 
             const var_type = if (var_init.type) |type_token|
@@ -311,7 +309,8 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
 
             try unify(var_type, sem_type(typed_initializer));
 
-            try self.env.define(var_init.name, sem_type(typed_initializer));
+            self.env.define(var_init.name, sem_type(typed_initializer)) catch
+                return self.already_defined_variable_err(var_init.name, expr, "Variable");
 
             return try self.create_sem(
                 .{
@@ -1317,30 +1316,26 @@ const Env = struct {
 
     pub fn define(self: *Env, token: *const Token, node: *TypeNode) InferError!void {
         if (self.in_global_scope()) {
-            self.define_global(token.lexeme, node) catch |err| return self.err.fatal(err, .{token.lexeme});
+            return self.define_global(token.lexeme, node);
         } else {
-            self.define_local(token.lexeme, node) catch |err| return self.err.fatal(err, .{token.lexeme});
+            return self.define_local(token.lexeme, node);
         }
     }
 
     pub fn define_function(self: *Env, token: *const Token, expr: *const Expr) InferError!void {
         // @todo regular scoping
-        self.global.define_function(token.lexeme, expr) catch |err| {
-            return switch (err) {
-                inline else => |infer_err| self.err.fatal(token, infer_err),
-            };
-        };
+        return self.global.define_function(token.lexeme, expr);
     }
 
     pub fn define_global(self: *Env, name: []const u8, node: *TypeNode) InferError!void {
-        try self.global.define(name, node);
+        return self.global.define(name, node);
     }
 
     pub fn define_local(self: *Env, name: []const u8, node: *TypeNode) InferError!void {
         return if (self.global.has(name))
             InferError.AlreadyDefinedVariable
         else
-            try self.local.define(name, node);
+            return self.local.define(name, node);
     }
 
     pub fn begin_local_scope(self: *Env) void {
@@ -1376,16 +1371,16 @@ const Env = struct {
         return self.current_depth == 0;
     }
 
-    pub fn get(self: *Env, token: *const Token) !*TypeNode {
+    pub fn get(self: *Env, token: *const Token) InferError!*TypeNode {
         if (self.in_global_scope()) {
             return self.global.get(token.lexeme);
         }
 
-        return self.local.get(token.lexeme) catch |err| switch (err) {
-            InferError.UnknownVariable => self.global.get(token.lexeme) catch |get_variable_err|
-                self.err.fatal(get_variable_err, .{}),
-            else => |other_err| self.err.fatal(other_err, .{}),
-        };
+        if (self.local.get(token.lexeme)) |ty| {
+            return ty;
+        } else |_| {
+            return self.global.get(token.lexeme);
+        }
     }
 
     pub fn get_function(self: *Env, name: []const u8) !*const Expr {
@@ -1415,13 +1410,7 @@ const Scope = struct {
     }
 
     pub fn define(self: *Scope, name: []const u8, node: *TypeNode) InferError!void {
-        const result = self.values.getOrPut(self.allocator, name) catch {
-            return InferError.UnknownError;
-        };
-
-        // if(std.mem.eql(u8, name, "a")){
-        //     std.debug.print("ok", .{});
-        // }
+        const result = self.values.getOrPut(self.allocator, name) catch unreachable; // @todo general exception handling
 
         if (result.found_existing) {
             return InferError.AlreadyDefinedVariable;
@@ -1429,12 +1418,10 @@ const Scope = struct {
 
         result.value_ptr.* = node;
 
-        self.unused.put(self.allocator, node, {}) catch {
-            return InferError.UnknownError;
-        };
+        self.unused.put(self.allocator, node, {}) catch unreachable; // @todo general exception handling
     }
 
-    pub fn define_function(self: *Scope, name: []const u8, expr: *const Expr) !void {
+    pub fn define_function(self: *Scope, name: []const u8, expr: *const Expr) InferError!void {
         const result = self.functions.getOrPut(self.allocator, name) catch {
             return InferError.UnknownError;
         };
@@ -1476,6 +1463,19 @@ const Scope = struct {
         return self.unused.contains(node);
     }
 };
+
+fn already_defined_variable_err(self: *@This(), token: *const Token, expr: *const Expr, comptime constant_or_var: []const u8) InferError {
+    return self.err.fatal(InferError.AlreadyDefinedVariable, .{
+        .line = token.line,
+        .msg = .{
+            constant_or_var,
+            token.lexeme,
+        },
+        .context = .{
+            expr.get_text(self.src),
+        },
+    });
+}
 
 const TypeScope = std.StringHashMap(*TypeNode);
 

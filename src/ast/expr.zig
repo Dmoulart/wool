@@ -166,12 +166,12 @@ pub const Expr = union(enum) {
                 const start, const end = get_src_location(grouping.expr);
                 return .{ start - 1, end + 1 }; // take ( and ) into account
             },
-            .Block => |*block| {
-                
-                if(block.exprs.len  == 0){
-                    
-                }
-            },
+            // .Block => |*block| {
+
+            //     if(block.exprs.len  == 0){
+
+            //     }
+            // },
 
             else => .{ 0, 0 },
         };
