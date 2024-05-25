@@ -14,6 +14,8 @@ err: Errors(InferError),
 
 src: []const u8,
 
+lines: []const u32,
+
 const Infer = @This();
 
 pub const Sem = Typed(Expr);
@@ -248,8 +250,8 @@ pub const InferError = error{
     UnusedValue,
 };
 
-pub fn init(allocator: std.mem.Allocator, ast: []*Expr, src: []const u8) @This() {
-    const err = Errors(InferError).init(allocator, src);
+pub fn init(allocator: std.mem.Allocator, ast: []*Expr, src: []const u8, lines: []u32) @This() {
+    const err = Errors(InferError).init(allocator, src, lines);
 
     return .{
         .allocator = allocator,
@@ -260,6 +262,7 @@ pub fn init(allocator: std.mem.Allocator, ast: []*Expr, src: []const u8) @This()
         .typed_ast = .{},
         .err = err,
         .src = src,
+        .lines = lines,
     };
 }
 

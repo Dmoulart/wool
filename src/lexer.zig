@@ -25,11 +25,13 @@ tokens: ArrayList(Token),
 start: u32 = 0,
 current: u32 = 0,
 line: u32 = 1,
+lines: ArrayList(u32),
 
 pub fn init(src: []const u8, allocator: std.mem.Allocator) Self {
     return Self{
         .src = src,
         .tokens = ArrayList(Token).init(allocator),
+        .lines = ArrayList(u32).init(allocator),
     };
 }
 
@@ -37,7 +39,7 @@ pub fn deinit(self: *Self) void {
     self.tokens.deinit();
 }
 
-pub fn scan(self: *Self) ![]Token {
+pub fn scan(self: *Self) !struct { []Token, []u32 } {
     while (!self.is_at_end()) {
         self.start = self.current;
         try self.scan_token();
@@ -51,7 +53,7 @@ pub fn scan(self: *Self) ![]Token {
         .end = self.current,
     });
 
-    return self.tokens.items;
+    return .{ self.tokens.items, self.lines.items };
 }
 
 fn scan_token(self: *Self) !void {
@@ -91,6 +93,7 @@ fn scan_token(self: *Self) !void {
         ' ', '\r', '\t' => null,
         '\n' => blk: {
             self.line += 1;
+            try self.lines.append(self.current);
             break :blk null;
         },
         '"' => self.read_string(),

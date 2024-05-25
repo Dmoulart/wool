@@ -3,9 +3,9 @@ log :: from console import log
 sum :: a, b -> i32 a + b
 
 glob :: 1
-glob :: 1
 
 main :: -> {
+  result := sum(1 2)
   result := sum(1 2)
   
   log(result)

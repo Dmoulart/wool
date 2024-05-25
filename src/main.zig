@@ -43,7 +43,7 @@ fn run(src: []const u8, allocator: std.mem.Allocator) !void {
     var lexer = Lexer.init(src, allocator);
     defer lexer.deinit();
 
-    const tokens = try lexer.scan();
+    const tokens, const lines = try lexer.scan();
     try jsonPrint(tokens, "./tokens.json");
 
     var parser = Parser.init(tokens, allocator);
@@ -52,7 +52,7 @@ fn run(src: []const u8, allocator: std.mem.Allocator) !void {
     const ast = try parser.parse();
     try jsonPrint(ast, "./ast.json");
 
-    var infer = Infer.init(allocator, ast, src);
+    var infer = Infer.init(allocator, ast, src, lines);
     const sems = try infer.infer_program();
     var ir = Ir.init(allocator);
 
