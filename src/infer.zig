@@ -774,7 +774,8 @@ fn function(self: *@This(), expr: *const Expr, maybe_args: ?[]*TypeNode, maybe_r
             else
                 try self.new_var_type("T", try self.new_type(.any));
 
-            try self.env.define(arg.expr.Variable.name, node);
+            self.env.define(arg.expr.Variable.name, node) catch
+                return self.already_defined_variable_err(arg.expr.Variable.name, arg.expr, "Argument");
 
             function_decl_type.args[i] = node;
 
