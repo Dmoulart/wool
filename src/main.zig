@@ -14,11 +14,12 @@ fn runFile(filepath: [:0]u8) !void {
     defer file.close();
 
     var allocator = std.heap.page_allocator;
-    const file_size = (try file.stat()).size;
+    const file_stat = try file.stat();
+    const file_size = file_stat.size;
     const buf = try allocator.alloc(u8, file_size);
 
     try file.reader().readNoEof(buf);
-    try run(buf, std.heap.page_allocator);
+    try run(buf, @ptrCast(filepath), std.heap.page_allocator);
 }
 
 fn runPrompt() !void {
@@ -34,17 +35,19 @@ fn runPrompt() !void {
                 return;
             }
 
-            try run(line, std.heap.page_allocator);
+            try run(line, null, std.heap.page_allocator);
         }
     }
 }
 
-fn run(src: []const u8, allocator: std.mem.Allocator) !void {
+fn run(src: []const u8, path: ?[]const u8, allocator: std.mem.Allocator) !void {
     var lexer = Lexer.init(src, allocator);
     defer lexer.deinit();
 
     const tokens, const lines = try lexer.scan();
     try jsonPrint(tokens, "./tokens.json");
+
+    const file = File{ .src = src, .path = path, .lines = lines };
 
     var parser = Parser.init(tokens, allocator);
     defer parser.deinit();
@@ -52,7 +55,7 @@ fn run(src: []const u8, allocator: std.mem.Allocator) !void {
     const ast = try parser.parse();
     try jsonPrint(ast, "./ast.json");
 
-    var infer = Infer.init(allocator, ast, src, lines);
+    var infer = Infer.init(allocator, ast, &file);
     const sems = try infer.infer_program();
     var ir = Ir.init(allocator);
 
@@ -92,6 +95,8 @@ const std = @import("std");
 const fs = std.fs;
 const io = std.io;
 const print = std.debug.print;
+
+const File = @import("./file.zig");
 
 const Lexer = @import("./lexer.zig");
 const Parser = @import("./parser.zig");

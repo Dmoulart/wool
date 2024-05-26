@@ -12,9 +12,7 @@ env: Env,
 
 err: Errors(InferError),
 
-src: []const u8,
-
-lines: []const u32,
+file: *const File,
 
 const Infer = @This();
 
@@ -250,8 +248,8 @@ pub const InferError = error{
     UnusedValue,
 };
 
-pub fn init(allocator: std.mem.Allocator, ast: []*Expr, src: []const u8, lines: []u32) @This() {
-    const err = Errors(InferError).init(allocator, src, lines);
+pub fn init(allocator: std.mem.Allocator, ast: []*Expr, file: *const File) @This() {
+    const err = Errors(InferError).init(allocator, file);
 
     return .{
         .allocator = allocator,
@@ -261,8 +259,7 @@ pub fn init(allocator: std.mem.Allocator, ast: []*Expr, src: []const u8, lines: 
         .sems = .{},
         .typed_ast = .{},
         .err = err,
-        .src = src,
-        .lines = lines,
+        .file = file,
     };
 }
 
@@ -1477,7 +1474,7 @@ fn already_defined_variable_err(self: *@This(), token: *const Token, expr: *cons
             token.lexeme,
         },
         .context = .{
-            expr.get_text(self.src),
+            expr.get_text(self.file.src),
         },
     });
 }
@@ -1485,6 +1482,8 @@ fn already_defined_variable_err(self: *@This(), token: *const Token, expr: *cons
 const TypeScope = std.StringHashMap(*TypeNode);
 
 const std = @import("std");
+
+const File = @import("./file.zig");
 
 const Expr = @import("./ast/expr.zig").Expr;
 const Typed = @import("./ast/typed.zig").Typed;

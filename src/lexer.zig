@@ -93,6 +93,8 @@ fn scan_token(self: *Self) !void {
         ' ', '\r', '\t' => null,
         '\n' => blk: {
             self.line += 1;
+            // @todo memory wasting, encode this
+            // index 0 is second line
             try self.lines.append(self.current);
             break :blk null;
         },
