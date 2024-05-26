@@ -238,7 +238,7 @@ pub const InferError = error{
     UnknownFunction,
     AnonymousFunctionsNotImplemented,
     FunctionArgumentsCanOnlyBeIdentifiers,
-    AlreadyDefinedVariable,
+    AlreadyDefinedIdentifier,
     AlreadyDefinedFunction,
     NonCallableExpression,
     GenericFunctionNotImplemented,
@@ -287,7 +287,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
             try unify(const_type, sem_type(typed_initializer));
 
             self.env.define(const_init.name, sem_type(typed_initializer)) catch
-                return self.already_defined_variable_err(const_init.name, expr, "Constant");
+                return self.already_defined_variable_err(const_init.name, expr, "constant");
 
             return try self.create_sem(
                 .{
@@ -310,7 +310,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
             try unify(var_type, sem_type(typed_initializer));
 
             self.env.define(var_init.name, sem_type(typed_initializer)) catch
-                return self.already_defined_variable_err(var_init.name, expr, "Variable");
+                return self.already_defined_variable_err(var_init.name, expr, "variable");
 
             return try self.create_sem(
                 .{
@@ -772,7 +772,7 @@ fn function(self: *@This(), expr: *const Expr, maybe_args: ?[]*TypeNode, maybe_r
                 try self.new_var_type("T", try self.new_type(.any));
 
             self.env.define(arg.expr.Variable.name, node) catch
-                return self.already_defined_variable_err(arg.expr.Variable.name, arg.expr, "Argument");
+                return self.already_defined_variable_err(arg.expr.Variable.name, arg.expr, "argument");
 
             function_decl_type.args[i] = node;
 
@@ -1334,7 +1334,7 @@ const Env = struct {
 
     pub fn define_local(self: *Env, name: []const u8, node: *TypeNode) InferError!void {
         return if (self.global.has(name))
-            InferError.AlreadyDefinedVariable
+            InferError.AlreadyDefinedIdentifier
         else
             return self.local.define(name, node);
     }
@@ -1414,7 +1414,7 @@ const Scope = struct {
         const result = self.values.getOrPut(self.allocator, name) catch unreachable; // @todo general exception handling
 
         if (result.found_existing) {
-            return InferError.AlreadyDefinedVariable;
+            return InferError.AlreadyDefinedIdentifier;
         }
 
         result.value_ptr.* = node;
@@ -1466,7 +1466,7 @@ const Scope = struct {
 };
 
 fn already_defined_variable_err(self: *@This(), token: *const Token, expr: *const Expr, comptime identifier_type: []const u8) InferError {
-    return self.err.fatal(InferError.AlreadyDefinedVariable, .{
+    return self.err.fatal(InferError.AlreadyDefinedIdentifier, .{
         .column = token.start,
         .line = token.line,
         .msg = .{

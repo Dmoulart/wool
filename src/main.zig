@@ -18,8 +18,11 @@ fn runFile(filepath: [:0]u8) !void {
     const file_size = file_stat.size;
     const buf = try allocator.alloc(u8, file_size);
 
+    const absolute_path = try std.fs.cwd().realpathAlloc(allocator, filepath);
+    defer allocator.free(absolute_path);
+
     try file.reader().readNoEof(buf);
-    try run(buf, @ptrCast(filepath), std.heap.page_allocator);
+    try run(buf, absolute_path, std.heap.page_allocator);
 }
 
 fn runPrompt() !void {

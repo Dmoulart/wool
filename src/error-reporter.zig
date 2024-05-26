@@ -50,7 +50,7 @@ pub fn Errors(comptime E: type) type {
             return switch (E) {
                 InferError => {
                     return switch (err) {
-                        InferError.AlreadyDefinedVariable => struct {
+                        InferError.AlreadyDefinedIdentifier => struct {
                             []const u8, // constant or variable
                             []const u8, // identifier string
                         },
@@ -66,7 +66,7 @@ pub fn Errors(comptime E: type) type {
             return switch (E) {
                 InferError => {
                     return switch (err) {
-                        InferError.AlreadyDefinedVariable => struct {
+                        InferError.AlreadyDefinedIdentifier => struct {
                             []const u8,
                         },
                         InferError.UnknownVariable => struct {
@@ -89,13 +89,22 @@ pub fn Errors(comptime E: type) type {
         }
 
         pub fn fatal(self: *Errors(E), comptime err: E, data: ErrorData(err)) E {
-            const template = "error on line {d} : {s}\n{s}{s}\n";
+            const template_error_location = "{s}:{d}:{d}"; // file-path:line:column
+
+            const template_error_msg = " error: {s}\n";
+
+            const template_error_line = "{s}";
+
+            const template_error_cursor = "{s}";
+
+            const template = template_error_location ++ template_error_msg ++ template_error_line ++ template_error_cursor ++ "\n";
 
             const line_text = self.file.get_line(data.line);
 
             const err_cursor_column = self.file.get_line_offset(data.line, data.column);
 
             const err_cursor = self.allocator.alloc(u8, err_cursor_column + 1) catch unreachable;
+            defer self.allocator.free(err_cursor);
             for (err_cursor) |*char| {
                 char.* = ' ';
             }
@@ -104,7 +113,14 @@ pub fn Errors(comptime E: type) type {
             const msg = std.fmt.allocPrint(self.allocator, get_error_message(err), data.msg) catch
                 unreachable;
 
-            const error_msg = std.fmt.allocPrint(self.allocator, template, .{ data.line, msg, line_text, err_cursor }) catch |print_error| {
+            const error_msg = std.fmt.allocPrint(self.allocator, template, .{
+                self.file.path orelse "repl:",
+                data.line,
+                data.column,
+                msg,
+                line_text,
+                err_cursor,
+            }) catch |print_error| {
                 std.debug.print("\nError reporter cannot report error context : {s}\n", .{@errorName(print_error)});
                 return err;
             };
@@ -126,7 +142,7 @@ pub fn Errors(comptime E: type) type {
                     InferError.CannotResolveType => "Cannot resolve type.",
                     InferError.AllocError => "Allocation error.",
                     InferError.AlreadyDefinedFunction => "Function has already been defined.",
-                    InferError.AlreadyDefinedVariable => "{s} '{s}' has already been defined.",
+                    InferError.AlreadyDefinedIdentifier => "{s} '{s}' has already been defined.",
                     InferError.UnknownError => "Unknown error.",
                     else => "Error message not found",
                 },
@@ -137,7 +153,7 @@ pub fn Errors(comptime E: type) type {
         fn get_error_context(comptime err: E) []const u8 {
             return switch (@TypeOf(err)) {
                 InferError => switch (err) {
-                    InferError.AlreadyDefinedVariable => "Re-defined here:\n{s} \n",
+                    InferError.AlreadyDefinedIdentifier => "identifier re-declared here:\n{s} \n",
                     else => "Error message not found",
                 },
                 else => "No found error message",
