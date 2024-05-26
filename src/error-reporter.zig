@@ -55,6 +55,10 @@ pub fn Errors(comptime E: type) type {
                             []const u8, // identifier string
                         },
                         InferError.UnknownVariable => struct { []const u8 },
+                        InferError.TypeMismatch => struct {
+                            []const u8, // expected
+                            []const u8, // found
+                        },
                         else => void,
                     };
                 },
@@ -97,7 +101,7 @@ pub fn Errors(comptime E: type) type {
 
             const template_error_cursor = "{s}";
 
-            const template = template_error_location ++ template_error_msg ++ template_error_line ++ template_error_cursor ++ "\n";
+            const template = "\n" ++ template_error_location ++ template_error_msg ++ template_error_line ++ template_error_cursor ++ "\n";
 
             const line_text = self.file.get_line(data.line);
 
@@ -136,8 +140,8 @@ pub fn Errors(comptime E: type) type {
             return switch (@TypeOf(err)) {
                 InferError => switch (err) {
                     InferError.FunctionArgumentsCanOnlyBeIdentifiers => "Function arguments can only be identifiers",
-                    InferError.UnknownVariable => "Unknown variable {s}",
-                    InferError.TypeMismatch => "Type mismatch.",
+                    InferError.UnknownVariable => "unknown variable {s}",
+                    InferError.TypeMismatch => "type mismatch, expected {s}, found {s}",
                     InferError.CircularReference => "Circular reference.",
                     InferError.CannotResolveType => "Cannot resolve type.",
                     InferError.AllocError => "Allocation error.",

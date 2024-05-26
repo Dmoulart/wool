@@ -22,3 +22,18 @@ pub fn get_line(self: *const @This(), line: u32) []const u8 {
 pub fn get_line_offset(self: *const @This(), line: u32, col: u32) usize {
     return col - self.get_line_start(line);
 }
+
+pub fn get_line_from_col(self: *const @This(), col: u32) u32 {
+    for (self.lines, 0..) |line, i| {
+        const next_line = if (self.lines.len <= i + 1)
+            self.lines.len - 1
+        else
+            self.lines[i + 1];
+
+        if (col >= line and col < next_line) {
+            return @intCast(i + 2);
+        }
+    }
+
+    unreachable;
+}

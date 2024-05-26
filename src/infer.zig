@@ -115,6 +115,24 @@ pub const TypeID = enum(TypeBits) {
             else => unreachable,
         };
     }
+
+    pub fn to_str(self: TypeID) []const u8 {
+        return switch (self) {
+            .any => "any",
+            .number => "number",
+            .int => "int",
+            .i32 => "i32",
+            .i64 => "i64",
+            .float => "float",
+            .f32 => "f32",
+            .f64 => "f64",
+            .bool => "bool",
+            .string => "string",
+            .void => "void",
+            .func => "func",
+            .extern_func => "extern_func",
+        };
+    }
 };
 
 const MonoType = struct {
@@ -173,33 +191,33 @@ pub const TypeNode = union(enum) {
             },
         }
     }
-    // move this in Infer methods
-    pub fn clone(self: *TypeNode, in: *Infer) !*TypeNode {
-        return switch (self.*) {
-            .type => |*ty| try in.new_type(ty.tid),
-            .variable => |*variable| try in.new_type_node(
-                .{
-                    .variable = .{ .name = variable.name, .ref = try variable.ref.clone(in) },
-                },
-            ),
-            .function => |*func| try in.new_type_node(
-                .{
-                    .function = .{
-                        .name = func.name,
-                        .return_type = try func.return_type.clone(in),
-                        .args = blk: {
-                            //@todo:mem cleanup
-                            const new_args = try in.allocator.alloc(*TypeNode, func.args.len);
-                            for (new_args) |new_arg| {
-                                new_arg.* = (try new_arg.clone(in)).*;
-                            }
-                            break :blk new_args;
-                        },
-                    },
-                },
-            ),
-        };
-    }
+    // // move this in Infer methods
+    // pub fn clone(self: *TypeNode, in: *Infer) !*TypeNode {
+    //     return switch (self.*) {
+    //         .type => |*ty| try in.new_type(ty.tid),
+    //         .variable => |*variable| try in.new_type_node(
+    //             .{
+    //                 .variable = .{ .name = variable.name, .ref = try variable.ref.clone(in) },
+    //             },
+    //         ),
+    //         .function => |*func| try in.new_type_node(
+    //             .{
+    //                 .function = .{
+    //                     .name = func.name,
+    //                     .return_type = try func.return_type.clone(in),
+    //                     .args = blk: {
+    //                         //@todo:mem cleanup
+    //                         const new_args = try in.allocator.alloc(*TypeNode, func.args.len);
+    //                         for (new_args) |new_arg| {
+    //                             new_arg.* = (try new_arg.clone(in)).*;
+    //                         }
+    //                         break :blk new_args;
+    //                     },
+    //                 },
+    //             },
+    //         ),
+    //     };
+    // }
 
     pub fn get_tid(self: *TypeNode) TypeID {
         return switch (self.*) {
@@ -225,6 +243,10 @@ pub const TypeNode = union(enum) {
 
     pub fn as_function(self: TypeNode) ?FunType {
         return if (tag(self) == .function) self.function else null;
+    }
+
+    pub fn to_str(self: *TypeNode) []const u8 {
+        return self.get_tid().to_str();
     }
 };
 
@@ -278,15 +300,21 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
     return switch (expr.*) {
         .ConstInit => |*const_init| {
             const typed_initializer = try self.infer(const_init.initializer);
+            const initializer_type = sem_type(typed_initializer);
 
             const const_type = if (const_init.type) |type_token|
                 try self.new_type_from_token(type_token)
             else
                 try self.new_type(.any);
 
-            try unify(const_type, sem_type(typed_initializer));
+            unify(const_type, initializer_type) catch
+                return self.type_mismatch_err(
+                const_type.to_str(),
+                initializer_type.to_str(),
+                const_init.initializer,
+            );
 
-            self.env.define(const_init.name, sem_type(typed_initializer)) catch
+            self.env.define(const_init.name, initializer_type) catch
                 return self.already_defined_variable_err(const_init.name, expr, "constant");
 
             return try self.create_sem(
@@ -301,15 +329,21 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
         },
         .VarInit => |*var_init| {
             const typed_initializer = try self.infer(var_init.initializer);
+            const initializer_type = sem_type(typed_initializer);
 
             const var_type = if (var_init.type) |type_token|
                 try self.new_type_from_token(type_token)
             else
                 try self.new_type(.any);
 
-            try unify(var_type, sem_type(typed_initializer));
+            unify(var_type, initializer_type) catch
+                return self.type_mismatch_err(
+                var_type.to_str(),
+                initializer_type.to_str(),
+                var_init.initializer,
+            );
 
-            self.env.define(var_init.name, sem_type(typed_initializer)) catch
+            self.env.define(var_init.name, initializer_type) catch
                 return self.already_defined_variable_err(var_init.name, expr, "variable");
 
             return try self.create_sem(
@@ -323,11 +357,17 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
             );
         },
         .Assign => |*assign| {
-            const variable_type = try self.env.get(assign.name);
+            const var_type = try self.env.get(assign.name);
 
             const typed_assignation = try self.infer(assign.value);
+            const assignation_type = sem_type(typed_assignation);
 
-            try unify(variable_type, sem_type(typed_assignation));
+            unify(var_type, assignation_type) catch
+                return self.type_mismatch_err(
+                var_type.to_str(),
+                assignation_type.to_str(),
+                assign.value,
+            );
 
             return try self.create_sem(
                 .{
@@ -437,10 +477,16 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
         },
         .If => |*if_expr| {
             const typed_condition = try self.infer(if_expr.condition);
+            const condition_type = sem_type(typed_condition);
 
-            try unify(
-                sem_type(typed_condition),
+            unify(
+                condition_type,
                 try self.new_type(.bool),
+            ) catch
+                return self.type_mismatch_err(
+                "bool",
+                condition_type.to_str(),
+                if_expr.condition,
             );
 
             const typed_then_branch = try self.infer(if_expr.then_branch);
@@ -458,7 +504,12 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
 
             if (if_expr.else_branch) |else_branch| {
                 maybe_typed_else_branch = try self.infer(else_branch);
-                try unify(sem_type(typed_then_branch), sem_type(maybe_typed_else_branch.?));
+                unify(sem_type(typed_then_branch), sem_type(maybe_typed_else_branch.?)) catch
+                    return self.type_mismatch_err(
+                    sem_type(typed_then_branch).to_str(),
+                    sem_type(maybe_typed_else_branch.?).to_str(),
+                    if_expr.else_branch.?,
+                );
                 //@todo pay attention to circular references !! This can cause segfaults
                 try bind(sem_type(maybe_typed_else_branch.?), sem_type(typed_then_branch));
             }
@@ -651,15 +702,27 @@ fn call(
             call_arg_type.variable.name = func_arg_type.variable.name;
         }
 
-        const call_arg_type_ref = try self.get_or_create_type_ref(
+        const call_arg_type_ref = self.get_or_create_type_ref(
             func_arg_type,
             call_arg_type,
             type_scope,
-        );
+        ) catch |err| switch (err) {
+            InferError.TypeMismatch => return self.type_mismatch_err(
+                func_arg_type.to_str(),
+                call_arg_type.to_str(),
+                call_arg,
+            ),
 
-        try unify(
+            else => unreachable,
+        };
+
+        unify(
             call_arg_type_ref,
             call_arg_type,
+        ) catch return self.type_mismatch_err(
+            call_arg_type_ref.to_str(),
+            call_arg_type.to_str(),
+            call_arg,
         );
 
         // Variable binding !
@@ -860,10 +923,6 @@ fn unify(type_a: *TypeNode, type_b: *TypeNode) InferError!void {
     } else if (a.is_subtype_of(b)) {
         type_b.set_tid(a);
     } else {
-        std.debug.print(
-            "\nType Mismatch --\nExpected : {}\nFound : {}\n",
-            .{ a, b },
-        );
         return InferError.TypeMismatch;
     }
 }
@@ -1475,6 +1534,20 @@ fn already_defined_variable_err(self: *@This(), token: *const Token, expr: *cons
         },
         .context = .{
             expr.get_text(self.file.src),
+        },
+    });
+}
+
+fn type_mismatch_err(self: *@This(), expected: []const u8, found: []const u8, found_expr: *const Expr) InferError {
+    return self.err.fatal(InferError.TypeMismatch, .{
+        .column = found_expr.get_column_start(),
+        .line = found_expr.get_line(self.file),
+        .msg = .{
+            expected,
+            found,
+        },
+        .context = {
+            // expr.get_text(self.file.src),
         },
     });
 }

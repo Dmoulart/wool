@@ -2,13 +2,10 @@ log :: from console import log
  
 sum :: a, b -> i32 a + b
 
-glob :: 1
-
 main :: -> {
-  result := sum(1 2)
-  result := sum(1 2)
+  result : i32 = 0
   
-  log(result)
+  log(sum(1.5 1))
 }
 
 
