@@ -1468,11 +1468,12 @@ const Scope = struct {
     }
 };
 
-fn already_defined_variable_err(self: *@This(), token: *const Token, expr: *const Expr, comptime constant_or_var: []const u8) InferError {
+fn already_defined_variable_err(self: *@This(), token: *const Token, expr: *const Expr, comptime identifier_type: []const u8) InferError {
     return self.err.fatal(InferError.AlreadyDefinedVariable, .{
+        .column = token.start,
         .line = token.line,
         .msg = .{
-            constant_or_var,
+            identifier_type,
             token.lexeme,
         },
         .context = .{

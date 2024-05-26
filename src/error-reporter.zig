@@ -81,13 +81,14 @@ pub fn Errors(comptime E: type) type {
         fn ErrorData(comptime err: E) type {
             return struct {
                 line: u32,
+                column: u32,
                 msg: ErrorPayload(err),
                 context: ErrorContext(err),
             };
         }
 
         pub fn fatal(self: *Errors(E), comptime err: E, data: ErrorData(err)) E {
-            const template = "error on line {d} : {s}\n{s}\n";
+            const template = "error on line {d} : {s}\n{s}{s}\n";
 
             const line_nb = data.line - 1;
 
@@ -99,10 +100,18 @@ pub fn Errors(comptime E: type) type {
 
             const line = self.src[col_start..col_end];
 
-            const context = std.fmt.allocPrint(self.allocator, get_error_context(err), .{line}) catch
-                unreachable;
+            const err_cursor_column = self.lines[line_nb] - data.column;
+            // std.debug.print("err cursor column {d}", .{err_cursor_column});
+            const err_cursor = self.allocator.alloc(u8, err_cursor_column + 1) catch unreachable;
+            for (err_cursor) |*char| {
+                char.* = ' ';
+            }
+            err_cursor[err_cursor_column] = '^';
 
-            const error_msg = std.fmt.allocPrint(self.allocator, template, .{ line_nb, msg, context }) catch |print_error| {
+            // const context = std.fmt.allocPrint(self.allocator, get_error_context(err), .{line}) catch
+            //     unreachable;
+
+            const error_msg = std.fmt.allocPrint(self.allocator, template, .{ line_nb, msg, line, err_cursor }) catch |print_error| {
                 std.debug.print("\nError reporter cannot report error context : {s}\n", .{@errorName(print_error)});
                 return err;
             };

@@ -6,6 +6,7 @@ glob :: 1
 
 main :: -> {
   result := sum(1 2)
+  result := sum(1 2)
   
   log(result)
 }
