@@ -147,14 +147,13 @@ pub fn Errors(comptime E: type) type {
         fn get_error_message(comptime err: E) []const u8 {
             return switch (@TypeOf(err)) {
                 InferError => switch (err) {
-                    InferError.FunctionArgumentsCanOnlyBeIdentifiers => "Function arguments can only be identifiers",
                     InferError.UnknownIdentifier => "unknown identifier '{s}'",
                     InferError.TypeMismatch => "type mismatch, expected {s}, found {s}",
-                    InferError.CircularReference => "Circular reference.",
-                    InferError.CannotResolveType => "Cannot resolve type.",
-                    InferError.AllocError => "Allocation error.",
-                    InferError.AlreadyDefinedFunction => "Function has already been defined.",
+                    InferError.CircularReference => "circular reference.",
+                    InferError.CannotResolveType => "cannot resolve type.",
+                    InferError.AlreadyDefinedFunction => "function has already been defined.",
                     InferError.AlreadyDefinedIdentifier => "{s} '{s}' has already been defined.",
+                    InferError.UnusedIdentifier => "unused identifier '{s}'.",
                     InferError.UnknownError => "Unknown error.",
                     else => "Error message not found",
                 },

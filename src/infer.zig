@@ -255,11 +255,9 @@ pub const InferError = error{
     UnknownType,
     UnknownBuiltin,
     WrongArgumentsNumber,
-    AllocError,
     UnknownIdentifier,
     UnknownFunction,
     AnonymousFunctionsNotImplemented,
-    FunctionArgumentsCanOnlyBeIdentifiers,
     AlreadyDefinedIdentifier,
     AlreadyDefinedFunction,
     NonCallableExpression,
@@ -267,7 +265,7 @@ pub const InferError = error{
     CannotResolveType,
     CircularReference,
     UnknownError,
-    UnusedValue,
+    UnusedIdentifier,
 };
 
 pub fn init(allocator: std.mem.Allocator, ast: []*Expr, file: *const File) @This() {
@@ -668,7 +666,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
             );
 
             //@todo pay attention to circular references !! This can cause segfaults
-            try bind(sem_type(right), sem_type(left));
+            try bind(right_type, left_type);
 
             const node = try self.new_type_node(
                 .{
@@ -1388,7 +1386,7 @@ const Env = struct {
 
             while (iterator.next()) |type_node| {
                 if (self.local.is_unused(type_node.value_ptr.*)) {
-                    return InferError.UnusedValue;
+                    return InferError.UnusedIdentifier; // cannot do error reporting. env should contain sems ?
                 }
 
                 if (!type_node.value_ptr.*.get_tid().is_terminal()) {
@@ -1532,6 +1530,20 @@ fn type_mismatch_err(self: *@This(), expected: *TypeNode, found: *TypeNode, foun
 
 fn unknown_identifier_error(self: *@This(), token: *const Token) InferError {
     return self.err.fatal(InferError.UnknownIdentifier, .{
+        .column_start = token.start,
+        .column_end = token.end,
+        .line = token.line,
+        .msg = .{
+            token.lexeme,
+        },
+        .context = {
+            // expr.get_text(self.file.src),
+        },
+    });
+}
+
+fn unused_identifier_error(self: *@This(), token: *const Token) InferError {
+    return self.err.fatal(InferError.UnusedIdentifier, .{
         .column_start = token.start,
         .column_end = token.end,
         .line = token.line,
