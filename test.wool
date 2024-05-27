@@ -7,7 +7,7 @@ main :: -> {
 
   b := 3.5
 
-  c := a and b
+  a := a and 1
 
   log(c)
 }

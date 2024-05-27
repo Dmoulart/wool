@@ -150,39 +150,41 @@ pub const Expr = union(enum) {
     pub fn get_location(self: *const Expr) struct { u32, u32 } {
         return switch (self.*) {
             .Literal => |*lit| .{ lit.token.start, lit.token.end },
-            .VarInit => |*var_init| .{ var_init.name.start, get_location(var_init.initializer)[1] },
+            .VarInit => |*var_init| .{ var_init.name.start, var_init.initializer.get_location()[1] },
             .Variable => |*variable| .{ variable.name.start, variable.name.end },
-            .ConstInit => |*const_init| .{ const_init.name.start, get_location(const_init.initializer)[1] },
-            .Assign => |*assign| .{ assign.name.start, get_location(assign.value)[1] },
-            .Binary => |*binary| .{ get_location(binary.left)[0], get_location(binary.right)[1] },
-            .Call => |*call| .{ get_location(call.callee)[0], call.paren.end },
+            .ConstInit => |*const_init| .{ const_init.name.start, const_init.initializer.get_location()[1] },
+            .Assign => |*assign| .{ assign.name.start, assign.value.get_location()[1] },
+            .Binary => |*binary| .{ binary.left.get_location()[0], binary.right.get_location()[1] },
+            .Call => |*call| .{ call.callee.get_location()[0], call.paren.end },
             .Function => |*function| {
                 const start = if (function.name) |name|
                     name.start
                 else if (function.args != null and function.args.?.len > 0)
-                    get_location(function.args.?[0].expr)[0]
+                    function.args.?[0].expr.get_location()[0]
                 else
-                    get_location(function.body)[0];
+                    function.body.get_location()[0];
 
-                const end = get_location(function.body)[1];
+                const end = function.body.get_location()[1];
 
                 return .{ start, end };
             },
-            // .Arg => |*arg| {
-            //     return get_src_location(arg.expr);
-            // },
             .Grouping => |*grouping| {
                 const start, const end = grouping.expr.get_location();
                 return .{ start - 1, end + 1 }; // take ( and ) into account
             },
+            .Logical => |*logical| {
+                return .{ logical.left.get_location()[0], logical.right.get_location()[1] };
+            },
             // .Block => |*block| {
-
-            //     if(block.exprs.len  == 0){
+            //     if (block.exprs.len == 0) {
 
             //     }
             // },
 
-            else => unreachable,
+            else => {
+                std.debug.print("\nUnimplemented expr get location\n", .{});
+                unreachable;
+            },
         };
     }
 
@@ -197,3 +199,5 @@ pub const Expr = union(enum) {
         return src[start..end];
     }
 };
+
+const std = @import("std");
