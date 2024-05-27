@@ -747,61 +747,6 @@ fn call(
     };
 }
 
-// fn function2(self: *@This(), expr: *const Expr, maybe_args: ?[]*TypeNode, maybe_return_type: ?*TypeNode) anyerror!*TypeNode {
-//     const func_expr = expr.Function;
-
-//     // if (func_expr.name == null) {
-//     //     return TypeError.AnonymousFunctionsNotImplemented;
-//     // }
-
-//     if (maybe_args) |args| {
-//         if (func_expr.args != null and args.len != func_expr.args.?.len) {
-//             return TypeError.WrongArgumentsNumber;
-//         }
-//     }
-
-//     self.env.begin_local_scope();
-
-//     const return_type = try self.new_var_from_token("T", func_expr.type);
-
-//     var function_type: FunType = .{
-//         // .name = func_expr.name.?.lexeme,
-//         .name = null,
-//         .args = if (func_expr.args) |args|
-//             try self.allocator.alloc(*TypeNode, args.len)
-//         else
-//             &[_]*TypeNode{},
-//         .return_type = return_type,
-//     };
-
-//     if (func_expr.args) |args| {
-//         for (args, 0..) |arg, i| {
-//             const node = try self.new_var_from_token("T", arg.type);
-//             try self.env.define(arg.expr.Variable.name.lexeme, node);
-
-//             function_type.args[i] = node;
-
-//             if (maybe_args) |optional_args| {
-//                 try unify(optional_args[i], node);
-//             }
-//         }
-//     }
-
-//     const body = try self.infer(func_expr.body);
-
-//     try unify(return_type, body);
-
-//     if (maybe_return_type) |optional_return_type| {
-//         try unify(optional_return_type, return_type);
-//     }
-
-//     try self.env.end_local_scope(!function_type.is_generic());
-
-//     // pretty_print(body);
-
-//     return try self.new_type_node(.{ .function = function_type });
-// }
-
 // @todo: why anyerror
 fn function(self: *@This(), expr: *const Expr, maybe_args: ?[]*TypeNode, maybe_return_type: ?*TypeNode) anyerror!struct { body: *Sem, type_node: *TypeNode } {
     const func_expr = expr.Function;
@@ -835,28 +780,40 @@ fn function(self: *@This(), expr: *const Expr, maybe_args: ?[]*TypeNode, maybe_r
 
     if (func_expr.args) |args| {
         for (args, 0..) |arg, i| {
-            const node = if (arg.type) |type_token|
+            const arg_type = if (arg.type) |type_token|
                 try self.new_var_type_from_token("T", type_token)
             else
                 try self.new_var_type("T", try self.new_type(.any));
 
-            self.env.define(arg.expr.Variable.name, node) catch
+            self.env.define(arg.expr.Variable.name, arg_type) catch
                 return self.already_defined_variable_err(arg.expr.Variable.name, arg.expr, "argument");
 
-            function_decl_type.args[i] = node;
+            function_decl_type.args[i] = arg_type;
 
             if (maybe_args) |optional_args| {
-                try unify(optional_args[i], node);
+                try unify(optional_args[i], arg_type);
             }
         }
     }
 
     const typed_body = try self.infer(func_expr.body);
 
-    try unify(func_decl_return_type, sem_type(typed_body));
+    const body_type = sem_type(typed_body);
+
+    unify(func_decl_return_type, body_type) catch
+        return self.type_mismatch_err(
+        func_decl_return_type,
+        body_type,
+        func_expr.body,
+    );
 
     if (maybe_return_type) |optional_return_type| {
-        try unify(optional_return_type, func_decl_return_type);
+        unify(optional_return_type, func_decl_return_type) catch
+            return self.type_mismatch_err(
+            optional_return_type,
+            func_decl_return_type,
+            func_expr.body,
+        );
     }
 
     // pretty_print(return_type);
