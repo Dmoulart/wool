@@ -1489,7 +1489,8 @@ const Scope = struct {
 
 fn already_defined_variable_err(self: *@This(), token: *const Token, expr: *const Expr, comptime identifier_type: []const u8) InferError {
     return self.err.fatal(InferError.AlreadyDefinedIdentifier, .{
-        .column = token.start,
+        .column_start = token.start,
+        .column_end = token.end,
         .line = token.line,
         .msg = .{
             identifier_type,
@@ -1503,7 +1504,8 @@ fn already_defined_variable_err(self: *@This(), token: *const Token, expr: *cons
 
 fn type_mismatch_err(self: *@This(), expected: *TypeNode, found: *TypeNode, found_expr: *const Expr) InferError {
     return self.err.fatal(InferError.TypeMismatch, .{
-        .column = found_expr.get_column_start(),
+        .column_start = found_expr.get_column_start(),
+        .column_end = found_expr.get_column_end(),
         .line = found_expr.get_line(self.file),
         .msg = .{
             expected.to_str(),

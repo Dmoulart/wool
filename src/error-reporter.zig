@@ -86,7 +86,8 @@ pub fn Errors(comptime E: type) type {
         fn ErrorData(comptime err: E) type {
             return struct {
                 line: u32,
-                column: u32,
+                column_start: u32,
+                column_end: u32,
                 msg: ErrorPayload(err),
                 context: ErrorContext(err),
             };
@@ -105,14 +106,21 @@ pub fn Errors(comptime E: type) type {
 
             const line_text = self.file.get_line(data.line);
 
-            const err_cursor_column = self.file.get_line_offset(data.line, data.column);
+            const err_cursor_column_start = self.file.get_line_offset(data.line, data.column_start);
+            const err_cursor_column_end = self.file.get_line_offset(data.line, data.column_end);
 
-            const err_cursor = self.allocator.alloc(u8, err_cursor_column + 1) catch unreachable;
+            const err_cursor = self.allocator.alloc(u8, err_cursor_column_end) catch unreachable;
+
             defer self.allocator.free(err_cursor);
-            for (err_cursor) |*char| {
-                char.* = ' ';
+            for (err_cursor, 0..) |*char, i| {
+                if (i == err_cursor_column_start) {
+                    char.* = '^';
+                } else if (i > err_cursor_column_start) {
+                    char.* = '~';
+                } else {
+                    char.* = ' ';
+                }
             }
-            err_cursor[err_cursor_column] = '^';
 
             const msg = std.fmt.allocPrint(self.allocator, get_error_message(err), data.msg) catch
                 unreachable;
@@ -120,7 +128,7 @@ pub fn Errors(comptime E: type) type {
             const error_msg = std.fmt.allocPrint(self.allocator, template, .{
                 self.file.path orelse "repl:",
                 data.line,
-                data.column,
+                data.column_start,
                 msg,
                 line_text,
                 err_cursor,
