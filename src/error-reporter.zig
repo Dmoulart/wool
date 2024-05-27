@@ -161,6 +161,7 @@ pub fn Errors(comptime E: type) type {
             };
         }
 
+        //@todo add more context to errors
         fn get_error_context(comptime err: E) []const u8 {
             return switch (@TypeOf(err)) {
                 InferError => switch (err) {
