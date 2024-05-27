@@ -313,7 +313,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
             );
 
             self.env.define(const_init.name, initializer_type) catch
-                return self.already_defined_variable_err(const_init.name, expr, "constant");
+                return self.already_defined_indentifier_err(const_init.name, expr, "constant");
 
             return try self.create_sem(
                 .{
@@ -342,7 +342,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
             );
 
             self.env.define(var_init.name, initializer_type) catch
-                return self.already_defined_variable_err(var_init.name, expr, "variable");
+                return self.already_defined_indentifier_err(var_init.name, expr, "variable");
 
             return try self.create_sem(
                 .{
@@ -356,7 +356,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
         },
         .Assign => |*assign| {
             const var_type = self.env.get(assign.name) catch
-                return self.unknown_identifier_error(assign.name);
+                return self.unknown_identifier_err(assign.name);
 
             const typed_assignation = try self.infer(assign.value);
             const assignation_type = sem_type(typed_assignation);
@@ -464,7 +464,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
         },
         .Variable => |*variable| {
             const variable_type = self.env.get(variable.name) catch
-                return self.unknown_identifier_error(variable.name);
+                return self.unknown_identifier_err(variable.name);
 
             return try self.create_sem(
                 .{
@@ -603,7 +603,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
         .Call => |*call_expr| {
             const function_name = call_expr.callee.Variable.name;
             const callee = self.env.get(function_name) catch
-                return self.unknown_identifier_error(function_name);
+                return self.unknown_identifier_err(function_name);
 
             if (callee.as_function()) |*func| {
                 // @todo func.is_generic() and current context is concrete function
@@ -797,7 +797,7 @@ fn function(self: *@This(), expr: *const Expr, maybe_args: ?[]*TypeNode, maybe_r
                 try self.new_var_type("T", try self.new_type(.any));
 
             self.env.define(arg.expr.Variable.name, arg_type) catch
-                return self.already_defined_variable_err(arg.expr.Variable.name, arg.expr, "argument");
+                return self.already_defined_indentifier_err(arg.expr.Variable.name, arg.expr, "argument");
 
             function_decl_type.args[i] = arg_type;
 
@@ -1498,7 +1498,7 @@ const Scope = struct {
     }
 };
 
-fn already_defined_variable_err(self: *@This(), token: *const Token, expr: *const Expr, comptime identifier_type: []const u8) InferError {
+fn already_defined_indentifier_err(self: *@This(), token: *const Token, expr: *const Expr, comptime identifier_type: []const u8) InferError {
     return self.err.fatal(InferError.AlreadyDefinedIdentifier, .{
         .column_start = token.start,
         .column_end = token.end,
@@ -1528,7 +1528,7 @@ fn type_mismatch_err(self: *@This(), expected: *TypeNode, found: *TypeNode, foun
     });
 }
 
-fn unknown_identifier_error(self: *@This(), token: *const Token) InferError {
+fn unknown_identifier_err(self: *@This(), token: *const Token) InferError {
     return self.err.fatal(InferError.UnknownIdentifier, .{
         .column_start = token.start,
         .column_end = token.end,
@@ -1542,7 +1542,7 @@ fn unknown_identifier_error(self: *@This(), token: *const Token) InferError {
     });
 }
 
-fn unused_identifier_error(self: *@This(), token: *const Token) InferError {
+fn unused_identifier_err(self: *@This(), token: *const Token) InferError {
     return self.err.fatal(InferError.UnusedIdentifier, .{
         .column_start = token.start,
         .column_end = token.end,
