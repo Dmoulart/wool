@@ -126,7 +126,7 @@ pub fn Errors(comptime E: type) type {
                 unreachable;
 
             const error_msg = std.fmt.allocPrint(self.allocator, template, .{
-                self.file.path orelse "repl:",
+                self.file.path orelse "", // no file path means repl ? should we keep a repl ?
                 data.line,
                 data.column_start,
                 msg,

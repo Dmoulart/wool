@@ -3,11 +3,13 @@ log :: from console import log
 sum :: a f32, b f32 -> f32 a + b
 
 main :: -> {
-  result : i32 = 0
+  a :i32 = 0
 
-  bob = 1
-  
-  log(sum(1 1))
+  b := 3.5
+
+  c := a and b
+
+  log(c)
 }
 
 

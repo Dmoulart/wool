@@ -358,7 +358,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
         },
         .Assign => |*assign| {
             const var_type = self.env.get(assign.name) catch
-                return self.unknown_variable_error(assign.name);
+                return self.unknown_identifier_error(assign.name);
 
             const typed_assignation = try self.infer(assign.value);
             const assignation_type = sem_type(typed_assignation);
@@ -465,7 +465,8 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
             );
         },
         .Variable => |*variable| {
-            const variable_type = try self.env.get(variable.name);
+            const variable_type = self.env.get(variable.name) catch
+                return self.unknown_identifier_error(variable.name);
 
             return try self.create_sem(
                 .{
@@ -603,7 +604,9 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
         },
         .Call => |*call_expr| {
             const function_name = call_expr.callee.Variable.name;
-            const callee = try self.env.get(function_name);
+            const callee = self.env.get(function_name) catch
+                return self.unknown_identifier_error(function_name);
+
             if (callee.as_function()) |*func| {
                 // @todo func.is_generic() and current context is concrete function
                 if (func.is_generic()) {
@@ -652,9 +655,18 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
         },
         .Logical => |logical| {
             const left = try self.infer(logical.left);
-            const right = try self.infer(logical.right);
+            const left_type = sem_type(left);
 
-            try unify(sem_type(left), sem_type(right));
+            const right = try self.infer(logical.right);
+            const right_type = sem_type(right);
+
+            unify(left_type, right_type) catch
+                return self.type_mismatch_err(
+                left_type,
+                right_type,
+                logical.right,
+            );
+
             //@todo pay attention to circular references !! This can cause segfaults
             try bind(sem_type(right), sem_type(left));
 
@@ -662,7 +674,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
                 .{
                     .variable = .{
                         .name = "logical",
-                        .ref = sem_type(left),
+                        .ref = left_type,
                     },
                 },
             );
@@ -1518,7 +1530,7 @@ fn type_mismatch_err(self: *@This(), expected: *TypeNode, found: *TypeNode, foun
     });
 }
 
-fn unknown_variable_error(self: *@This(), token: *const Token) InferError {
+fn unknown_identifier_error(self: *@This(), token: *const Token) InferError {
     return self.err.fatal(InferError.UnknownIdentifier, .{
         .column_start = token.start,
         .column_end = token.end,
