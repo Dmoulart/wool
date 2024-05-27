@@ -54,7 +54,7 @@ pub fn Errors(comptime E: type) type {
                             []const u8, // constant or variable
                             []const u8, // identifier string
                         },
-                        InferError.UnknownVariable => struct { []const u8 },
+                        InferError.UnknownIdentifier => struct { []const u8 },
                         InferError.TypeMismatch => struct {
                             []const u8, // expected
                             []const u8, // found
@@ -73,9 +73,9 @@ pub fn Errors(comptime E: type) type {
                         InferError.AlreadyDefinedIdentifier => struct {
                             []const u8,
                         },
-                        InferError.UnknownVariable => struct {
-                            []const u8,
-                        },
+                        // InferError.UnknownIdentifier => struct {
+                        //     []const u8,
+                        // },
                         else => void,
                     };
                 },
@@ -148,7 +148,7 @@ pub fn Errors(comptime E: type) type {
             return switch (@TypeOf(err)) {
                 InferError => switch (err) {
                     InferError.FunctionArgumentsCanOnlyBeIdentifiers => "Function arguments can only be identifiers",
-                    InferError.UnknownVariable => "unknown variable {s}",
+                    InferError.UnknownIdentifier => "unknown identifier '{s}'",
                     InferError.TypeMismatch => "type mismatch, expected {s}, found {s}",
                     InferError.CircularReference => "Circular reference.",
                     InferError.CannotResolveType => "Cannot resolve type.",

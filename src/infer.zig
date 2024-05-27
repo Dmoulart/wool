@@ -256,7 +256,7 @@ pub const InferError = error{
     UnknownBuiltin,
     WrongArgumentsNumber,
     AllocError,
-    UnknownVariable,
+    UnknownIdentifier,
     UnknownFunction,
     AnonymousFunctionsNotImplemented,
     FunctionArgumentsCanOnlyBeIdentifiers,
@@ -357,7 +357,8 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
             );
         },
         .Assign => |*assign| {
-            const var_type = try self.env.get(assign.name);
+            const var_type = self.env.get(assign.name) catch
+                return self.unknown_variable_error(assign.name);
 
             const typed_assignation = try self.infer(assign.value);
             const assignation_type = sem_type(typed_assignation);
@@ -1464,7 +1465,7 @@ const Scope = struct {
         const value = self.values.get(name);
 
         if (value == null) {
-            return InferError.UnknownVariable;
+            return InferError.UnknownIdentifier;
         }
 
         _ = self.unused.remove(
@@ -1510,6 +1511,20 @@ fn type_mismatch_err(self: *@This(), expected: *TypeNode, found: *TypeNode, foun
         .msg = .{
             expected.to_str(),
             found.to_str(),
+        },
+        .context = {
+            // expr.get_text(self.file.src),
+        },
+    });
+}
+
+fn unknown_variable_error(self: *@This(), token: *const Token) InferError {
+    return self.err.fatal(InferError.UnknownIdentifier, .{
+        .column_start = token.start,
+        .column_end = token.end,
+        .line = token.line,
+        .msg = .{
+            token.lexeme,
         },
         .context = {
             // expr.get_text(self.file.src),

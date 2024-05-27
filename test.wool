@@ -4,8 +4,10 @@ sum :: a f32, b f32 -> f32 a + b
 
 main :: -> {
   result : i32 = 0
+
+  bob = 1
   
-  log(sum(result 1))
+  log(sum(1 1))
 }
 
 
