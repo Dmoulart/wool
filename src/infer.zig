@@ -309,8 +309,8 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
 
             unify(const_type, initializer_type) catch
                 return self.type_mismatch_err(
-                const_type.to_str(),
-                initializer_type.to_str(),
+                const_type,
+                initializer_type,
                 const_init.initializer,
             );
 
@@ -338,8 +338,8 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
 
             unify(var_type, initializer_type) catch
                 return self.type_mismatch_err(
-                var_type.to_str(),
-                initializer_type.to_str(),
+                var_type,
+                initializer_type,
                 var_init.initializer,
             );
 
@@ -364,8 +364,8 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
 
             unify(var_type, assignation_type) catch
                 return self.type_mismatch_err(
-                var_type.to_str(),
-                assignation_type.to_str(),
+                var_type,
+                assignation_type,
                 assign.value,
             );
 
@@ -478,14 +478,15 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
         .If => |*if_expr| {
             const typed_condition = try self.infer(if_expr.condition);
             const condition_type = sem_type(typed_condition);
+            const if_condition_type = try self.new_type(.bool);
 
             unify(
                 condition_type,
-                try self.new_type(.bool),
+                if_condition_type,
             ) catch
                 return self.type_mismatch_err(
-                "bool",
-                condition_type.to_str(),
+                if_condition_type,
+                condition_type,
                 if_expr.condition,
             );
 
@@ -504,14 +505,19 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
 
             if (if_expr.else_branch) |else_branch| {
                 maybe_typed_else_branch = try self.infer(else_branch);
-                unify(sem_type(typed_then_branch), sem_type(maybe_typed_else_branch.?)) catch
+
+                const then_branch_type = sem_type(typed_then_branch);
+                const maybe_else_branch_type = sem_type(maybe_typed_else_branch.?);
+
+                unify(sem_type(typed_then_branch), maybe_else_branch_type) catch
                     return self.type_mismatch_err(
-                    sem_type(typed_then_branch).to_str(),
-                    sem_type(maybe_typed_else_branch.?).to_str(),
+                    then_branch_type,
+                    maybe_else_branch_type,
                     if_expr.else_branch.?,
                 );
+
                 //@todo pay attention to circular references !! This can cause segfaults
-                try bind(sem_type(maybe_typed_else_branch.?), sem_type(typed_then_branch));
+                try bind(maybe_else_branch_type, then_branch_type);
             }
 
             return try self.create_sem(
@@ -708,8 +714,8 @@ fn call(
             type_scope,
         ) catch |err| switch (err) {
             InferError.TypeMismatch => return self.type_mismatch_err(
-                func_arg_type.to_str(),
-                call_arg_type.to_str(),
+                func_arg_type,
+                call_arg_type,
                 call_arg,
             ),
 
@@ -720,8 +726,8 @@ fn call(
             call_arg_type_ref,
             call_arg_type,
         ) catch return self.type_mismatch_err(
-            call_arg_type_ref.to_str(),
-            call_arg_type.to_str(),
+            call_arg_type_ref,
+            call_arg_type,
             call_arg,
         );
 
@@ -1538,13 +1544,13 @@ fn already_defined_variable_err(self: *@This(), token: *const Token, expr: *cons
     });
 }
 
-fn type_mismatch_err(self: *@This(), expected: []const u8, found: []const u8, found_expr: *const Expr) InferError {
+fn type_mismatch_err(self: *@This(), expected: *TypeNode, found: *TypeNode, found_expr: *const Expr) InferError {
     return self.err.fatal(InferError.TypeMismatch, .{
         .column = found_expr.get_column_start(),
         .line = found_expr.get_line(self.file),
         .msg = .{
-            expected,
-            found,
+            expected.to_str(),
+            found.to_str(),
         },
         .context = {
             // expr.get_text(self.file.src),
