@@ -149,13 +149,34 @@ pub const Expr = union(enum) {
 
     pub fn get_location(self: *const Expr) struct { u32, u32 } {
         return switch (self.*) {
-            .Literal => |*lit| .{ lit.token.start, lit.token.end },
-            .VarInit => |*var_init| .{ var_init.name.start, var_init.initializer.get_location()[1] },
-            .Variable => |*variable| .{ variable.name.start, variable.name.end },
-            .ConstInit => |*const_init| .{ const_init.name.start, const_init.initializer.get_location()[1] },
-            .Assign => |*assign| .{ assign.name.start, assign.value.get_location()[1] },
-            .Binary => |*binary| .{ binary.left.get_location()[0], binary.right.get_location()[1] },
-            .Call => |*call| .{ call.callee.get_location()[0], call.paren.end },
+            .Literal => |*lit| .{
+                lit.token.start,
+                lit.token.end,
+            },
+            .VarInit => |*var_init| .{
+                var_init.name.start,
+                var_init.initializer.get_location()[1],
+            },
+            .Variable => |*variable| .{
+                variable.name.start,
+                variable.name.end,
+            },
+            .ConstInit => |*const_init| .{
+                const_init.name.start,
+                const_init.initializer.get_location()[1],
+            },
+            .Assign => |*assign| .{
+                assign.name.start,
+                assign.value.get_location()[1],
+            },
+            .Binary => |*binary| .{
+                binary.left.get_location()[0],
+                binary.right.get_location()[1],
+            },
+            .Call => |*call| .{
+                call.callee.get_location()[0],
+                call.paren.end,
+            },
             .Function => |*function| {
                 const start = if (function.name) |name|
                     name.start
@@ -173,7 +194,10 @@ pub const Expr = union(enum) {
                 return .{ start - 1, end + 1 }; // take ( and ) into account
             },
             .Logical => |*logical| {
-                return .{ logical.left.get_location()[0], logical.right.get_location()[1] };
+                return .{
+                    logical.left.get_location()[0],
+                    logical.right.get_location()[1],
+                };
             },
             // .Block => |*block| {
             //     if (block.exprs.len == 0) {
