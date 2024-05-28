@@ -62,6 +62,7 @@ pub const Expr = union(enum) {
 
     pub const Block = struct {
         exprs: []*const Expr,
+        brace: *const Token,
     };
 
     pub const Grouping = struct {
@@ -199,14 +200,26 @@ pub const Expr = union(enum) {
                     logical.right.get_location()[1],
                 };
             },
-            // .Block => |*block| {
-            //     if (block.exprs.len == 0) {
-
-            //     }
-            // },
-
+            .Block => |*block| {
+                return .{
+                    block.brace.start,
+                    block.brace.end,
+                };
+            },
+            .If => |*if_expr| {
+                return .{
+                    if_expr.then_branch.get_location()[0],
+                    if_expr.then_branch.get_location()[1],
+                    // if_expr.condition.get_location()[0],
+                    // if_expr.condition.get_location()[1],
+                    // if (if_expr.else_branch) |else_branche|
+                    //     else_branche.get_location()[1]
+                    // else
+                    //     if_expr.then_branch.get_location()[1],
+                };
+            },
             else => {
-                std.debug.print("\nUnimplemented expr get location\n", .{});
+                std.debug.print("\nUnimplemented expr get location {any} \n", .{self});
                 unreachable;
             },
         };

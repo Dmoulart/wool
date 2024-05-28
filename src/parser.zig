@@ -127,6 +127,7 @@ fn expression(self: *Self) ParserError!*Expr {
         return try self.create_expr(.{
             .Block = .{
                 .exprs = try self.block(),
+                .brace = self.previous(),
             },
         });
     }

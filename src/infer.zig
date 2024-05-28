@@ -509,7 +509,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
                 const then_branch_type = sem_type(typed_then_branch);
                 const maybe_else_branch_type = sem_type(maybe_typed_else_branch.?);
 
-                unify(sem_type(typed_then_branch), maybe_else_branch_type) catch
+                unify(then_branch_type, maybe_else_branch_type) catch
                     return self.type_mismatch_err(
                     then_branch_type,
                     maybe_else_branch_type,
@@ -796,7 +796,7 @@ fn function(self: *@This(), expr: *const Expr, maybe_args: ?[]*TypeNode, maybe_r
             else
                 try self.new_var_type("T", try self.new_type(.any));
 
-            self.env.define(arg.expr.Variable.name, arg_type) catch
+            self.env.define_local(arg.expr.Variable.name.lexeme, arg_type) catch
                 return self.already_defined_indentifier_err(arg.expr.Variable.name, arg.expr, "argument");
 
             function_decl_type.args[i] = arg_type;
@@ -1337,6 +1337,7 @@ const Env = struct {
     // scopes: std.ArrayListUnmanaged(Scope),
 
     current_depth: u32 = 0,
+    current_scope_start_index: usize = 0,
 
     pub fn init(allocator: std.mem.Allocator, err: Errors(InferError)) Env {
         return .{
@@ -1350,9 +1351,9 @@ const Env = struct {
 
     pub fn define(self: *Env, token: *const Token, node: *TypeNode) InferError!void {
         if (self.in_global_scope()) {
-            return self.define_global(token.lexeme, node);
+            return try self.define_global(token.lexeme, node);
         } else {
-            return self.define_local(token.lexeme, node);
+            return try self.define_local(token.lexeme, node);
         }
     }
 
@@ -1366,43 +1367,11 @@ const Env = struct {
     }
 
     pub fn define_local(self: *Env, name: []const u8, node: *TypeNode) InferError!void {
-        return if (self.global.has(name))
-            InferError.AlreadyDefinedIdentifier
-        else
-            return self.local.define(name, node);
-    }
-
-    pub fn begin_local_scope(self: *Env) void {
-        self.current_depth += 1;
-    }
-
-    pub fn end_local_scope(self: *Env, must_resolve_types: bool) InferError!void {
-        self.current_depth -= 1;
-
-        if (must_resolve_types) {
-            // @todo: only for non generic function
-            // Could be a way to narrow non terminal values at the end of scope of concrete functions
-            var iterator = self.local.values.iterator();
-
-            while (iterator.next()) |type_node| {
-                if (self.local.is_unused(type_node.value_ptr.*)) {
-                    return InferError.UnusedIdentifier; // cannot do error reporting. env should contain sems ?
-                }
-
-                if (!type_node.value_ptr.*.get_tid().is_terminal()) {
-                    std.debug.print("type node {}", .{type_node.value_ptr.*.get_tid()});
-                    return InferError.CannotResolveType;
-                }
-            }
+        if (self.global.has(name)) {
+            return InferError.AlreadyDefinedIdentifier;
+        } else {
+            return try self.local.define(name, node);
         }
-
-        if (self.in_global_scope()) {
-            self.local.clear(); // why ?
-        }
-    }
-
-    pub fn in_global_scope(self: *Env) bool {
-        return self.current_depth == 0;
     }
 
     pub fn get(self: *Env, token: *const Token) InferError!*TypeNode {
@@ -1422,6 +1391,43 @@ const Env = struct {
         return try self.global.get_function(name);
     }
 
+    pub fn begin_local_scope(self: *Env) void {
+        self.current_depth += 1;
+        self.current_scope_start_index = self.local.types.count();
+    }
+
+    pub fn end_local_scope(self: *Env, must_resolve_types: bool) InferError!void {
+        self.current_depth -= 1;
+
+        if (must_resolve_types) {
+            // @todo: only for non generic function
+            // Could be a way to narrow non terminal values at the end of scope of concrete functions
+            var iterator = self.local.types.iterator();
+
+            while (iterator.next()) |type_node| {
+                if (self.local.is_unused(type_node.value_ptr.*)) {
+                    return InferError.UnusedIdentifier; // cannot do error reporting. env should contain sems ?
+                }
+
+                if (!type_node.value_ptr.*.get_tid().is_terminal()) {
+                    std.debug.print("type node {}", .{type_node.value_ptr.*.get_tid()});
+                    return InferError.CannotResolveType;
+                }
+            }
+        }
+
+        if (self.in_global_scope()) {
+            self.local.clear(); // clear all local scope types, we don't need it anymore
+        } else {
+            self.local.rewind_to(self.current_scope_start_index);
+            self.current_scope_start_index = self.local.types.count();
+        }
+    }
+
+    pub fn in_global_scope(self: *Env) bool {
+        return self.current_depth == 0;
+    }
+
     pub fn deinit(self: *Env) void {
         self.global.deinit();
         self.local.deinit();
@@ -1430,21 +1436,26 @@ const Env = struct {
 
 const Scope = struct {
     allocator: std.mem.Allocator,
-    values: std.StringArrayHashMapUnmanaged(*TypeNode),
+    types: std.StringArrayHashMapUnmanaged(*TypeNode),
     functions: std.StringHashMapUnmanaged(*const Expr),
     unused: std.AutoHashMapUnmanaged(*TypeNode, void),
 
     pub fn init(allocator: std.mem.Allocator) Scope {
-        return .{ .allocator = allocator, .values = .{}, .functions = .{}, .unused = .{} };
+        return .{
+            .allocator = allocator,
+            .types = .{},
+            .functions = .{},
+            .unused = .{},
+        };
     }
 
     pub fn deinit(self: *Scope) void {
-        self.values.deinit(self.allocator);
+        self.types.deinit(self.allocator);
         self.functions.deinit(self.allocator);
     }
 
     pub fn define(self: *Scope, name: []const u8, node: *TypeNode) InferError!void {
-        const result = self.values.getOrPut(self.allocator, name) catch unreachable; // @todo general exception handling
+        const result = self.types.getOrPut(self.allocator, name) catch unreachable; // @todo general exception handling
 
         if (result.found_existing) {
             return InferError.AlreadyDefinedIdentifier;
@@ -1468,11 +1479,15 @@ const Scope = struct {
     }
 
     pub fn clear(self: *Scope) void {
-        self.values.clearAndFree(self.allocator);
+        self.types.clearAndFree(self.allocator);
+    }
+
+    pub fn rewind_to(self: *Scope, size: usize) void {
+        self.types.shrinkAndFree(self.allocator, size);
     }
 
     pub fn get(self: *Scope, name: []const u8) InferError!*TypeNode {
-        const value = self.values.get(name);
+        const value = self.types.get(name);
 
         if (value == null) {
             return InferError.UnknownIdentifier;
@@ -1490,7 +1505,7 @@ const Scope = struct {
     }
 
     pub fn has(self: *Scope, name: []const u8) bool {
-        return self.values.contains(name);
+        return self.types.contains(name);
     }
 
     pub fn is_unused(self: *Scope, node: *TypeNode) bool {

@@ -3,8 +3,28 @@ log :: from console import log
 sum :: a f32, b f32 -> f32 a + b
 
 main :: -> {
-  a := 1
-  a := 2
+  outer :i32 = 2
+
+  result := if outer > 1
+  {
+    inner := {
+      inner_inner := outer
+      inner_inner = inner_inner + 1
+      inner_inner
+    }
+
+    inner
+  }
+  else if outer == 1
+  {
+    0
+  } 
+  else 
+  {
+    100
+  }
+
+  log(outer)
 }
 
 
