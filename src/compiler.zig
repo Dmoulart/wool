@@ -337,6 +337,13 @@ pub fn compile_expr(self: *Compiler, inst: *Ir.Inst) anyerror!c.BinaryenExpressi
                 c.BinaryenTypeAuto(),
             );
         },
+        .local_assign => |*local_assign| {
+            return c.BinaryenLocalSet(
+                self.module,
+                local_assign.ident,
+                try self.compile_expr(local_assign.value),
+            );
+        },
         else => {
             std.debug.print("not impl {any}", .{inst});
             return CompileError.NotImplemented;

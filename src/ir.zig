@@ -26,6 +26,8 @@ pub const Inst = union(enum) {
     local_f32: Local,
     local_f64: Local,
 
+    local_assign: LocalAssign,
+
     global_ref: []const u8,
 
     global_bool: Global(i32),
@@ -113,6 +115,13 @@ pub const Inst = union(enum) {
     }
 
     pub const Local = struct {
+        pub const Ident = u32;
+
+        ident: Ident,
+        value: *Inst,
+    };
+
+    pub const LocalAssign = struct {
         pub const Ident = u32;
 
         ident: Ident,
@@ -363,6 +372,24 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
                 return IrError.CannotFindLocalVariable;
             }
         },
+        .Assign => |*assign| {
+            //@todo: more efficient way of handling this
+            const maybe_local_ident = self.function_locals.find_index(
+                assign.orig_expr.Assign.name.lexeme,
+                find_str,
+            );
+
+            if (maybe_local_ident) |local_ident| {
+                return try self.create_inst(.{
+                    .local_assign = .{
+                        .ident = @intCast(local_ident),
+                        .value = try self.convert(as_sem(assign.value)),
+                    },
+                });
+            } else {
+                return IrError.CannotFindLocalVariable;
+            }
+        },
         .Logical => |logical| {
             const tid = get_sem_tid(sem);
 
@@ -475,7 +502,6 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
                 },
             );
         },
-
         .Import => |*import| {
             //@todo wow this is really crazy
             const namespace = as_sem(import).Import.orig_expr.Import.namespace.lexeme;
