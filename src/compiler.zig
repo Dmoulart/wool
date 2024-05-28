@@ -387,8 +387,8 @@ fn binary(
     return c.BinaryenBinary(
         self.module,
         op(tid, operator),
-        left,
         right,
+        left,
     );
 }
 
