@@ -729,7 +729,6 @@ fn call(
                 call_arg_type,
                 call_arg,
             ),
-
             else => unreachable,
         };
 

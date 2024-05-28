@@ -3,30 +3,8 @@ log :: from console import log
 // sum :: a f32, b f32 -> f32 a + b
 
 main :: -> {
-  outer :i32 = 2
 
-  result := if outer > 1
-  {
-    inner := {
-      inner_inner := outer
-      inner_inner = inner_inner + 1
-      inner_inner
-    }
-    log(inner)
-    inner
-  }
-  else if outer == 1
-  {
-    log(0)
-    0
-  } 
-  else 
-  {
-    log(123)
-    100
-  }
-
-  log(result)
+  log()
 }
 
 
