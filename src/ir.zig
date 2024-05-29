@@ -232,7 +232,10 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
                 .bool => .{
                     .local_bool = local_value,
                 },
-                else => return IrError.NotImplemented,
+                else => {
+                    std.debug.print("\nNot implemented tid {}\n", .{tid});
+                    return IrError.NotImplemented;
+                },
             });
         },
         .ConstInit => |*const_init| {

@@ -1,10 +1,12 @@
 log :: from console import log
  
-// sum :: a f32, b f32 -> f32 a + b
+sum :: a f32, b f32 -> f32 a + b
 
 main :: -> {
+  a: i32 = 0
 
-  log()
+  
+  log(c a b)
 }
 
 

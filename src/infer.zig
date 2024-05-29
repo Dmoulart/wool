@@ -1514,7 +1514,6 @@ fn already_defined_indentifier_err(self: *@This(), token: *const Token, expr: *c
     return self.err.fatal(InferError.AlreadyDefinedIdentifier, .{
         .column_start = token.start,
         .column_end = token.end,
-        .line = token.line,
         .msg = .{
             identifier_type,
             token.lexeme,
@@ -1529,7 +1528,6 @@ fn type_mismatch_err(self: *@This(), expected: *TypeNode, found: *TypeNode, foun
     return self.err.fatal(InferError.TypeMismatch, .{
         .column_start = found_expr.get_column_start(),
         .column_end = found_expr.get_column_end(),
-        .line = found_expr.get_line(self.file),
         .msg = .{
             expected.to_str(),
             found.to_str(),
@@ -1544,7 +1542,6 @@ fn unknown_identifier_err(self: *@This(), token: *const Token) InferError {
     return self.err.fatal(InferError.UnknownIdentifier, .{
         .column_start = token.start,
         .column_end = token.end,
-        .line = token.line,
         .msg = .{
             token.lexeme,
         },
@@ -1579,7 +1576,6 @@ fn wrong_number_of_arguments_err(
     return self.err.fatal(InferError.WrongNumberOfArguments, .{
         .column_start = column_start,
         .column_end = column_end,
-        .line = expr.get_line(self.file),
         .msg = .{
             function_name,
             expected,

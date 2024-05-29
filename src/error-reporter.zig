@@ -90,7 +90,6 @@ pub fn Errors(comptime E: type) type {
 
         fn ErrorData(comptime err: E) type {
             return struct {
-                line: u32,
                 column_start: u32,
                 column_end: u32,
                 msg: ErrorPayload(err),
@@ -108,11 +107,11 @@ pub fn Errors(comptime E: type) type {
             const template_error_cursor = "{s}";
 
             const template = "\n" ++ template_error_location ++ template_error_msg ++ template_error_line ++ template_error_cursor ++ "\n";
+            const line = self.file.get_line_from_col(data.column_start);
+            const line_text = self.file.get_line(line);
 
-            const line_text = self.file.get_line(data.line);
-
-            const err_cursor_column_start = self.file.get_line_offset(data.line, data.column_start);
-            const err_cursor_column_end = self.file.get_line_offset(data.line, data.column_end);
+            const err_cursor_column_start = self.file.get_line_offset(line, data.column_start);
+            const err_cursor_column_end = self.file.get_line_offset(line, data.column_end);
 
             const err_cursor = self.allocator.alloc(u8, err_cursor_column_end) catch unreachable;
 
@@ -132,7 +131,7 @@ pub fn Errors(comptime E: type) type {
 
             const error_msg = std.fmt.allocPrint(self.allocator, template, .{
                 self.file.path orelse "", // no file path means repl ? should we keep a repl ?
-                data.line,
+                line,
                 data.column_start,
                 msg,
                 line_text,
