@@ -364,18 +364,14 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
             }
 
             //@todo: more efficient way of handling this
-            const maybe_local_ident = self.function_locals.find_index(
+            const local_ident = self.function_locals.find_index(
                 variable.orig_expr.Variable.name.get_text(self.file.src),
                 find_str,
-            );
+            ).?; // it should always be present
 
-            if (maybe_local_ident) |local_ident| {
-                return try self.create_inst(.{
-                    .local_ref = @intCast(local_ident),
-                });
-            } else {
-                return IrError.CannotFindLocalVariable;
-            }
+            return try self.create_inst(.{
+                .local_ref = @intCast(local_ident),
+            });
         },
         .Assign => |*assign| {
             //@todo: more efficient way of handling this

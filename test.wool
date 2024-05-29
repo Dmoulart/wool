@@ -1,13 +1,13 @@
 log :: from console import log
  
-sum :: a i32, b i32 -> i32 a + b
+// sum :: a i32, b i32 -> i32 a + b
 
 main :: -> {
-  a :i32= 1
+  a :i32 = 1
 
   c : i32 = 2000
 
-  res := if sum(2 1) == 3
+  res := if a == c
     c
   else
     a + 101
