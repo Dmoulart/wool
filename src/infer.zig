@@ -254,7 +254,7 @@ pub const InferError = error{
     TypeMismatch,
     UnknownType,
     UnknownBuiltin,
-    WrongArgumentsNumber,
+    WrongNumberOfArguments,
     UnknownIdentifier,
     UnknownFunction,
     AnonymousFunctionsNotImplemented,
@@ -418,20 +418,11 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
             const builtin = &builtins_types.get(builtin_name).?;
 
             const call_infos = try self.call(
+                expr,
                 builtin,
                 args,
             );
-            // const sem = Sem.init(
-            //     expr,
-            //     .{
-            //         .Binary = .{
-            //             .expr = node,
-            //         },
-            //     },
-            //     node,
-            // );
 
-            // try self.create_sem(sem);
             return try self.create_sem(
                 .{
                     .Binary = .{
@@ -616,7 +607,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
                     // return node;
                 }
 
-                const call_infos = try self.call(func, call_expr.args);
+                const call_infos = try self.call(expr, func, call_expr.args);
 
                 return try self.create_sem(
                     .{
@@ -694,11 +685,18 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
 
 fn call(
     self: *@This(),
+    call_expr: *const Expr,
     func: *const FunType,
     call_args: []*const Expr,
 ) anyerror!struct { args: []*Sem, return_type: *TypeNode } {
     if (func.args.len != call_args.len) {
-        return InferError.WrongArgumentsNumber;
+        const function_name = call_expr.Call.callee.Variable.name;
+        return self.wrong_number_of_arguments_err(
+            call_expr,
+            @intCast(func.args.len),
+            @intCast(call_args.len),
+            function_name.lexeme,
+        );
     }
 
     // @todo: just reuse one type scope. Or use another more generic object
@@ -767,7 +765,7 @@ fn function(self: *@This(), expr: *const Expr, maybe_args: ?[]*TypeNode, maybe_r
 
     if (maybe_args) |args| {
         if (func_expr.args != null and args.len != func_expr.args.?.len) {
-            return InferError.WrongArgumentsNumber;
+            return InferError.WrongNumberOfArguments;
         }
     }
 
@@ -974,7 +972,7 @@ fn instanciate_function(
     const func_type = func_node.function;
 
     if (func_type.args.len != new_args.len) {
-        return InferError.WrongArgumentsNumber;
+        return InferError.WrongNumberOfArguments;
     }
 
     // use the func.clone method ?
@@ -1563,6 +1561,29 @@ fn unused_identifier_err(self: *@This(), token: *const Token) InferError {
         .line = token.line,
         .msg = .{
             token.lexeme,
+        },
+        .context = {
+            // expr.get_text(self.file.src),
+        },
+    });
+}
+
+fn wrong_number_of_arguments_err(
+    self: *@This(),
+    expr: *const Expr,
+    expected: u32,
+    found: u32,
+    function_name: []const u8,
+) InferError {
+    const column_start, const column_end = expr.get_location();
+    return self.err.fatal(InferError.WrongNumberOfArguments, .{
+        .column_start = column_start,
+        .column_end = column_end,
+        .line = expr.get_line(self.file),
+        .msg = .{
+            function_name,
+            expected,
+            found,
         },
         .context = {
             // expr.get_text(self.file.src),

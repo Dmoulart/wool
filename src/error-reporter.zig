@@ -59,6 +59,11 @@ pub fn Errors(comptime E: type) type {
                             []const u8, // expected
                             []const u8, // found
                         },
+                        InferError.WrongNumberOfArguments => struct {
+                            []const u8, // function called
+                            u32, // expected
+                            u32, // found
+                        },
                         else => void,
                     };
                 },
@@ -155,6 +160,7 @@ pub fn Errors(comptime E: type) type {
                     InferError.AlreadyDefinedIdentifier => "{s} '{s}' has already been defined.",
                     InferError.UnusedIdentifier => "unused identifier '{s}'.",
                     InferError.UnknownError => "Unknown error.",
+                    InferError.WrongNumberOfArguments => "wrong number of arguments for '{s}' function call. Expected {d} found {d}",
                     else => "Error message not found",
                 },
                 else => "No found error message",
