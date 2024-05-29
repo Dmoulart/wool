@@ -5,8 +5,6 @@ const Expr = @import("./ast/expr.zig").Expr;
 
 const Self = @This();
 
-const ErrorReporter = @import("./error-reporter.zig").ErrorReporter;
-const Err = ErrorReporter(ParserError);
 const ParserError = error{
     OutOfMemory,
     MissingExpression,
@@ -287,11 +285,12 @@ fn function(self: *Self) ParserError!*Expr {
             while (self.match(&.{.COMMA})) {
                 // @todo: do while would have been great in this case
                 if (args.?.items.len >= 255) {
-                    return Err.raise(
-                        self.peek(),
-                        ParserError.TooMuchArguments,
-                        "Functions cannot have more than 255 arguments",
-                    );
+                    return ParserError.TooMuchArguments;
+                    // Err.raise(
+                    //     self.peek(),
+                    //     ParserError.TooMuchArguments,
+                    //     "Functions cannot have more than 255 arguments",
+                    // );
                 }
 
                 args.?.append(try self.argument()) catch return ParserError.OutOfMemory;
@@ -411,11 +410,7 @@ fn const_init(self: *Self) ParserError!*Expr {
                     },
                 });
             },
-            else => Err.raise(
-                props.equals,
-                ParserError.InvalidAssignmentTarget,
-                "Invalid assignment target.",
-            ),
+            else => ParserError.InvalidAssignmentTarget,
         };
     }
 
@@ -474,11 +469,12 @@ fn var_init(self: *Self) ParserError!*Expr {
                     },
                 });
             },
-            else => Err.raise(
-                props.equals,
-                ParserError.InvalidAssignmentTarget,
-                "Invalid assignment target.",
-            ),
+            else => ParserError.InvalidAssignmentTarget,
+            // else => Err.raise(
+            //     props.equals,
+            //     ParserError.InvalidAssignmentTarget,
+            //     "Invalid assignment target.",
+            // ),
         };
     }
 
@@ -503,11 +499,12 @@ fn operation_assigment(self: *Self) ParserError!*Expr {
                     },
                 });
             },
-            else => Err.raise(
-                op,
-                ParserError.InvalidAssignmentTarget,
-                "Invalid assignment target.",
-            ),
+            else => return ParserError.InvalidAssignmentTarget,
+            // Err.raise(
+            //     op,
+            //     ParserError.InvalidAssignmentTarget,
+            //     "Invalid assignment target.",
+            // ),
         };
     }
     return expr;
@@ -517,7 +514,7 @@ fn assignment(self: *Self) ParserError!*Expr {
     const expr = try self.or_expr();
 
     if (self.match(&.{.EQUAL})) {
-        const equals = self.previous();
+        // const equals = self.previous();
         const value = try self.assignment();
 
         return switch (expr.*) {
@@ -530,11 +527,13 @@ fn assignment(self: *Self) ParserError!*Expr {
                     },
                 });
             },
-            else => Err.raise(
-                equals,
-                ParserError.InvalidAssignmentTarget,
-                "Invalid assignment target.",
-            ),
+            else => ParserError.InvalidAssignmentTarget
+            //  Err.raise(
+            //     equals,
+            //     ParserError.InvalidAssignmentTarget,
+            //     "Invalid assignment target.",
+            // )
+            ,
         };
     }
 
@@ -700,13 +699,16 @@ fn finish_call(self: *Self, callee: *const Expr) ParserError!*Expr {
         "Expect ')' after arguments.",
     );
 
-    if (args.items.len > 255) {
-        return Err.raise(
-            self.peek(),
-            ParserError.TooMuchArguments,
-            "Functions cannot have more than 255 arguments",
-        );
-    }
+    //@todo do we need argument limit ?
+    // if (args.items.len > 255) {
+    //     return ParserError.TooMuchArguments;
+    //     //  Err.raise(
+    //     //     self.peek(),
+    //     //     ParserError.TooMuchArguments,
+    //     //     "Functions cannot have more than 255 arguments",
+    //     // )
+
+    // }
 
     try self.args.put(callee, try args.toOwnedSlice());
 
@@ -789,11 +791,12 @@ fn primary(self: *Self) ParserError!*Expr {
         });
     }
 
-    return Err.raise(
-        self.peek(),
-        ParserError.MissingExpression,
-        "Missing expression",
-    );
+    return ParserError.MissingExpression;
+    //  Err.raise(
+    //     self.peek(),
+    //     ParserError.MissingExpression,
+    //     "Missing expression",
+    // );
 }
 
 fn create_expr(self: *Self, expr: Expr) ParserError!*Expr {
@@ -841,7 +844,8 @@ fn consume(self: *Self, token_type: Token.Types, comptime parser_error: ParserEr
     if (self.check(token_type)) {
         return self.advance();
     }
-    return Err.raise(self.peek(), parser_error, msg);
+    std.debug.print("\nError {d}\n", .{msg});
+    return parser_error; // Err.raise(self.peek(), parser_error, msg);
 }
 
 fn optional(self: *Self, token_type: Token.Types) ?*Token {

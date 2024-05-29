@@ -8,8 +8,6 @@ const isDigit = std.ascii.isDigit;
 
 const Self = @This();
 
-const ErrorReporter = @import("./error-reporter.zig").ErrorReporter;
-const Err = ErrorReporter(LexerError);
 const LexerError = error{
     UnexpectedCharacter,
     UnterminatedCommentBlock,
@@ -47,8 +45,6 @@ pub fn scan(self: *Self) !struct { []Token, []u32 } {
 
     try self.tokens.append(Token{
         .type = Token.Type.EOF,
-        .lexeme = "",
-        .line = self.line,
         .start = self.current,
         .end = self.current,
     });
@@ -113,12 +109,8 @@ fn scan_token(self: *Self) !void {
 }
 
 fn add_token(self: *Self, token_type: Token.Type) !void {
-    const text = self.src[self.start..self.current];
-
     try self.tokens.append(.{
         .type = token_type,
-        .lexeme = text,
-        .line = self.line,
         .start = self.start,
         .end = self.current,
     });
@@ -245,7 +237,7 @@ fn expect_token_sequence_from_tokens(comptime expected: []const Token.Types, tok
 }
 
 fn err(self: *Self, comptime lexer_error: LexerError) void {
-    Err.print(self.line, self.src[self.start..self.current], @errorName(lexer_error));
+    std.debug.print("\n[Line {d}]: Error {s}. \n{s} \n", .{ self.line, @errorName(lexer_error), self.src[self.start..self.current] });
     self.last_error = lexer_error;
 }
 

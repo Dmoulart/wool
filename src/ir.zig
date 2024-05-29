@@ -7,7 +7,8 @@ program: std.ArrayListUnmanaged(*Inst),
 globals: std.StringHashMapUnmanaged(void),
 
 function_locals: Stack([]const u8),
-// function_local_types: Stack(Infer.TypeID),
+
+file: *const File,
 
 const Ir = @This();
 
@@ -165,13 +166,14 @@ pub const Inst = union(enum) {
 
 const IrError = error{ NotImplemented, CannotFindLocalVariable };
 
-pub fn init(allocator: std.mem.Allocator) Ir {
+pub fn init(allocator: std.mem.Allocator, file: *const File) Ir {
     return .{
         .allocator = allocator,
         .instructions = .{},
         .program = .{},
         .globals = .{},
         .function_locals = Stack([]const u8).init(allocator),
+        .file = file,
         // .function_locals = Stack(Infer.TypeID).init(allocator),
     };
 }
@@ -203,7 +205,7 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
             return try self.convert(as_sem(grouping.expr));
         },
         .VarInit => |*var_init| {
-            const name = var_init.orig_expr.VarInit.name.lexeme;
+            const name = var_init.orig_expr.VarInit.name.get_text(self.file.src);
             const tid = get_sem_tid(as_sem(var_init.initializer));
 
             const local_ident = try self.function_locals.push(name);
@@ -239,7 +241,7 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
             });
         },
         .ConstInit => |*const_init| {
-            const name = const_init.orig_expr.ConstInit.name.lexeme;
+            const name = const_init.orig_expr.ConstInit.name.get_text(self.file.src);
 
             try self.globals.put(self.allocator, name, {});
 
@@ -284,8 +286,8 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
                 },
                 .extern_func => {
                     //@todo wow this is really crazy
-                    const namespace = as_sem(const_init.initializer).Import.orig_expr.Import.namespace.lexeme;
-                    const member = as_sem(const_init.initializer).Import.orig_expr.Import.member.lexeme;
+                    const namespace = as_sem(const_init.initializer).Import.orig_expr.Import.namespace.get_text(self.file.src);
+                    const member = as_sem(const_init.initializer).Import.orig_expr.Import.member.get_text(self.file.src);
                     return try self.create_inst(.{
                         .extern_func = .{
                             .namespace = namespace,
@@ -305,11 +307,11 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
             for (function.type_node.function.args, 0..) |arg, i| {
                 args[i] = arg.get_tid();
                 // @todo this is fucking awful !!
-                _ = try self.function_locals.push(function.orig_expr.Function.args.?[i].expr.Variable.name.lexeme);
+                _ = try self.function_locals.push(function.orig_expr.Function.args.?[i].expr.Variable.name.get_text(self.file.src));
             }
 
             const name = if (function.orig_expr.Function.name) |name|
-                name.lexeme
+                name.get_text(self.file.src)
             else
                 "anonymous";
 
@@ -353,7 +355,7 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
             return try self.create_inst(try binary(tid, op, left, right));
         },
         .Variable => |*variable| {
-            const name = variable.orig_expr.Variable.name.lexeme;
+            const name = variable.orig_expr.Variable.name.get_text(self.file.src);
 
             if (self.globals.contains(name)) {
                 return try self.create_inst(.{
@@ -363,7 +365,7 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
 
             //@todo: more efficient way of handling this
             const maybe_local_ident = self.function_locals.find_index(
-                variable.orig_expr.Variable.name.lexeme,
+                variable.orig_expr.Variable.name.get_text(self.file.src),
                 find_str,
             );
 
@@ -378,7 +380,7 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
         .Assign => |*assign| {
             //@todo: more efficient way of handling this
             const maybe_local_ident = self.function_locals.find_index(
-                assign.orig_expr.Assign.name.lexeme,
+                assign.orig_expr.Assign.name.get_text(self.file.src),
                 find_str,
             );
 
@@ -501,7 +503,7 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
         .Call => |*call| {
             // @todo dynamic calls ??
             // @todo horror museum
-            const function_name = call.orig_expr.Call.callee.Variable.name.lexeme;
+            const function_name = call.orig_expr.Call.callee.Variable.name.get_text(self.file.src);
 
             const args = try self.allocator.alloc(*Inst, call.args.len);
 
@@ -517,8 +519,8 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
         },
         .Import => |*import| {
             //@todo wow this is really crazy
-            const namespace = as_sem(import).Import.orig_expr.Import.namespace.lexeme;
-            const member = as_sem(import).Import.orig_expr.Import.member.lexeme;
+            const namespace = as_sem(import).Import.orig_expr.Import.namespace.get_text(self.file.src);
+            const member = as_sem(import).Import.orig_expr.Import.member.get_text(self.file.src);
             return try self.create_inst(.{
                 .extern_func = .{
                     .namespace = namespace,
@@ -772,6 +774,9 @@ const std = @import("std");
 const meta = std.meta;
 const activeTag = std.meta.activeTag;
 const Token = @import("./token.zig");
+
+const File = @import("./file.zig");
+
 const Infer = @import("./infer.zig");
 const Expr = @import("./ast/expr.zig").Expr;
 const as_sem = @import("./infer.zig").as_sem;

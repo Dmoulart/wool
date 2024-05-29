@@ -274,7 +274,7 @@ pub fn init(allocator: std.mem.Allocator, ast: []*Expr, file: *const File) @This
     return .{
         .allocator = allocator,
         .ast = ast,
-        .env = Env.init(allocator, err),
+        .env = Env.init(allocator, file, err),
         .type_nodes = .{},
         .sems = .{},
         .typed_ast = .{},
@@ -695,7 +695,7 @@ fn call(
             call_expr,
             @intCast(func.args.len),
             @intCast(call_args.len),
-            function_name.lexeme,
+            function_name.get_text(self.file.src),
         );
     }
 
@@ -793,7 +793,7 @@ fn function(self: *@This(), expr: *const Expr, maybe_args: ?[]*TypeNode, maybe_r
             else
                 try self.new_var_type("T", try self.new_type(.any));
 
-            self.env.define_local(arg.expr.Variable.name.lexeme, arg_type) catch
+            self.env.define_local(arg.expr.Variable.name.get_text(self.file.src), arg_type) catch
                 return self.already_defined_indentifier_err(arg.expr.Variable.name, arg.expr, "argument");
 
             function_decl_type.args[i] = arg_type;
@@ -935,7 +935,7 @@ fn new_type_from_token(self: *@This(), token: *const Token) !*TypeNode {
     return try self.new_type_node(
         .{
             .type = .{
-                .tid = try tid_from_str(token.lexeme),
+                .tid = try tid_from_str(token.get_text(self.file.src)),
             },
         },
     );
@@ -1330,33 +1330,35 @@ const Env = struct {
     local: Scope,
     global: Scope,
     err: Errors(InferError),
+    file: *const File,
 
     // scopes: std.ArrayListUnmanaged(Scope),
 
     current_depth: u32 = 0,
     current_scope_start_index: usize = 0,
 
-    pub fn init(allocator: std.mem.Allocator, err: Errors(InferError)) Env {
+    pub fn init(allocator: std.mem.Allocator, file: *const File, err: Errors(InferError)) Env {
         return .{
             .allocator = allocator,
             .global = Scope.init(allocator),
             .local = Scope.init(allocator),
             // .scopes = .{},
             .err = err,
+            .file = file,
         };
     }
 
     pub fn define(self: *Env, token: *const Token, node: *TypeNode) InferError!void {
         if (self.in_global_scope()) {
-            return try self.define_global(token.lexeme, node);
+            return try self.define_global(token.get_text(self.file.src), node);
         } else {
-            return try self.define_local(token.lexeme, node);
+            return try self.define_local(token.get_text(self.file.src), node);
         }
     }
 
     pub fn define_function(self: *Env, token: *const Token, expr: *const Expr) InferError!void {
         // @todo regular scoping
-        return self.global.define_function(token.lexeme, expr);
+        return self.global.define_function(token.get_text(self.file.src), expr);
     }
 
     pub fn define_global(self: *Env, name: []const u8, node: *TypeNode) InferError!void {
@@ -1373,13 +1375,13 @@ const Env = struct {
 
     pub fn get(self: *Env, token: *const Token) InferError!*TypeNode {
         if (self.in_global_scope()) {
-            return self.global.get(token.lexeme);
+            return self.global.get(token.get_text(self.file.src));
         }
 
-        if (self.local.get(token.lexeme)) |ty| {
+        if (self.local.get(token.get_text(self.file.src))) |ty| {
             return ty;
         } else |_| {
-            return self.global.get(token.lexeme);
+            return self.global.get(token.get_text(self.file.src));
         }
     }
 
@@ -1516,7 +1518,7 @@ fn already_defined_indentifier_err(self: *@This(), token: *const Token, expr: *c
         .column_end = token.end,
         .msg = .{
             identifier_type,
-            token.lexeme,
+            token.get_text(self.file.src),
         },
         .context = .{
             expr.get_text(self.file.src),
@@ -1543,7 +1545,7 @@ fn unknown_identifier_err(self: *@This(), token: *const Token) InferError {
         .column_start = token.start,
         .column_end = token.end,
         .msg = .{
-            token.lexeme,
+            token.get_text(self.file.src),
         },
         .context = {
             // expr.get_text(self.file.src),
@@ -1600,5 +1602,4 @@ const Token = @import("./token.zig");
 const floatMax = std.math.floatMax;
 const maxInt = std.math.maxInt;
 const Errors = @import("./error-reporter.zig").Errors;
-const get_expr_text = @import("./error-reporter.zig").get_expr_text;
 const tag = std.meta.activeTag;

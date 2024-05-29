@@ -228,7 +228,7 @@ pub const Expr = union(enum) {
     pub fn get_line(self: *const Expr, file: *const File) u32 {
         const start = self.get_location()[0];
 
-        return file.get_line_from_col(start);
+        return file.get_start_line(start);
     }
 
     pub fn get_text(self: *const Expr, src: []const u8) []const u8 {

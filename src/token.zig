@@ -2,8 +2,6 @@ const std = @import("std");
 const Self = @This();
 
 type: Type,
-lexeme: []const u8,
-line: u32,
 start: u32,
 end: u32,
 
@@ -141,6 +139,25 @@ const keywords = std.ComptimeStringMap(Type, .{
 
 pub fn keyword(identifier: []const u8) ?Type {
     return keywords.get(identifier);
+}
+
+pub fn get_text(self: *const Self, src: []const u8) []const u8 {
+    return src[self.start..self.end];
+}
+
+pub fn get_line(self: *const Self, lines: []u32) []const u8 {
+    for (lines, 0..) |line, i| {
+        const next_line = if (lines.len <= i + 1)
+            lines.len - 1
+        else
+            lines[i + 1];
+
+        if (self.start >= line and self.start < next_line) {
+            return @intCast(i + 2);
+        }
+    }
+
+    unreachable;
 }
 
 pub fn debugPrint(self: *Self) void {

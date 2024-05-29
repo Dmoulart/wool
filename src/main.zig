@@ -42,7 +42,6 @@ fn runPrompt() !void {
         }
     }
 }
-
 fn run(src: []const u8, path: ?[]const u8, allocator: std.mem.Allocator) !void {
     var lexer = Lexer.init(src, allocator);
     defer lexer.deinit();
@@ -60,7 +59,7 @@ fn run(src: []const u8, path: ?[]const u8, allocator: std.mem.Allocator) !void {
 
     var infer = Infer.init(allocator, ast, &file);
     const sems = try infer.infer_program();
-    var ir = Ir.init(allocator);
+    var ir = Ir.init(allocator, &file);
 
     const program = try ir.convert_program(sems);
     try jsonPrint(program, "./ir.json");

@@ -7,33 +7,8 @@ const Token = @import("token.zig");
 const Expr = @import("./ast/expr.zig").Expr;
 const InferError = @import("infer.zig").InferError;
 
-const al = std.heap.page_allocator;
-
-pub fn ErrorReporter(comptime ErrorType: type) type {
-    return struct {
-        pub fn raise(token: *const Token, comptime raised_err: ErrorType, comptime msg: []const u8) @TypeOf(raised_err) {
-            if (token.type == .EOF) {
-                print(token.line, "at end of file", msg);
-            } else {
-                const where = std.fmt.allocPrint(al, "at '{s}'", .{token.lexeme}) catch |print_error| {
-                    std.debug.print("\nError reporter cannot report error context : {s}\n", .{@errorName(print_error)});
-                    return raised_err;
-                };
-                print(token.line, where, msg);
-            }
-
-            return raised_err;
-        }
-
-        pub fn print(line: u32, where: []const u8, comptime msg: []const u8) void {
-            std.debug.print("\n[line {}] {s} {s} \n", .{ line, msg, where });
-        }
-    };
-}
-
 const io = std.io;
 
-const ERROR_MSG_CONTEXT_SIZE: u32 = 15;
 pub fn Errors(comptime E: type) type {
     return struct {
         allocator: std.mem.Allocator,
@@ -107,7 +82,8 @@ pub fn Errors(comptime E: type) type {
             const template_error_cursor = "{s}";
 
             const template = "\n" ++ template_error_location ++ template_error_msg ++ template_error_line ++ template_error_cursor ++ "\n";
-            const line = self.file.get_line_from_col(data.column_start);
+
+            const line = self.file.get_start_line(data.column_start);
             const line_text = self.file.get_line(line);
 
             const err_cursor_column_start = self.file.get_line_offset(line, data.column_start);
