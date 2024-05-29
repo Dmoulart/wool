@@ -289,8 +289,8 @@ pub fn compile_expr(self: *Compiler, inst: *Ir.Inst) anyerror!c.BinaryenExpressi
         .local_ref => |local_ref| {
             return c.BinaryenLocalGet(
                 self.module,
-                local_ref,
-                c.BinaryenTypeAuto(),
+                local_ref.identifier,
+                primitive(local_ref.tid),
             );
         },
         .global_ref => |global_ref| {

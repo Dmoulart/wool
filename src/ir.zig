@@ -6,11 +6,13 @@ program: std.ArrayListUnmanaged(*Inst),
 
 globals: std.StringHashMapUnmanaged(void),
 
-function_locals: Stack([]const u8),
+function_locals: std.StringArrayHashMapUnmanaged(FunctionLocal),
 
 file: *const File,
 
 const Ir = @This();
+
+const FunctionLocal = struct { ident: u32, tid: Infer.TypeID };
 
 pub const Inst = union(enum) {
     value_bool: i32,
@@ -19,7 +21,7 @@ pub const Inst = union(enum) {
     value_f32: f32,
     value_f64: f64,
 
-    local_ref: Local.Ident,
+    local_ref: struct { identifier: Local.Ident, tid: Infer.TypeID },
 
     local_bool: Local,
     local_i32: Local,
@@ -172,7 +174,7 @@ pub fn init(allocator: std.mem.Allocator, file: *const File) Ir {
         .instructions = .{},
         .program = .{},
         .globals = .{},
-        .function_locals = Stack([]const u8).init(allocator),
+        .function_locals = .{},
         .file = file,
         // .function_locals = Stack(Infer.TypeID).init(allocator),
     };
@@ -208,13 +210,15 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
             const name = var_init.orig_expr.VarInit.name.get_text(self.file.src);
             const tid = get_sem_tid(as_sem(var_init.initializer));
 
-            const local_ident = try self.function_locals.push(name);
+            const local_identifier: u32 = @intCast(self.function_locals.count());
+
+            try self.function_locals.put(self.allocator, name, .{ .ident = local_identifier, .tid = tid });
             // _ = try self.function_local_types.push(tid);
 
             const value = try self.convert(as_sem(var_init.initializer));
 
             const local_value = .{
-                .ident = local_ident,
+                .ident = local_identifier,
                 .value = value,
             };
 
@@ -300,14 +304,19 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
             };
         },
         .Function => |*function| {
-            try self.function_locals.clear();
+            self.function_locals.shrinkRetainingCapacity(0);
             // try self.function_local_types.clear();
             var args = try self.allocator.alloc(Infer.TypeID, function.type_node.function.args.len);
 
             for (function.type_node.function.args, 0..) |arg, i| {
-                args[i] = arg.get_tid();
+                const tid = arg.get_tid();
+                const name = function.orig_expr.Function.args.?[i].expr.Variable.name.get_text(self.file.src);
+                args[i] = tid;
                 // @todo this is fucking awful !!
-                _ = try self.function_locals.push(function.orig_expr.Function.args.?[i].expr.Variable.name.get_text(self.file.src));
+                _ = try self.function_locals.put(self.allocator, name, .{
+                    .ident = @intCast(self.function_locals.count()),
+                    .tid = tid,
+                });
             }
 
             const name = if (function.orig_expr.Function.name) |name|
@@ -364,32 +373,26 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
             }
 
             //@todo: more efficient way of handling this
-            const local_ident = self.function_locals.find_index(
+            const local_ref = self.function_locals.get(
                 variable.orig_expr.Variable.name.get_text(self.file.src),
-                find_str,
             ).?; // it should always be present
 
             return try self.create_inst(.{
-                .local_ref = @intCast(local_ident),
+                .local_ref = .{ .identifier = @intCast(local_ref.ident), .tid = local_ref.tid },
             });
         },
         .Assign => |*assign| {
             //@todo: more efficient way of handling this
-            const maybe_local_ident = self.function_locals.find_index(
+            const local_ident = self.function_locals.get(
                 assign.orig_expr.Assign.name.get_text(self.file.src),
-                find_str,
-            );
+            ).?.ident;
 
-            if (maybe_local_ident) |local_ident| {
-                return try self.create_inst(.{
-                    .local_assign = .{
-                        .ident = @intCast(local_ident),
-                        .value = try self.convert(as_sem(assign.value)),
-                    },
-                });
-            } else {
-                return IrError.CannotFindLocalVariable;
-            }
+            return try self.create_inst(.{
+                .local_assign = .{
+                    .ident = @intCast(local_ident),
+                    .value = try self.convert(as_sem(assign.value)),
+                },
+            });
         },
         .Logical => |logical| {
             const tid = get_sem_tid(sem);

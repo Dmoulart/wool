@@ -4,14 +4,11 @@ log :: from console import log
 
 main :: -> {
   a :i32 = 1
+  b :f32 = 2
+  c: i64 = 1
 
-  c : i32 = 2000
 
-  res := if a == c
-    c
-  else
-    a + 101
-
+  res := if a == 3 a else 1
   
   log(res)
 }
