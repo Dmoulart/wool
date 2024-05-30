@@ -142,15 +142,6 @@ const MonoType = struct {
 const VarType = struct {
     name: []const u8,
     ref: *TypeNode,
-
-    // pub fn is_recursive(self: *VarType) bool {
-    //     if (self.ref.as_var()) |var_type| {
-    //         if (@intFromPtr(var_type) == @intFromPtr(var_type)) {
-    //             return true;
-    //         }
-    //         var_type.is_recursive()
-    //     }
-    // }
 };
 
 pub const FunType = struct {
@@ -624,6 +615,9 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
             }
         },
         .Function => {
+            // @todo function main type checkin', we need context, and function name, how ?
+            // const func_name = expr.Function.name;
+            // std.debug.print("func name {any}", .{func_name});
             const function_infos = try self.function(
                 expr,
                 null,
@@ -1174,6 +1168,9 @@ fn make_vartype(
         },
     };
 }
+
+var main_function_args: []*TypeNode = [_]*TypeNode{};
+var main_function_return_type = make_type(.void);
 
 var number_node = make_type(.number);
 var number_var = make_vartype("T", &number_node);

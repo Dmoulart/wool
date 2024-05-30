@@ -700,15 +700,6 @@ fn finish_call(self: *Self, callee: *const Expr) ParserError!*Expr {
     );
 
     //@todo do we need argument limit ?
-    // if (args.items.len > 255) {
-    //     return ParserError.TooMuchArguments;
-    //     //  Err.raise(
-    //     //     self.peek(),
-    //     //     ParserError.TooMuchArguments,
-    //     //     "Functions cannot have more than 255 arguments",
-    //     // )
-
-    // }
 
     try self.args.put(callee, try args.toOwnedSlice());
 

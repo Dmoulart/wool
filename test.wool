@@ -6,7 +6,10 @@ main :: -> {
   a := 1
   b := 2
 
-  res := if sum(a b) == 3 a else 1
+  res := if sum(a b) == 3
+     a
+    else 
+    1
   
   log(res)
 }
