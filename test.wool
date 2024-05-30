@@ -5,8 +5,6 @@ sum :: a i32, b i32 -> i32 a + b
 main :: -> {
   a := 1
   b := 2
-  c := 1
-
 
   res := if sum(a b) == 3 a else 1
   

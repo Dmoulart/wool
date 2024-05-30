@@ -1330,8 +1330,6 @@ const Env = struct {
     err: Errors(InferError),
     file: *const File,
 
-    // scopes: std.ArrayListUnmanaged(Scope),
-
     current_depth: u32 = 0,
     current_scope_start_index: usize = 0,
 
@@ -1340,7 +1338,6 @@ const Env = struct {
             .allocator = allocator,
             .global = Scope.init(allocator),
             .local = Scope.init(allocator),
-            // .scopes = .{},
             .err = err,
             .file = file,
         };
