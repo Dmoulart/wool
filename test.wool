@@ -1,14 +1,14 @@
 log :: from console import log
  
-// sum :: a i32, b i32 -> i32 a + b
+sum :: a i32, b i32 -> i32 a + b
 
 main :: -> {
-  a :i32 = 1
-  b :f32 = 2
-  c: i64 = 1
+  a := 1
+  b := 2
+  c := 1
 
 
-  res := if a == 3 a else 1
+  res := if sum(a b) == 3 a else 1
   
   log(res)
 }

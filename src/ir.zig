@@ -180,6 +180,10 @@ pub fn init(allocator: std.mem.Allocator, file: *const File) Ir {
     };
 }
 
+pub fn deinit(self: *Ir) void {
+    self.function_locals.deinit(self.allocator);
+}
+
 pub fn convert_program(self: *Ir, sems: []*Infer.Sem) ![]*Inst {
     for (sems) |sem| {
         try self.emit(try self.convert(sem));
@@ -239,7 +243,7 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
                     .local_bool = local_value,
                 },
                 else => {
-                    std.debug.print("\nNot implemented tid {}\n", .{tid});
+                    std.debug.print("\nIR Convert : Not implemented tid {}\n", .{tid});
                     return IrError.NotImplemented;
                 },
             });

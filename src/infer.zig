@@ -862,7 +862,6 @@ fn get_or_create_type_ref(self: *@This(), base_type: *TypeNode, instance_type: *
         }
     }
 
-    // return try ctx.create_var_instance(new_var);
     return try self.new_type_node(base_type.*);
 }
 

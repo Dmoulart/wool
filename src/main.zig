@@ -59,7 +59,9 @@ fn run(src: []const u8, path: ?[]const u8, allocator: std.mem.Allocator) !void {
 
     var infer = Infer.init(allocator, ast, &file);
     const sems = try infer.infer_program();
+
     var ir = Ir.init(allocator, &file);
+    defer ir.deinit();
 
     const program = try ir.convert_program(sems);
     try jsonPrint(program, "./ir.json");
