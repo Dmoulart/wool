@@ -537,7 +537,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
             else
                 try self.new_type(.void);
 
-            try self.env.end_local_scope(false); // @todo generic block ?????
+            try self.env.end_local_scope(); // @todo generic block ?????
 
             return try self.create_sem(
                 .{
@@ -824,8 +824,7 @@ fn function(self: *@This(), expr: *const Expr, maybe_args: ?[]*TypeNode, maybe_r
         );
     }
 
-    // pretty_print(return_type);
-    try self.env.end_local_scope(!function_decl_type.is_generic());
+    try self.env.end_local_scope();
 
     return .{
         .body = typed_body,
@@ -1394,21 +1393,23 @@ const Env = struct {
         self.current_scope_start_index = self.local.types.count();
     }
 
-    pub fn end_local_scope(self: *Env, must_resolve_types: bool) InferError!void {
+    pub fn end_local_scope(self: *Env) InferError!void {
         self.current_depth -= 1;
 
-        if (must_resolve_types) {
+        if (true) {
             // @todo: only for non generic function
             // Could be a way to narrow non terminal values at the end of scope of concrete functions
             var iterator = self.local.types.iterator();
 
-            while (iterator.next()) |type_node| {
-                if (self.local.is_unused(type_node.value_ptr.*)) {
+            while (iterator.next()) |type_node_entry| {
+                const type_node = type_node_entry.value_ptr.*;
+
+                if (self.local.is_unused(type_node)) {
                     return InferError.UnusedIdentifier; // cannot do error reporting. env should contain sems ?
                 }
 
-                if (!type_node.value_ptr.*.get_tid().is_terminal()) {
-                    std.debug.print("type node {}", .{type_node.value_ptr.*.get_tid()});
+                if (!type_node.get_tid().is_terminal()) {
+                    std.debug.print("type node {}", .{type_node.get_tid()});
                     return InferError.CannotResolveType;
                 }
             }
@@ -1460,7 +1461,6 @@ const Scope = struct {
         }
 
         result.value_ptr.* = node;
-
         self.unused.put(self.allocator, node, {}) catch unreachable; // @todo general exception handling
     }
 
@@ -1485,17 +1485,15 @@ const Scope = struct {
     }
 
     pub fn get(self: *Scope, name: []const u8) InferError!*TypeNode {
-        const value = self.types.get(name);
+        if (self.types.get(name)) |value| {
+            _ = self.unused.remove(
+                value,
+            );
 
-        if (value == null) {
+            return value;
+        } else {
             return InferError.UnknownIdentifier;
         }
-
-        _ = self.unused.remove(
-            value.?,
-        );
-
-        return value.?;
     }
 
     pub fn get_function(self: *Scope, name: []const u8) InferError!*const Expr {
