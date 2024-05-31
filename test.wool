@@ -3,15 +3,12 @@ log :: from console import log
 sum :: a i32, b i32 -> i32 a + b
 
 main :: -> {
-  a := 1
-  b := 2
+  a := 10
 
-  res := if sum(a b) == 3
-     a
-    else 
-    1
-  
-  log(res)
+  while a >= 1  {
+    log(a)
+    a = a - 1
+  }
 }
 
 

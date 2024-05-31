@@ -566,11 +566,14 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
         },
         .While => |*while_expr| {
             const condition = try self.infer(while_expr.condition);
+            const condition_type = sem_type(condition);
+
             const bool_condition = try self.new_type(.bool);
 
-            try unify(bool_condition, sem_type(condition));
+            try unify(bool_condition, condition_type);
 
             const body = try self.infer(while_expr.body);
+            const body_type = sem_type(body);
 
             return try self.create_sem(.{
                 .While = .{
@@ -578,7 +581,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
                     .condition = condition,
                     .body = body,
                     .orig_expr = expr,
-                    .type_node = sem_type(body),
+                    .type_node = body_type,
                 },
             });
         },

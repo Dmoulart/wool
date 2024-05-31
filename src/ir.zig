@@ -103,12 +103,15 @@ pub const Inst = union(enum) {
 
     @"if": If,
 
-    block: struct {
-        insts: []*Inst,
-        return_type: Infer.TypeID, // @todo: make a block for each type ???
-    },
+    block: Block,
 
     call: Call,
+
+    loop: Loop,
+
+    brk: Break,
+
+    break_if: BreakIf,
 
     pub fn Global(comptime T: type) type {
         return struct {
@@ -136,11 +139,6 @@ pub const Inst = union(enum) {
         right: *Inst,
     };
 
-    pub const ExternFunc = struct {
-        namespace: []const u8,
-        member: []const u8,
-    };
-
     pub const Func = struct {
         name: []const u8,
         args: []Infer.TypeID,
@@ -148,10 +146,21 @@ pub const Inst = union(enum) {
         body: *Inst,
     };
 
+    pub const ExternFunc = struct {
+        namespace: []const u8,
+        member: []const u8,
+    };
+
     pub const If = struct {
         then_branch: *Inst,
         else_branch: ?*Inst,
         condition: *Inst,
+    };
+
+    pub const Block = struct {
+        insts: []*Inst,
+        return_type: Infer.TypeID,
+        name: []const u8,
     };
 
     pub const Select = struct {
@@ -164,6 +173,16 @@ pub const Inst = union(enum) {
         callee: []const u8,
         args: []*Inst,
     };
+
+    pub const Loop = struct {
+        body: *Inst,
+    };
+
+    pub const BreakIf = struct {
+        condition: *Inst,
+    };
+
+    pub const Break = struct {};
 };
 
 const IrError = error{ NotImplemented, CannotFindLocalVariable };
@@ -200,11 +219,6 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
     switch (sem.*) {
         .Literal => |*lit| {
             const tid = get_sem_tid(sem);
-            // const lit_inst = switch (tid) {
-            //     .bool => try literal(tid, lit.orig_expr.Literal.value.Boolean),
-            //     .number, .i32, .i64, .float, .f32, .f64 => try literal(tid, lit.orig_expr.Literal.value.Number),
-            //     else => unreachable,
-            // };
             return try self.create_inst(try literal(tid, lit.orig_expr.Literal.value));
         },
         .Grouping => |grouping| {
@@ -352,7 +366,7 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
 
             return try self.create_inst(
                 .{
-                    .block = .{ .insts = insts, .return_type = return_type },
+                    .block = .{ .insts = insts, .return_type = return_type, .name = "anon" },
                 },
             );
         },
@@ -531,12 +545,66 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
                 },
             });
         },
+        .While => |*while_loop| {
+            //@mem dealloc
+            const insts = try self.allocator.alloc(*Inst, 2);
+
+            const inner = try self.convert(as_sem(while_loop.body));
+
+            const condition = try self.convert(as_sem(while_loop.condition));
+
+            insts[0] = try self.create_inst(.{
+                .break_if = .{
+                    // flip the condition
+                    .condition = try self.create_inst(.{
+                        .neq_bool = .{
+                            .left = condition,
+                            .right = try self.create_inst(.{ .value_bool = 1 }),
+                        },
+                    }),
+                },
+            });
+
+            insts[1] = inner;
+
+            const return_type: Infer.TypeID = while_loop.type_node.get_tid();
+
+            const block = try self.create_inst(.{
+                .block = .{ .insts = insts, .return_type = return_type, .name = "outer" },
+            });
+
+            return try self.create_inst(.{
+                .loop = .{
+                    .body = block,
+                },
+            });
+        },
         else => {
             std.debug.print("\nNot Implemented = {any}\n", .{sem});
             return IrError.NotImplemented;
         },
     }
 }
+
+// fn create_block(self: *Ir, insts []) Inst {
+//     //@todo:mem
+//     const insts = try self.allocator.alloc(*Inst, block.exprs.len);
+
+//     const return_type: Infer.TypeID = if (block.exprs.len == 0)
+//         .void
+//     else
+//         get_sem_tid(as_sem(block.exprs[block.exprs.len - 1]));
+
+//     for (block.exprs, 0..) |expr, i| {
+//         insts[i] = try self.convert(as_sem(expr));
+//     }
+
+//     return try self.create_inst(
+//         .{
+//             .block = .{ .insts = insts, .return_type = return_type },
+//         },
+//     );
+// }
 
 fn literal(tid: Infer.TypeID, value: Expr.Literal.Value) !Inst {
     return switch (tid) {

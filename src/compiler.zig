@@ -344,6 +344,44 @@ pub fn compile_expr(self: *Compiler, inst: *Ir.Inst) anyerror!c.BinaryenExpressi
                 try self.compile_expr(local_assign.value),
             );
         },
+        .loop => |*loop| {
+            //                         pub extern fn BinaryenLoop(module: BinaryenModuleRef, in: [*c]const u8, body: BinaryenExpressionRef) BinaryenExpressionRef;
+            // pub extern fn BinaryenBreak(module: BinaryenModuleRef, name: [*c]const u8, condition: BinaryenExpressionRef, value: BinaryenExpressionRef) BinaryenExpressionRef;
+            const refs = try self.allocator.alloc(c.BinaryenExpressionRef, 2);
+
+            const inner = try self.compile_expr(loop.body);
+            const br = c.BinaryenBreak(self.module, "inner", null, null);
+
+            refs[0] = inner;
+            refs[1] = br;
+
+            const block =
+                c.BinaryenBlock(
+                self.module,
+                null,
+                @ptrCast(refs),
+                @intCast(refs.len),
+                c.BinaryenTypeAuto(),
+            );
+
+            const loop_ref_ptr = try self.allocator.create(c.BinaryenExpressionRef);
+            const loop_ref = c.BinaryenLoop(self.module, "inner", block);
+            loop_ref_ptr.* = loop_ref;
+
+            return c.BinaryenBlock(
+                self.module,
+                "outer",
+                @ptrCast(loop_ref_ptr),
+                1,
+                c.BinaryenTypeAuto(),
+            );
+        },
+        .brk => {
+            return c.BinaryenBreak(self.module, "inner", null, null);
+        },
+        .break_if => |break_if| {
+            return c.BinaryenBreak(self.module, "outer", try self.compile_expr(break_if.condition), null);
+        },
         else => {
             std.debug.print("not impl {any}", .{inst});
             return CompileError.NotImplemented;
