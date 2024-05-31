@@ -348,12 +348,14 @@ pub fn compile_expr(self: *Compiler, inst: *Ir.Inst) anyerror!c.BinaryenExpressi
             //                         pub extern fn BinaryenLoop(module: BinaryenModuleRef, in: [*c]const u8, body: BinaryenExpressionRef) BinaryenExpressionRef;
             // pub extern fn BinaryenBreak(module: BinaryenModuleRef, name: [*c]const u8, condition: BinaryenExpressionRef, value: BinaryenExpressionRef) BinaryenExpressionRef;
             const refs = try self.allocator.alloc(c.BinaryenExpressionRef, 2);
-
             const inner = try self.compile_expr(loop.body);
-            const br = c.BinaryenBreak(self.module, "inner", null, null);
+
+            const buf = try self.allocator.alloc(u8, 15);
+            const inner_loop_label = try std.fmt.bufPrint(buf, "loop_{d}", .{loop.id});
+            const branch_to_loop = c.BinaryenBreak(self.module, self.to_c_str(inner_loop_label), null, null);
 
             refs[0] = inner;
-            refs[1] = br;
+            refs[1] = branch_to_loop;
 
             const block =
                 c.BinaryenBlock(
@@ -365,12 +367,15 @@ pub fn compile_expr(self: *Compiler, inst: *Ir.Inst) anyerror!c.BinaryenExpressi
             );
 
             const loop_ref_ptr = try self.allocator.create(c.BinaryenExpressionRef);
-            const loop_ref = c.BinaryenLoop(self.module, "inner", block);
+            const loop_ref = c.BinaryenLoop(self.module, self.to_c_str(inner_loop_label), block);
             loop_ref_ptr.* = loop_ref;
+
+            const buf_2 = try self.allocator.alloc(u8, 15);
+            const outer_loop_label = try std.fmt.bufPrint(buf_2, "outer_{d}", .{loop.id});
 
             return c.BinaryenBlock(
                 self.module,
-                "outer",
+                self.to_c_str(outer_loop_label),
                 @ptrCast(loop_ref_ptr),
                 1,
                 c.BinaryenTypeAuto(),
@@ -380,7 +385,14 @@ pub fn compile_expr(self: *Compiler, inst: *Ir.Inst) anyerror!c.BinaryenExpressi
             return c.BinaryenBreak(self.module, "inner", null, null);
         },
         .break_if => |break_if| {
-            return c.BinaryenBreak(self.module, "outer", try self.compile_expr(break_if.condition), null);
+            const buf = try self.allocator.alloc(u8, 15);
+            const from_label = try std.fmt.bufPrint(buf, "outer_{d}", .{break_if.from});
+            return c.BinaryenBreak(
+                self.module,
+                self.to_c_str(from_label),
+                try self.compile_expr(break_if.condition),
+                null,
+            );
         },
         else => {
             std.debug.print("not impl {any}", .{inst});

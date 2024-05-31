@@ -5,6 +5,8 @@ instructions: std.ArrayListUnmanaged(Inst),
 program: std.ArrayListUnmanaged(*Inst),
 
 globals: std.StringHashMapUnmanaged(void),
+// blocks and loops identifiers
+block_scopes: Stack(u32),
 
 function_locals: std.StringArrayHashMapUnmanaged(FunctionLocal),
 
@@ -21,7 +23,7 @@ pub const Inst = union(enum) {
     value_f32: f32,
     value_f64: f64,
 
-    local_ref: struct { identifier: Local.Ident, tid: Infer.TypeID },
+    local_ref: LocalRef,
 
     local_bool: Local,
     local_i32: Local,
@@ -127,6 +129,11 @@ pub const Inst = union(enum) {
         value: *Inst,
     };
 
+    pub const LocalRef = struct {
+        identifier: Local.Ident,
+        tid: Infer.TypeID,
+    };
+
     pub const LocalAssign = struct {
         pub const Ident = u32;
 
@@ -160,7 +167,7 @@ pub const Inst = union(enum) {
     pub const Block = struct {
         insts: []*Inst,
         return_type: Infer.TypeID,
-        name: []const u8,
+        id: u32,
     };
 
     pub const Select = struct {
@@ -175,14 +182,16 @@ pub const Inst = union(enum) {
     };
 
     pub const Loop = struct {
+        id: u32,
         body: *Inst,
     };
 
     pub const BreakIf = struct {
+        from: u32,
         condition: *Inst,
     };
 
-    pub const Break = struct {};
+    pub const Break = struct { id: u32 };
 };
 
 const IrError = error{ NotImplemented, CannotFindLocalVariable };
@@ -195,12 +204,14 @@ pub fn init(allocator: std.mem.Allocator, file: *const File) Ir {
         .globals = .{},
         .function_locals = .{},
         .file = file,
+        .block_scopes = Stack(u32).init(allocator),
         // .function_locals = Stack(Infer.TypeID).init(allocator),
     };
 }
 
 pub fn deinit(self: *Ir) void {
     self.function_locals.deinit(self.allocator);
+    self.block_scopes.deinit();
 }
 
 pub fn convert_program(self: *Ir, sems: []*Infer.Sem) ![]*Inst {
@@ -323,7 +334,7 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
         },
         .Function => |*function| {
             self.function_locals.shrinkRetainingCapacity(0);
-            // try self.function_local_types.clear();
+
             var args = try self.allocator.alloc(Infer.TypeID, function.type_node.function.args.len);
 
             for (function.type_node.function.args, 0..) |arg, i| {
@@ -364,9 +375,15 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
                 insts[i] = try self.convert(as_sem(expr));
             }
 
+            const id = try self.new_block_scope();
+
             return try self.create_inst(
                 .{
-                    .block = .{ .insts = insts, .return_type = return_type, .name = "anon" },
+                    .block = .{
+                        .insts = insts,
+                        .return_type = return_type,
+                        .id = id,
+                    },
                 },
             );
         },
@@ -553,6 +570,8 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
 
             const condition = try self.convert(as_sem(while_loop.condition));
 
+            const loop_id = try self.new_block_scope();
+            std.debug.print("\nouter id {d}\n", .{loop_id});
             insts[0] = try self.create_inst(.{
                 .break_if = .{
                     // flip the condition
@@ -562,6 +581,7 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
                             .right = try self.create_inst(.{ .value_bool = 1 }),
                         },
                     }),
+                    .from = loop_id,
                 },
             });
 
@@ -570,12 +590,17 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
             const return_type: Infer.TypeID = while_loop.type_node.get_tid();
 
             const block = try self.create_inst(.{
-                .block = .{ .insts = insts, .return_type = return_type, .name = "outer" },
+                .block = .{
+                    .insts = insts,
+                    .return_type = return_type,
+                    .id = loop_id,
+                },
             });
 
             return try self.create_inst(.{
                 .loop = .{
                     .body = block,
+                    .id = loop_id,
                 },
             });
         },
@@ -584,6 +609,12 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
             return IrError.NotImplemented;
         },
     }
+}
+
+pub fn new_block_scope(self: *Ir) !u32 {
+    const id = self.block_scopes.count;
+    _ = try self.block_scopes.push(id);
+    return id;
 }
 
 // fn create_block(self: *Ir, insts []) Inst {

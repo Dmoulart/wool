@@ -6,9 +6,10 @@ main :: -> {
   a := 10
 
   while a >= 1  {
-    log(a)
     a = a - 1
+    log(a)
   }
+  
 }
 
 
