@@ -361,7 +361,7 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
             });
         },
         .Block => |*block| {
-            const id = self.block_scope.begin_block_scope();
+            // const id = self.block_scope.begin_block_scope();
             //@todo:mem
             const insts = try self.allocator.alloc(*Inst, block.exprs.len);
 
@@ -374,14 +374,14 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
                 insts[i] = try self.convert(as_sem(expr));
             }
 
-            _ = self.block_scope.end_block_scope();
+            // _ = self.block_scope.end_block_scope();
 
             return try self.create_inst(
                 .{
                     .block = .{
                         .insts = insts,
                         .return_type = return_type,
-                        .id = id,
+                        .id = 0,
                     },
                 },
             );
