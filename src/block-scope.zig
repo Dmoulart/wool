@@ -2,7 +2,7 @@ block_depth: u32 = 0,
 
 const Self = @This();
 
-pub fn begin_block_scope(self: *Self) !u32 {
+pub fn begin_block_scope(self: *Self) u32 {
     self.block_depth += 1;
     return self.block_depth;
 }

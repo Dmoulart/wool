@@ -569,7 +569,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
             );
         },
         .While => |*while_expr| {
-            _ = try self.block_scope.begin_block_scope();
+            _ = self.block_scope.begin_block_scope();
 
             const condition = try self.infer(while_expr.condition);
             const condition_type = sem_type(condition);

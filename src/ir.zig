@@ -6,7 +6,7 @@ program: std.ArrayListUnmanaged(*Inst),
 
 globals: std.StringHashMapUnmanaged(void),
 // blocks and loops identifiers
-block_scopes: Stack(u32),
+block_scope: BlockScope,
 
 function_locals: std.StringArrayHashMapUnmanaged(FunctionLocal),
 
@@ -199,19 +199,17 @@ const IrError = error{ NotImplemented, CannotFindLocalVariable };
 pub fn init(allocator: std.mem.Allocator, file: *const File) Ir {
     return .{
         .allocator = allocator,
+        .file = file,
         .instructions = .{},
         .program = .{},
         .globals = .{},
         .function_locals = .{},
-        .file = file,
-        .block_scopes = Stack(u32).init(allocator),
-        // .function_locals = Stack(Infer.TypeID).init(allocator),
+        .block_scope = .{},
     };
 }
 
 pub fn deinit(self: *Ir) void {
     self.function_locals.deinit(self.allocator);
-    self.block_scopes.deinit();
 }
 
 pub fn convert_program(self: *Ir, sems: []*Infer.Sem) ![]*Inst {
@@ -363,6 +361,7 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
             });
         },
         .Block => |*block| {
+            const id = self.block_scope.begin_block_scope();
             //@todo:mem
             const insts = try self.allocator.alloc(*Inst, block.exprs.len);
 
@@ -375,7 +374,7 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
                 insts[i] = try self.convert(as_sem(expr));
             }
 
-            const id = try self.new_block_scope();
+            _ = self.block_scope.end_block_scope();
 
             return try self.create_inst(
                 .{
@@ -563,6 +562,7 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
             });
         },
         .While => |*while_loop| {
+            const loop_id = self.block_scope.begin_block_scope();
             //@mem dealloc
             const insts = try self.allocator.alloc(*Inst, 2);
 
@@ -570,7 +570,6 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
 
             const condition = try self.convert(as_sem(while_loop.condition));
 
-            const loop_id = try self.new_block_scope();
             std.debug.print("\nouter id {d}\n", .{loop_id});
             insts[0] = try self.create_inst(.{
                 .break_if = .{
@@ -597,6 +596,8 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
                 },
             });
 
+            _ = self.block_scope.end_block_scope();
+
             return try self.create_inst(.{
                 .loop = .{
                     .body = block,
@@ -608,7 +609,7 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
             return try self.create_inst(.{
                 .brk = .{
                     .value = if (brk.value) |value| try self.convert(as_sem(value)) else null,
-                    .id = self.current_block_scope(),
+                    .id = self.block_scope.current_block_scope(),
                 },
             });
         },
@@ -618,16 +619,6 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
             return IrError.NotImplemented;
         },
     }
-}
-
-pub fn new_block_scope(self: *Ir) !u32 {
-    const id = self.block_scopes.count;
-    _ = try self.block_scopes.push(id);
-    return id;
-}
-
-pub fn current_block_scope(self: *Ir) u32 {
-    return self.block_scopes.count;
 }
 
 // fn create_block(self: *Ir, insts []) Inst {
@@ -898,4 +889,4 @@ const as_sem = @import("./infer.zig").as_sem;
 const as_sems = @import("./infer.zig").as_sems;
 const get_sem_tid = @import("./infer.zig").get_sem_tid;
 
-const Stack = @import("./Stack.zig").Stack;
+const BlockScope = @import("./block-scope.zig");
