@@ -381,12 +381,16 @@ pub fn compile_expr(self: *Compiler, inst: *Ir.Inst) anyerror!c.BinaryenExpressi
                 c.BinaryenTypeAuto(),
             );
         },
-        .brk => {
-            return c.BinaryenBreak(self.module, "inner", null, null);
+        .brk => |*brk| {
+            const buf = try self.allocator.alloc(u8, 15);
+            const from_label = try std.fmt.bufPrint(buf, "outer_{d}", .{brk.id});
+
+            return c.BinaryenBreak(self.module, self.to_c_str(from_label), null, null);
         },
         .break_if => |break_if| {
             const buf = try self.allocator.alloc(u8, 15);
             const from_label = try std.fmt.bufPrint(buf, "outer_{d}", .{break_if.from});
+
             return c.BinaryenBreak(
                 self.module,
                 self.to_c_str(from_label),

@@ -124,13 +124,16 @@ pub const Expr = union(enum) {
     };
 
     pub const Break = struct {
+        keyword: *const Token,
         value: ?*const Expr, // @todo break return value
+        from: ?[]const u8,
     };
 
     pub const While = struct {
         condition: *const Expr,
         body: *const Expr,
         inc: ?*const Expr,
+        label: ?[]const u8,
     };
 
     pub const Continue = struct {};

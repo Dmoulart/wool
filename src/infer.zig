@@ -8,6 +8,8 @@ sems: std.ArrayListUnmanaged(Sem),
 
 typed_ast: std.ArrayListUnmanaged(*Sem),
 
+block_scope: BlockScope,
+
 env: Env,
 
 err: Errors(InferError),
@@ -257,6 +259,7 @@ pub const InferError = error{
     CircularReference,
     UnknownError,
     UnusedIdentifier,
+    BreakOutsideBlock,
 };
 
 pub fn init(allocator: std.mem.Allocator, ast: []*Expr, file: *const File) @This() {
@@ -271,6 +274,7 @@ pub fn init(allocator: std.mem.Allocator, ast: []*Expr, file: *const File) @This
         .typed_ast = .{},
         .err = err,
         .file = file,
+        .block_scope = .{},
     };
 }
 
@@ -565,6 +569,8 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
             );
         },
         .While => |*while_expr| {
+            _ = try self.block_scope.begin_block_scope();
+
             const condition = try self.infer(while_expr.condition);
             const condition_type = sem_type(condition);
 
@@ -575,6 +581,9 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
             const body = try self.infer(while_expr.body);
             const body_type = sem_type(body);
 
+            _ = self.block_scope.end_block_scope();
+
+            // const loop_scope = self.new
             return try self.create_sem(.{
                 .While = .{
                     .inc = null,
@@ -672,6 +681,31 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
                         .orig_expr = expr,
                         .left = left,
                         .right = right,
+                    },
+                },
+            );
+        },
+        .Break => |brk| {
+            if (!self.block_scope.in_block_scope()) {
+                return self.break_oustide_loop_or_block_err(brk.keyword);
+            }
+
+            const maybe_brk_value = if (brk.value) |value|
+                try self.infer(value)
+            else
+                null;
+
+            const brk_type = if (maybe_brk_value) |brk_value|
+                sem_type(brk_value)
+            else
+                try self.new_type(.void);
+
+            return try self.create_sem(
+                .{
+                    .Break = .{
+                        .type_node = brk_type,
+                        .orig_expr = expr,
+                        .value = maybe_brk_value,
                     },
                 },
             );
@@ -1031,7 +1065,7 @@ fn type_of(value: Expr.Literal.Value) TypeID {
 //     };
 // }
 
-fn create_sem(self: *@This(), sem: Sem) !*Sem {
+fn create_sem(self: *Infer, sem: Sem) !*Sem {
     const sem_ptr = try self.sems.addOne(self.allocator);
     sem_ptr.* = sem;
     return sem_ptr;
@@ -1583,6 +1617,20 @@ fn wrong_number_of_arguments_err(
     });
 }
 
+fn break_oustide_loop_or_block_err(
+    self: *@This(),
+    keyword: *const Token,
+) InferError {
+    return self.err.fatal(InferError.BreakOutsideBlock, .{
+        .column_start = keyword.start,
+        .column_end = keyword.end,
+        .msg = .{},
+        .context = {
+            // expr.get_text(self.file.src),
+        },
+    });
+}
+
 const TypeScope = std.StringHashMap(*TypeNode);
 
 const std = @import("std");
@@ -1593,6 +1641,9 @@ const Expr = @import("./ast/expr.zig").Expr;
 const Typed = @import("./ast/typed.zig").Typed;
 const Type = @import("./types.zig").Type;
 const Token = @import("./token.zig");
+const BlockScope = @import("./block-scope.zig");
+
+const Stack = @import("./Stack.zig").Stack;
 const floatMax = std.math.floatMax;
 const maxInt = std.math.maxInt;
 const Errors = @import("./error-reporter.zig").Errors;

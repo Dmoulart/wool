@@ -191,7 +191,7 @@ pub const Inst = union(enum) {
         condition: *Inst,
     };
 
-    pub const Break = struct { id: u32 };
+    pub const Break = struct { id: u32, value: ?*Inst };
 };
 
 const IrError = error{ NotImplemented, CannotFindLocalVariable };
@@ -604,6 +604,15 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
                 },
             });
         },
+        .Break => |*brk| {
+            return try self.create_inst(.{
+                .brk = .{
+                    .value = if (brk.value) |value| try self.convert(as_sem(value)) else null,
+                    .id = self.current_block_scope(),
+                },
+            });
+        },
+
         else => {
             std.debug.print("\nNot Implemented = {any}\n", .{sem});
             return IrError.NotImplemented;
@@ -615,6 +624,10 @@ pub fn new_block_scope(self: *Ir) !u32 {
     const id = self.block_scopes.count;
     _ = try self.block_scopes.push(id);
     return id;
+}
+
+pub fn current_block_scope(self: *Ir) u32 {
+    return self.block_scopes.count;
 }
 
 // fn create_block(self: *Ir, insts []) Inst {

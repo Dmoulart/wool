@@ -185,11 +185,14 @@ fn while_expr(self: *Self) ParserError!*Expr {
     const condition = try self.expression();
     const body = try self.expression();
 
-    return try self.create_expr(.{ .While = .{
-        .condition = condition,
-        .body = body,
-        .inc = null,
-    } });
+    return try self.create_expr(.{
+        .While = .{
+            .condition = condition,
+            .body = body,
+            .inc = null,
+            .label = null,
+        },
+    });
 }
 
 fn if_expr(self: *Self) ParserError!*Expr {
@@ -216,6 +219,8 @@ fn break_expr(self: *Self) ParserError!*Expr {
     return try self.create_expr(.{
         .Break = .{
             .value = null,
+            .from = null,
+            .keyword = self.previous(),
         },
     });
 }

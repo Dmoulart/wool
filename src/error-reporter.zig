@@ -29,7 +29,9 @@ pub fn Errors(comptime E: type) type {
                             []const u8, // constant or variable
                             []const u8, // identifier string
                         },
-                        InferError.UnknownIdentifier => struct { []const u8 },
+                        InferError.UnknownIdentifier => struct {
+                            []const u8,
+                        },
                         InferError.TypeMismatch => struct {
                             []const u8, // expected
                             []const u8, // found
@@ -39,6 +41,7 @@ pub fn Errors(comptime E: type) type {
                             u32, // expected
                             u32, // found
                         },
+                        InferError.BreakOutsideBlock => struct {},
                         else => void,
                     };
                 },
@@ -127,18 +130,19 @@ pub fn Errors(comptime E: type) type {
         fn get_error_message(comptime err: E) []const u8 {
             return switch (@TypeOf(err)) {
                 InferError => switch (err) {
-                    InferError.UnknownIdentifier => "unknown identifier '{s}'",
-                    InferError.TypeMismatch => "type mismatch, expected {s}, found {s}",
+                    InferError.UnknownIdentifier => "unknown identifier '{s}'.",
+                    InferError.TypeMismatch => "type mismatch, expected {s}, found {s}.",
                     InferError.CircularReference => "circular reference.",
                     InferError.CannotResolveType => "cannot resolve type.",
                     InferError.AlreadyDefinedFunction => "function has already been defined.",
                     InferError.AlreadyDefinedIdentifier => "{s} '{s}' has already been defined.",
                     InferError.UnusedIdentifier => "unused identifier '{s}'.",
                     InferError.UnknownError => "Unknown error.",
-                    InferError.WrongNumberOfArguments => "wrong number of arguments for '{s}' function call. Expected {d} found {d}",
-                    else => "Error message not found",
+                    InferError.WrongNumberOfArguments => "wrong number of arguments for '{s}' function call. Expected {d} found {d}.",
+                    InferError.BreakOutsideBlock => "break outside loop or block.",
+                    else => "Unimplemented error reporting",
                 },
-                else => "No found error message",
+                else => "Unimplemented error reporting",
             };
         }
 
