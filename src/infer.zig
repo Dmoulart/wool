@@ -8,7 +8,7 @@ sems: std.ArrayListUnmanaged(Sem),
 
 typed_ast: std.ArrayListUnmanaged(*Sem),
 
-block_scope: BlockScope,
+loop_scope: LoopScope,
 
 env: Env,
 
@@ -274,7 +274,7 @@ pub fn init(allocator: std.mem.Allocator, ast: []*Expr, file: *const File) @This
         .typed_ast = .{},
         .err = err,
         .file = file,
-        .block_scope = .{},
+        .loop_scope = .{},
     };
 }
 
@@ -569,7 +569,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
             );
         },
         .While => |*while_expr| {
-            _ = self.block_scope.begin_block_scope();
+            _ = self.loop_scope.begin_loop_scope();
 
             const condition = try self.infer(while_expr.condition);
             const condition_type = sem_type(condition);
@@ -581,7 +581,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
             const body = try self.infer(while_expr.body);
             const body_type = sem_type(body);
 
-            _ = self.block_scope.end_block_scope();
+            _ = self.loop_scope.end_loop_scope();
 
             // const loop_scope = self.new
             return try self.create_sem(.{
@@ -686,7 +686,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
             );
         },
         .Break => |brk| {
-            if (!self.block_scope.in_block_scope()) {
+            if (!self.loop_scope.in_loop_scope()) {
                 return self.break_oustide_loop_or_block_err(brk.keyword);
             }
 
@@ -1641,7 +1641,7 @@ const Expr = @import("./ast/expr.zig").Expr;
 const Typed = @import("./ast/typed.zig").Typed;
 const Type = @import("./types.zig").Type;
 const Token = @import("./token.zig");
-const BlockScope = @import("./block-scope.zig");
+const LoopScope = @import("./loop-scope.zig");
 
 const Stack = @import("./Stack.zig").Stack;
 const floatMax = std.math.floatMax;

@@ -6,7 +6,7 @@ program: std.ArrayListUnmanaged(*Inst),
 
 globals: std.StringHashMapUnmanaged(void),
 // blocks and loops identifiers
-block_scope: BlockScope,
+loop_scope: LoopScope,
 
 function_locals: std.StringArrayHashMapUnmanaged(FunctionLocal),
 
@@ -204,7 +204,7 @@ pub fn init(allocator: std.mem.Allocator, file: *const File) Ir {
         .program = .{},
         .globals = .{},
         .function_locals = .{},
-        .block_scope = .{},
+        .loop_scope = .{},
     };
 }
 
@@ -361,7 +361,6 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
             });
         },
         .Block => |*block| {
-            // const id = self.block_scope.begin_block_scope();
             //@todo:mem
             const insts = try self.allocator.alloc(*Inst, block.exprs.len);
 
@@ -373,8 +372,6 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
             for (block.exprs, 0..) |expr, i| {
                 insts[i] = try self.convert(as_sem(expr));
             }
-
-            // _ = self.block_scope.end_block_scope();
 
             return try self.create_inst(
                 .{
@@ -562,7 +559,7 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
             });
         },
         .While => |*while_loop| {
-            const loop_id = self.block_scope.begin_block_scope();
+            const loop_id = self.loop_scope.begin_loop_scope();
             //@mem dealloc
             const insts = try self.allocator.alloc(*Inst, 2);
 
@@ -596,7 +593,7 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
                 },
             });
 
-            _ = self.block_scope.end_block_scope();
+            _ = self.loop_scope.end_loop_scope();
 
             return try self.create_inst(.{
                 .loop = .{
@@ -609,7 +606,7 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
             return try self.create_inst(.{
                 .brk = .{
                     .value = if (brk.value) |value| try self.convert(as_sem(value)) else null,
-                    .id = self.block_scope.current_block_scope(),
+                    .id = self.loop_scope.current_loop_scope(),
                 },
             });
         },
@@ -889,4 +886,4 @@ const as_sem = @import("./infer.zig").as_sem;
 const as_sems = @import("./infer.zig").as_sems;
 const get_sem_tid = @import("./infer.zig").get_sem_tid;
 
-const BlockScope = @import("./block-scope.zig");
+const LoopScope = @import("./loop-scope.zig");
