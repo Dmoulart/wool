@@ -581,6 +581,8 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
             const body = try self.infer(while_expr.body);
             const body_type = sem_type(body);
 
+            std.debug.print("\n loop body type {any} \n", .{body_type});
+
             _ = self.loop_scope.end_loop_scope();
 
             // const loop_scope = self.new
@@ -706,6 +708,30 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
                         .type_node = brk_type,
                         .orig_expr = expr,
                         .value = maybe_brk_value,
+                    },
+                },
+            );
+        },
+        .OperationAssign => |*opassign| {
+            const var_type = self.env.get(opassign.name) catch
+                return self.unknown_identifier_err(opassign.name);
+
+            const typed_assignation = try self.infer(opassign.value);
+            const assignation_type = sem_type(typed_assignation);
+
+            unify(var_type, assignation_type) catch
+                return self.type_mismatch_err(
+                var_type,
+                assignation_type,
+                opassign.value,
+            );
+
+            return try self.create_sem(
+                .{
+                    .OperationAssign = .{
+                        .value = typed_assignation,
+                        .orig_expr = expr,
+                        .type_node = try self.new_type(.void),
                     },
                 },
             );

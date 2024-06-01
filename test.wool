@@ -3,20 +3,12 @@ log :: from console import log
 sum :: a i32, b i32 -> i32 a + b
 
 main :: -> {
-  a := 10
-  break
+  a := 1
 
-  result := while a >= 1  {
-    a = a - 1
+  while a < 10  {
+    a += 1
     log(a)  
-
-    if a == 5 {
-      break 5
-    }
   }
-
-  log(result)
-  
 }
 
 

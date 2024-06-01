@@ -462,19 +462,6 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
             };
 
             return try self.create_inst(select_inst);
-
-            // return try self.create_inst(.{ .@"if" = values });
-
-            // const select_inst: Inst = switch (tid) {
-            //     .bool => .{ .select_bool = values },
-            //     .i32 => .{ .select_i32 = values },
-            //     .i64 => .{ .select_i64 = values },
-            //     .f32 => .{ .select_f32 = values },
-            //     .f64 => .{ .select_f64 = values },
-            //     else => unreachable,
-            // };
-
-            // return try self.create_inst(select_inst);
         },
         .If => |*if_sem| {
             const condition = try self.convert(as_sem(if_sem.condition));
@@ -495,40 +482,6 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
                     },
                 },
             );
-
-            // const tid = get_sem_tid(as_sem(if_sem));
-
-            // // @todo real opti detection ??
-            // const needs_branching = tid == .void;
-
-            // if (needs_branching) {
-            //     return try self.create_inst(
-            //         .{
-            //             .@"if" = .{
-            //                 .then_branch = then_branch,
-            //                 .else_branch = else_branch,
-            //                 .condition = condition,
-            //             },
-            //         },
-            //     );
-            // }
-
-            // const values: Inst.Select = .{
-            //     .then_branch = then_branch,
-            //     .else_branch = else_branch,
-            //     .condition = condition,
-            // };
-
-            // const select_inst: Inst = switch (tid) {
-            //     .bool => .{ .select_bool = values },
-            //     .i32 => .{ .select_i32 = values },
-            //     .i64 => .{ .select_i64 = values },
-            //     .f32 => .{ .select_f32 = values },
-            //     .f64 => .{ .select_f64 = values },
-            //     else => unreachable,
-            // };
-
-            // return try self.create_inst(select_inst);
         },
         .Call => |*call| {
             // @todo dynamic calls ??
@@ -567,14 +520,15 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
 
             const condition = try self.convert(as_sem(while_loop.condition));
 
-            std.debug.print("\nouter id {d}\n", .{loop_id});
             insts[0] = try self.create_inst(.{
                 .break_if = .{
                     // flip the condition
                     .condition = try self.create_inst(.{
                         .neq_bool = .{
                             .left = condition,
-                            .right = try self.create_inst(.{ .value_bool = 1 }),
+                            .right = try self.create_inst(.{
+                                .value_bool = 1,
+                            }),
                         },
                     }),
                     .from = loop_id,
@@ -583,7 +537,7 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
 
             insts[1] = inner;
 
-            const return_type: Infer.TypeID = while_loop.type_node.get_tid();
+            const return_type = while_loop.type_node.get_tid();
 
             const block = try self.create_inst(.{
                 .block = .{
@@ -610,7 +564,40 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
                 },
             });
         },
+        .OperationAssign => |*opassign| {
+            //@todo: more efficient way of handling this
+            const identifier = self.function_locals.get(
+                opassign.orig_expr.OperationAssign.name.get_text(self.file.src),
+            ).?;
 
+            const value = try self.convert(as_sem(opassign.value));
+
+            const ref = try self.create_inst(.{
+                .local_ref = .{
+                    .identifier = @intCast(identifier.ident),
+                    .tid = identifier.tid,
+                },
+            });
+
+            const op: Token.Type = switch (opassign.orig_expr.OperationAssign.op.type) {
+                .MINUS_EQUAL => .MINUS,
+                .PLUS_EQUAL => .PLUS,
+                .STAR_EQUAL => .STAR,
+                .SLASH_EQUAL => .SLASH,
+                else => unreachable,
+            };
+
+            const tid = get_sem_tid(as_sem(opassign.value));
+
+            const bin = try self.create_inst(try binary(tid, op, ref, value));
+
+            return try self.create_inst(.{
+                .local_assign = .{
+                    .ident = @intCast(identifier.ident),
+                    .value = bin,
+                },
+            });
+        },
         else => {
             std.debug.print("\nNot Implemented = {any}\n", .{sem});
             return IrError.NotImplemented;
@@ -659,6 +646,7 @@ fn literal(tid: Infer.TypeID, value: Expr.Literal.Value) !Inst {
         else => IrError.NotImplemented,
     };
 }
+
 fn binary(
     tid: Infer.TypeID,
     op: Token.Type,
