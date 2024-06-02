@@ -519,9 +519,9 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
             );
         },
         .Block => |*block| {
-            var typed_inner_exprs = try self.allocator.alloc(*anyopaque, block.exprs.len);
-
             self.env.begin_local_scope();
+
+            var typed_inner_exprs = try self.allocator.alloc(*anyopaque, block.exprs.len);
 
             for (block.exprs, 0..) |block_expr, i| {
                 typed_inner_exprs[i] = try self.infer(block_expr);
