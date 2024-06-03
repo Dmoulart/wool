@@ -99,6 +99,11 @@ pub const Inst = union(enum) {
     select_f32: Select,
     select_f64: Select,
 
+    load_i32: Load,
+    load_i64: Load,
+    load_f32: Load,
+    load_f64: Load,
+
     func: Func,
 
     extern_func: ExternFunc,
@@ -174,6 +179,10 @@ pub const Inst = union(enum) {
         then_branch: *Inst,
         else_branch: ?*Inst,
         condition: *Inst,
+    };
+
+    pub const Load = struct {
+        index: *Inst,
     };
 
     pub const Call = struct {
@@ -492,6 +501,21 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
 
             for (call.args, 0..) |arg, i| {
                 args[i] = try self.convert(as_sem(arg));
+            }
+
+            const is_macro = function_name[0] == '@';
+            if (is_macro) {
+                const tid = get_sem_tid(as_sem(call));
+
+                if (std.mem.eql(u8, function_name, "@load")) {
+                    return switch (tid) {
+                        .i32 => try self.create_inst(.{ .load_i32 = .{ .index = args[0] } }),
+                        .i64 => try self.create_inst(.{ .load_i64 = .{ .index = args[0] } }),
+                        .f32 => try self.create_inst(.{ .load_f32 = .{ .index = args[0] } }),
+                        .f64 => try self.create_inst(.{ .load_f64 = .{ .index = args[0] } }),
+                        else => unreachable,
+                    };
+                }
             }
 
             return try self.create_inst(

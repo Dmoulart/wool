@@ -96,7 +96,7 @@ fn scan_token(self: *Self) !void {
         },
         '"' => self.read_string(),
         '0'...'9' => try self.read_number(),
-        'a'...'z', 'A'...'Z', '_' => self.read_identifier(),
+        'a'...'z', 'A'...'Z', '_', '@' => self.read_identifier(),
         else => blk: {
             self.err(LexerError.UnexpectedCharacter);
             break :blk null;

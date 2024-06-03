@@ -3,14 +3,7 @@ log :: from console import log
 sum :: a i32, b i32 -> i32 a + b
 
 main :: -> {
-  a := 5
-
-  while a > sum(1 1)  {
-    a -= sum(1 1)
-    if a == 4 break
-  }
-
-  log(a)
+  log(@load(1))
 }
 
 

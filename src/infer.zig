@@ -625,6 +625,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
                     },
                 );
             } else {
+                // @todo make error
                 return InferError.NonCallableExpression;
             }
         },
@@ -637,7 +638,6 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
                 null,
                 null,
             );
-            // try self.env.define_function(func.name.?.lexeme, expr);
 
             return try self.create_sem(
                 .{
@@ -1303,6 +1303,19 @@ var less_equal_args: [2]*TypeNode = .{
 };
 var less_equal_return_type: TypeNode = make_type(.bool);
 
+var i32_node = make_type(.i32);
+var load_arg: [1]*TypeNode = .{&i32_node};
+
+var load_return_type: TypeNode = make_vartype("T", &number_node);
+
+var load_type = TypeNode{
+    .function = .{
+        .name = "load",
+        .args = &load_arg,
+        .return_type = &load_return_type,
+    },
+};
+
 const builtins_types = std.ComptimeStringMap(
     FunType,
     .{
@@ -1394,9 +1407,11 @@ const Env = struct {
     current_scope_start_index: usize = 0,
 
     pub fn init(allocator: std.mem.Allocator, file: *const File, err: Errors(InferError)) Env {
+        var global = Scope.init(allocator);
+        global.define("@load", &load_type) catch unreachable;
         return .{
             .allocator = allocator,
-            .global = Scope.init(allocator),
+            .global = global,
             .local = Scope.init(allocator),
             .err = err,
             .file = file,
@@ -1409,11 +1424,6 @@ const Env = struct {
         } else {
             return try self.define_local(token.get_text(self.file.src), node);
         }
-    }
-
-    pub fn define_function(self: *Env, token: *const Token, expr: *const Expr) InferError!void {
-        // @todo regular scoping
-        return self.global.define_function(token.get_text(self.file.src), expr);
     }
 
     pub fn define_global(self: *Env, name: []const u8, node: *TypeNode) InferError!void {
@@ -1438,11 +1448,6 @@ const Env = struct {
         } else |_| {
             return self.global.get(token.get_text(self.file.src));
         }
-    }
-
-    pub fn get_function(self: *Env, name: []const u8) !*const Expr {
-        // @todo regular scoping
-        return try self.global.get_function(name);
     }
 
     pub fn begin_local_scope(self: *Env) void {
@@ -1519,18 +1524,6 @@ const Scope = struct {
 
         result.value_ptr.* = node;
         self.unused.put(self.allocator, node, {}) catch unreachable; // @todo general exception handling
-    }
-
-    pub fn define_function(self: *Scope, name: []const u8, expr: *const Expr) InferError!void {
-        const result = self.functions.getOrPut(self.allocator, name) catch {
-            return InferError.UnknownError;
-        };
-
-        if (result.found_existing) {
-            return InferError.AlreadyDefinedFunction;
-        }
-
-        result.value_ptr.* = expr;
     }
 
     pub fn clear(self: *Scope) void {

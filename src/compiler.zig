@@ -10,6 +10,8 @@ current_env: ?*Environment,
 
 environments: std.ArrayListUnmanaged(Environment),
 
+memory_is_created: bool,
+
 const CompileError = error{ NotImplemented, ExpectedExpression };
 
 pub fn init(allocator: std.mem.Allocator, ir: []*Ir.Inst) Compiler {
@@ -20,6 +22,7 @@ pub fn init(allocator: std.mem.Allocator, ir: []*Ir.Inst) Compiler {
         .instruction_cursor = 1,
         .environments = .{},
         .current_env = null,
+        .memory_is_created = false,
     };
 }
 
@@ -286,6 +289,18 @@ pub fn compile_expr(self: *Compiler, inst: *Ir.Inst) anyerror!c.BinaryenExpressi
         .select_f64 => |*sel| {
             return try self.select(.f64, sel);
         },
+        .load_i32 => |*load_inst| {
+            return try self.load(.i32, load_inst);
+        },
+        .load_i64 => |*load_inst| {
+            return try self.load(.i64, load_inst);
+        },
+        .load_f32 => |*load_inst| {
+            return try self.load(.f32, load_inst);
+        },
+        .load_f64 => |*load_inst| {
+            return try self.load(.f64, load_inst);
+        },
         .local_ref => |local_ref| {
             return c.BinaryenLocalGet(
                 self.module,
@@ -427,6 +442,34 @@ fn select(self: *Compiler, comptime tid: Infer.TypeID, select_inst: *Ir.Inst.Sel
         else
             null,
         primitive(tid),
+    );
+}
+
+fn load(self: *Compiler, comptime tid: Infer.TypeID, load_inst: *Ir.Inst.Load) !c.BinaryenExpressionRef {
+    if (!self.memory_is_created) {
+        // _ = c.BinaryenMemoryInit(
+        //     self.module,
+        //     "0",
+        //     self.constant(.i32, 2048),
+        //     self.constant(.i32, 0),
+        //     self.constant(.i32, 12),
+        //     "0",
+        // );
+
+        try self.create_memory();
+
+        self.memory_is_created = true;
+    }
+
+    return c.BinaryenLoad(
+        self.module,
+        32,
+        true,
+        0, // offset
+        0,
+        primitive(tid),
+        try self.compile_expr(load_inst.index),
+        "0",
     );
 }
 
@@ -622,6 +665,44 @@ pub fn arguments(self: *Compiler, args_tid: []Infer.TypeID) !c.BinaryenType {
     return c.BinaryenTypeCreate(
         @ptrCast(args),
         @intCast(args.len),
+    );
+}
+// const segment_names: [2][]const u8 = [2][]const u8{ "0", "1" };
+// // const segment_datas: [1][]const u8 = [_][]const u8{""};
+// const segment_passives: [2]bool = [_]bool{ true, false };
+
+// const segment_sizes: [2]u32 = [_]u32{ 12, 12 };
+
+pub fn create_memory(self: *Compiler) !void {
+    var segments = try self.allocator.alloc([]const u8, 1);
+    segments[0] = "seg0";
+    // segments[1] = "seg1";
+
+    var offsets = try self.allocator.alloc(?c.BinaryenExpressionRef, 1);
+    offsets[0] = self.constant(.i32, 10);
+    // offsets[1] = null;
+
+    var passives = try self.allocator.alloc(bool, 1);
+    passives[0] = true;
+    // passives[1] = false;
+
+    var sizes = try self.allocator.alloc(c.BinaryenIndex, 1);
+    sizes[0] = 12;
+    // sizes[1] = 24;
+
+    _ = c.BinaryenSetMemory(
+        self.module,
+        1,
+        256,
+        "mem",
+        @ptrCast(segments),
+        @ptrCast(passives),
+        @ptrCast(offsets),
+        @ptrCast(sizes),
+        1,
+        false,
+        false, // use i32 mem for now
+        "0",
     );
 }
 
