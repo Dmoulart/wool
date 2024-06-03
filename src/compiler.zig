@@ -301,6 +301,18 @@ pub fn compile_expr(self: *Compiler, inst: *Ir.Inst) anyerror!c.BinaryenExpressi
         .load_f64 => |*load_inst| {
             return try self.load(.f64, load_inst);
         },
+        .store_i32 => |*store_inst| {
+            return try self.store(.i32, store_inst);
+        },
+        .store_i64 => |*store_inst| {
+            return try self.store(.i64, store_inst);
+        },
+        .store_f32 => |*store_inst| {
+            return try self.store(.f32, store_inst);
+        },
+        .store_f64 => |*store_inst| {
+            return try self.store(.f64, store_inst);
+        },
         .local_ref => |local_ref| {
             return c.BinaryenLocalGet(
                 self.module,
@@ -447,15 +459,6 @@ fn select(self: *Compiler, comptime tid: Infer.TypeID, select_inst: *Ir.Inst.Sel
 
 fn load(self: *Compiler, comptime tid: Infer.TypeID, load_inst: *Ir.Inst.Load) !c.BinaryenExpressionRef {
     if (!self.memory_is_created) {
-        // _ = c.BinaryenMemoryInit(
-        //     self.module,
-        //     "0",
-        //     self.constant(.i32, 2048),
-        //     self.constant(.i32, 0),
-        //     self.constant(.i32, 12),
-        //     "0",
-        // );
-
         try self.create_memory();
 
         self.memory_is_created = true;
@@ -469,6 +472,25 @@ fn load(self: *Compiler, comptime tid: Infer.TypeID, load_inst: *Ir.Inst.Load) !
         0,
         primitive(tid),
         try self.compile_expr(load_inst.index),
+        "0",
+    );
+}
+
+fn store(self: *Compiler, comptime tid: Infer.TypeID, store_inst: *Ir.Inst.Store) !c.BinaryenExpressionRef {
+    if (!self.memory_is_created) {
+        try self.create_memory();
+
+        self.memory_is_created = true;
+    }
+
+    return c.BinaryenStore(
+        self.module,
+        32,
+        0,
+        0, // offset
+        try self.compile_expr(store_inst.index),
+        try self.compile_expr(store_inst.value),
+        primitive(tid),
         "0",
     );
 }

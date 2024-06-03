@@ -93,6 +93,7 @@ pub const Inst = union(enum) {
     le_f32: Binary,
     le_f64: Binary,
 
+    // not used
     select_bool: Select,
     select_i32: Select,
     select_i64: Select,
@@ -103,6 +104,11 @@ pub const Inst = union(enum) {
     load_i64: Load,
     load_f32: Load,
     load_f64: Load,
+
+    store_i32: Store,
+    store_i64: Store,
+    store_f32: Store,
+    store_f64: Store,
 
     func: Func,
 
@@ -183,6 +189,11 @@ pub const Inst = union(enum) {
 
     pub const Load = struct {
         index: *Inst,
+    };
+
+    pub const Store = struct {
+        index: *Inst,
+        value: *Inst,
     };
 
     pub const Call = struct {
@@ -505,14 +516,26 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
 
             const is_macro = function_name[0] == '@';
             if (is_macro) {
-                const tid = get_sem_tid(as_sem(call));
-
                 if (std.mem.eql(u8, function_name, "@load")) {
+                    const tid = get_sem_tid(as_sem(call));
+
                     return switch (tid) {
                         .i32 => try self.create_inst(.{ .load_i32 = .{ .index = args[0] } }),
                         .i64 => try self.create_inst(.{ .load_i64 = .{ .index = args[0] } }),
                         .f32 => try self.create_inst(.{ .load_f32 = .{ .index = args[0] } }),
                         .f64 => try self.create_inst(.{ .load_f64 = .{ .index = args[0] } }),
+                        else => unreachable,
+                    };
+                }
+
+                if (std.mem.eql(u8, function_name, "@store")) {
+                    const tid = get_sem_tid(as_sem(call.args[1]));
+
+                    return switch (tid) {
+                        .i32 => try self.create_inst(.{ .store_i32 = .{ .index = args[0], .value = args[1] } }),
+                        .i64 => try self.create_inst(.{ .store_i64 = .{ .index = args[0], .value = args[1] } }),
+                        .f32 => try self.create_inst(.{ .store_f32 = .{ .index = args[0], .value = args[1] } }),
+                        .f64 => try self.create_inst(.{ .store_f64 = .{ .index = args[0], .value = args[1] } }),
                         else => unreachable,
                     };
                 }

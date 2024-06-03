@@ -3,7 +3,11 @@ log :: from console import log
 sum :: a i32, b i32 -> i32 a + b
 
 main :: -> {
-  log(@load(1))
+  value :i32 = 1
+  
+  @store(0 value)
+
+  log(@load(0))
 }
 
 

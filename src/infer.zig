@@ -1316,6 +1316,19 @@ var load_type = TypeNode{
     },
 };
 
+// var sub_return_type = make_vartype("T", &number_node);
+var store_args: [2]*TypeNode = .{ &i32_node, &number_var };
+
+var store_return_type: TypeNode = make_type(.void);
+
+var store_type = TypeNode{
+    .function = .{
+        .name = "store",
+        .args = &store_args,
+        .return_type = &store_return_type,
+    },
+};
+
 const builtins_types = std.ComptimeStringMap(
     FunType,
     .{
@@ -1409,6 +1422,7 @@ const Env = struct {
     pub fn init(allocator: std.mem.Allocator, file: *const File, err: Errors(InferError)) Env {
         var global = Scope.init(allocator);
         global.define("@load", &load_type) catch unreachable;
+        global.define("@store", &store_type) catch unreachable;
         return .{
             .allocator = allocator,
             .global = global,
