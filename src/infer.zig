@@ -604,7 +604,8 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
             if (callee.as_function()) |*func| {
                 // @todo func.is_generic() and current context is concrete function
                 if (func.is_generic()) {
-                    return InferError.GenericFunctionNotImplemented;
+                    // return InferError.GenericFunctionNotImplemented;
+
                     // const func_expr = try self.env.get_function(func.name);
                     // const new_func = try self.instanciate_function(callee, func_expr, call_expr.args);
                     // const node = try self.call(&new_func.function, call_expr.args);
@@ -910,7 +911,10 @@ fn get_or_create_type_ref(self: *@This(), base_type: *TypeNode, instance_type: *
             // so let's clone it and unify
             const base_type_copy = try self.new_type_node(base_type.*);
 
-            try unify(type_ref, base_type_copy);
+            unify(type_ref, base_type_copy) catch |e| {
+                std.debug.print("ZErrr", .{});
+                return e;
+            };
 
             try scope.put(type_ref.variable.name, type_ref);
 
@@ -1315,6 +1319,9 @@ var load_type = TypeNode{
         .return_type = &load_return_type,
     },
 };
+
+// var number_type = make_type(.number);
+// var store_value_arg: TypeNode = make_vartype("T", &number_type);
 
 // var sub_return_type = make_vartype("T", &number_node);
 var store_args: [2]*TypeNode = .{ &i32_node, &number_var };
