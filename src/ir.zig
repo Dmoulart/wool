@@ -16,6 +16,11 @@ const Ir = @This();
 
 const FunctionLocal = struct { ident: u32, tid: Infer.TypeID };
 
+const Op = enum {
+    neg_f32,
+    neg_f64,
+};
+
 pub const Inst = union(enum) {
     value_bool: i32,
     value_i32: i32,
@@ -93,6 +98,8 @@ pub const Inst = union(enum) {
     le_f32: Binary,
     le_f64: Binary,
 
+    unary: Unary,
+
     // not used
     select_bool: Select,
     select_i32: Select,
@@ -126,6 +133,8 @@ pub const Inst = union(enum) {
 
     break_if: BreakIf,
 
+    ret: Return,
+
     pub fn Global(comptime T: type) type {
         return struct {
             name: []const u8,
@@ -150,6 +159,11 @@ pub const Inst = union(enum) {
 
         ident: Ident,
         value: *Inst,
+    };
+
+    pub const Unary = struct {
+        op: Op,
+        right: *Inst,
     };
 
     pub const Binary = struct {
@@ -212,6 +226,8 @@ pub const Inst = union(enum) {
     };
 
     pub const Break = struct { id: u32, value: ?*Inst };
+
+    pub const Return = struct { value: ?*Inst };
 };
 
 const IrError = error{ NotImplemented, CannotFindLocalVariable };
@@ -402,6 +418,16 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
                     },
                 },
             );
+        },
+        .Unary => |*unar| {
+            const right = try self.convert(as_sem(unar.right));
+
+            const op = unar.orig_expr.Unary.op.type;
+
+            // We could have picked binary.right.
+            const tid = get_sem_tid(as_sem(unar.right));
+
+            return try self.create_inst(try self.unary(tid, op, right));
         },
         .Binary => |*bin| {
             const left = try self.convert(as_sem(bin.left));
@@ -645,6 +671,13 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
                 },
             });
         },
+        .Return => |*ret| {
+            return try self.create_inst(.{
+                .ret = .{
+                    .value = if (ret.value) |value| try self.convert(as_sem(value)) else null,
+                },
+            });
+        },
         else => {
             std.debug.print("\nNot Implemented = {any}\n", .{sem});
             return IrError.NotImplemented;
@@ -691,6 +724,46 @@ fn literal(tid: Infer.TypeID, value: Expr.Literal.Value) !Inst {
             .value_bool = if (value.Boolean) 1 else 0,
         },
         else => IrError.NotImplemented,
+    };
+}
+
+fn unary(self: *Ir, tid: Infer.TypeID, op: Token.Type, right: *Inst) !Inst {
+    return switch (op) {
+        .MINUS => switch (tid) {
+            .number, .i32 => .{
+                .mul_i32 = .{
+                    .left = try self.create_inst(.{
+                        .value_i32 = -1,
+                    }),
+                    .right = right,
+                },
+            },
+            .i64 => .{
+                .mul_i64 = .{
+                    .left = try self.create_inst(.{
+                        .value_i64 = -1,
+                    }),
+                    .right = right,
+                },
+            },
+            .float, .f32 => Inst{
+                .unary = .{
+                    .op = .neg_f32,
+                    .right = right,
+                },
+            },
+            .f64 => Inst{
+                .unary = .{
+                    .op = .neg_f64,
+                    .right = right,
+                },
+            },
+            else => unreachable,
+        },
+        else => {
+            std.debug.print("\n Not implemented unary op {any}", .{op});
+            unreachable;
+        },
     };
 }
 

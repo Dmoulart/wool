@@ -105,7 +105,7 @@ pub fn compile_global(self: *Compiler, inst: *Ir.Inst) !void {
                 self.to_c_str(extern_func.member),
                 self.to_c_str(extern_func.namespace),
                 self.to_c_str(extern_func.member),
-                c.BinaryenTypeFloat32(),
+                c.BinaryenTypeInt32(),
                 c.BinaryenTypeNone(),
             );
         },
@@ -320,6 +320,14 @@ pub fn compile_expr(self: *Compiler, inst: *Ir.Inst) anyerror!c.BinaryenExpressi
                 primitive(local_ref.tid),
             );
         },
+        .unary => |*unary_inst| {
+            const unary_op = switch (unary_inst.op) {
+                .neg_f32 => c.BinaryenNegFloat32(),
+                .neg_f64 => c.BinaryenNegFloat64(),
+            };
+
+            return c.BinaryenUnary(self.module, unary_op, try self.compile_expr(unary_inst.right));
+        },
         .global_ref => |global_ref| {
             return c.BinaryenGlobalGet(
                 self.module,
@@ -425,6 +433,9 @@ pub fn compile_expr(self: *Compiler, inst: *Ir.Inst) anyerror!c.BinaryenExpressi
                 null,
             );
         },
+        .ret => |*ret| {
+            return c.BinaryenReturn(self.module, if (ret.value) |value| try self.compile_expr(value) else null);
+        },
         else => {
             std.debug.print("not impl {any}", .{inst});
             return CompileError.NotImplemented;
@@ -505,7 +516,7 @@ fn binary(
     const left = try self.compile_expr(bin.right);
     return c.BinaryenBinary(
         self.module,
-        op(tid, operator),
+        binary_op(tid, operator),
         right,
         left,
     );
@@ -572,7 +583,7 @@ pub fn add_mutable_global(
     );
 }
 
-pub fn op(comptime tid: Infer.TypeID, comptime operator: Token.Type) c.BinaryenOp {
+pub fn binary_op(comptime tid: Infer.TypeID, comptime operator: Token.Type) c.BinaryenOp {
     return switch (operator) {
         .PLUS => switch (tid) {
             .i32 => c.BinaryenAddInt32(),

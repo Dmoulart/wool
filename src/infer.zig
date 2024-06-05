@@ -387,6 +387,26 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
                 },
             );
         },
+        .Unary => |*unary| {
+            // const op = try switch (unary.op.type) {
+            //     .PLUS => "+",
+            //     .MINUS => "-",
+            //     else => unreachable,
+            // };
+
+            const typed_unary = try self.infer(unary.right);
+            const unary_type = sem_type(typed_unary);
+
+            return try self.create_sem(
+                .{
+                    .Unary = .{
+                        .right = typed_unary,
+                        .orig_expr = expr,
+                        .type_node = unary_type,
+                    },
+                },
+            );
+        },
         .Binary => |*binary| {
             //@todo:mem clean memory
             var args = try self.allocator.alloc(*const Expr, 2);
@@ -547,7 +567,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
         .Import => {
             //@todo free
             const args = try self.allocator.alloc(*TypeNode, 1);
-            args[0] = try self.new_type(.any);
+            args[0] = try self.new_type(.i32);
 
             const node = try self.new_type_node(
                 .{
@@ -735,7 +755,31 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
                 },
             );
         },
-        else => unreachable,
+        .Return => |*ret| {
+            const maybe_return_value = if (ret.value) |value|
+                try self.infer(value)
+            else
+                null;
+
+            const return_type = if (maybe_return_value) |return_value|
+                sem_type(return_value)
+            else
+                try self.new_type(.void);
+
+            return try self.create_sem(
+                .{
+                    .Return = .{
+                        .type_node = return_type,
+                        .orig_expr = expr,
+                        .value = maybe_return_value,
+                    },
+                },
+            );
+        },
+        else => {
+            std.debug.print("\n Unimplemented expr {any}\n", .{expr});
+            unreachable;
+        },
     };
 }
 
@@ -1496,7 +1540,7 @@ const Env = struct {
                 const type_node = type_node_entry.value_ptr.*;
 
                 if (self.local.is_unused(type_node)) {
-                    return InferError.UnusedIdentifier; // cannot do error reporting. env should contain sems ?
+                    // return InferError.UnusedIdentifier; // cannot do error reporting. env should contain sems ?
                 }
 
                 if (!type_node.get_tid().is_terminal()) {
