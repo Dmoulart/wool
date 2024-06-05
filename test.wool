@@ -12,8 +12,9 @@ add :: a i32, b i32 -> i32 {
 }
 
 main :: -> {
-
-  i :i32 = @load(-1)
+  // test := -100.65 <- inference not working
+  log(0)
+  i :i32 = @load(0)
 
   while i < 3 {
     a := add(i i)
