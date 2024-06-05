@@ -581,8 +581,6 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
             const body = try self.infer(while_expr.body);
             const body_type = sem_type(body);
 
-            std.debug.print("\n loop body type {any} \n", .{body_type});
-
             _ = self.loop_scope.end_loop_scope();
 
             // const loop_scope = self.new
