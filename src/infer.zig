@@ -897,9 +897,10 @@ fn get_or_create_type_ref(self: *@This(), base_type: *TypeNode, instance_type: *
         } else {
             const type_ref = switch (instance_type.*) {
                 .variable => instance_type, // unify here ?
-                else => unreachable,
+                else => unreachable, // ?
             };
-
+            // we don't want to modify the base_type, it would be as if we modify the types of builtin when we call it
+            // so we use subsume instead of unify
             try subsume(type_ref, base_type);
 
             try scope.put(type_ref.variable.name, type_ref);
