@@ -547,7 +547,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
         .Import => {
             //@todo free
             const args = try self.allocator.alloc(*TypeNode, 1);
-            args[0] = try self.new_type(.i32);
+            args[0] = try self.new_type(.any);
 
             const node = try self.new_type_node(
                 .{
@@ -898,23 +898,9 @@ fn get_or_create_type_ref(self: *@This(), base_type: *TypeNode, instance_type: *
             const type_ref = switch (instance_type.*) {
                 .variable => instance_type, // unify here ?
                 else => unreachable,
-                // .type => try self.create_type_node(
-                //     .{
-                //         .variable = .{
-                //             .name = base_node.variable.name,
-                //             .ref = local_node,
-                //         },
-                //     },
-                // ),
             };
-            // Maybe the local node is not of the base node type.
-            // so let's clone it and unify
-            const base_type_copy = try self.new_type_node(base_type.*);
 
-            unify(type_ref, base_type_copy) catch |e| {
-                std.debug.print("ZErrr", .{});
-                return e;
-            };
+            try subsume(type_ref, base_type);
 
             try scope.put(type_ref.variable.name, type_ref);
 
@@ -952,6 +938,29 @@ fn unify(type_a: *TypeNode, type_b: *TypeNode) InferError!void {
         type_a.set_tid(b);
     } else if (a.is_subtype_of(b)) {
         type_b.set_tid(a);
+    } else {
+        return InferError.TypeMismatch;
+    }
+}
+// same that unify but only affect type_a
+fn subsume(type_a: *TypeNode, type_b: *TypeNode) InferError!void {
+    const a_is_b = @intFromPtr(type_a) == @intFromPtr(type_b);
+
+    if (a_is_b) {
+        return;
+    }
+
+    const a = type_a.get_tid();
+    const b = type_b.get_tid();
+
+    if (a == b) {
+        return;
+    }
+
+    if (b.is_subtype_of(a)) {
+        type_a.set_tid(b);
+    } else if (a.is_subtype_of(b)) {
+        return;
     } else {
         return InferError.TypeMismatch;
     }

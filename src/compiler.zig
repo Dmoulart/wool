@@ -105,7 +105,7 @@ pub fn compile_global(self: *Compiler, inst: *Ir.Inst) !void {
                 self.to_c_str(extern_func.member),
                 self.to_c_str(extern_func.namespace),
                 self.to_c_str(extern_func.member),
-                c.BinaryenTypeInt32(),
+                c.BinaryenTypeFloat32(),
                 c.BinaryenTypeNone(),
             );
         },
