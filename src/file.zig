@@ -12,7 +12,6 @@ pub fn get_line_end(self: *const @This(), line: u32) usize {
     return if (self.lines.len <= next_line_index) self.src.len else self.lines[next_line_index];
 }
 
-
 pub fn get_line(self: *const @This(), line: u32) []const u8 {
     const col_start = self.get_line_start(line);
     const col_end = self.get_line_end(line);
@@ -36,5 +35,5 @@ pub fn get_start_line(self: *const @This(), col_start: u32) u32 {
         }
     }
 
-    unreachable;
+    unreachable; // @todo when there is a problem on line 1 it reach the unreachable, dumb index pb
 }

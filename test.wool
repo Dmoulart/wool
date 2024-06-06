@@ -1,4 +1,5 @@
- sum : f32 f32 -> f32 : a, b -> { a + b }
+
+sum : Number Number -> Number : a, b -> { a + b }
 
 
 
