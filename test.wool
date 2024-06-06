@@ -1,7 +1,32 @@
-log  :: from console import log
- 
-sum :: a i32, b i32 -> i32 a + b
+ sum : f32 f32 -> f32 : a, b -> { a + b }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
+/* 
 add :: a i32, b i32 -> i32 {
 
   if(a > 1){
@@ -12,23 +37,26 @@ add :: a i32, b i32 -> i32 {
 }
 
 main :: -> {
-  // test := -100.65 <- inference not working
   log(0)
   i :i32 = @load(0)
 
-  while i < 3 {
+  while i < 10 {
     a := add(i i)
 
-    @store(0 a) 
+    if a == 2 {
+      @store(0 123)
+    }
 
     i += 1
   }
 
   log(@load(0))  
 }
+*/
 
 // binaryen bug ->  @store(0 sum(i @load(0)))
-
+// test := -100.65 <- inference not working
+  // a := add(i (-i)) <- precedence ? this is working add(i {-i})
 
 /*
 log :: from console import log
@@ -261,4 +289,5 @@ main :: -> {
 }
 
 // (an actual function types should always be resolved to terminal types)
+*/
 */

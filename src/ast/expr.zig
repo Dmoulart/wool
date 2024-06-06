@@ -99,13 +99,13 @@ pub const Expr = union(enum) {
     pub const ConstInit = struct {
         name: *const Token,
         initializer: *const Expr,
-        type: ?*const Token, // @todo type expression
+        type: ?[]*const Token, // @todo type expression
     };
 
     pub const VarInit = struct {
         name: *const Token,
         initializer: *const Expr,
-        type: ?*const Token, // @todo type expression
+        type: ?[]*const Token, // @todo type expression
     };
 
     pub const If = struct {

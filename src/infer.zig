@@ -234,6 +234,10 @@ pub const TypeNode = union(enum) {
         return tag(self.*) == .variable;
     }
 
+    pub fn is_func(self: *TypeNode) bool {
+        return tag(self.*) == .function;
+    }
+
     pub fn as_function(self: TypeNode) ?FunType {
         return if (tag(self) == .function) self.function else null;
     }
@@ -295,8 +299,8 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
             const typed_initializer = try self.infer(const_init.initializer);
             const initializer_type = sem_type(typed_initializer);
 
-            const const_type = if (const_init.type) |type_token|
-                try self.new_type_from_token(type_token)
+            const const_type = if (const_init.type) |type_tokens|
+                try self.new_type_from_tokens(type_tokens)
             else
                 try self.new_type(.any);
 
@@ -325,7 +329,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
             const initializer_type = sem_type(typed_initializer);
 
             const var_type = if (var_init.type) |type_token|
-                try self.new_type_from_token(type_token)
+                try self.new_type_from_tokens(type_token)
             else
                 try self.new_type(.any);
 
@@ -970,6 +974,18 @@ fn unify(type_a: *TypeNode, type_b: *TypeNode) InferError!void {
         return;
     }
 
+    if (type_a.is_func() and type_b.is_func()) {
+        if (type_a.function.args.len != type_b.function.args.len) {
+            return InferError.TypeMismatch;
+        }
+
+        for (type_a.function.args, type_b.function.args) |arg_a, arg_b| {
+            try unify(arg_a, arg_b);
+        }
+
+        try unify(type_a.function.return_type, type_b.function.return_type);
+    }
+
     const a = type_a.get_tid();
     const b = type_b.get_tid();
 
@@ -991,6 +1007,18 @@ fn subsume(type_a: *TypeNode, type_b: *TypeNode) InferError!void {
 
     if (a_is_b) {
         return;
+    }
+
+    if (type_a.is_func() and type_b.is_func()) {
+        if (type_a.function.args.len != type_b.function.args.len) {
+            return InferError.TypeMismatch;
+        }
+
+        for (type_a.function.args, type_b.function.args) |arg_a, arg_b| {
+            try subsume(arg_a, arg_b);
+        }
+
+        try subsume(type_a.function.return_type, type_a.function.return_type);
     }
 
     const a = type_a.get_tid();
@@ -1052,11 +1080,27 @@ fn new_type_from_token(self: *@This(), token: *const Token) !*TypeNode {
     );
 }
 
+fn new_type_from_tokens(self: *@This(), tokens: []*const Token) !*TypeNode {
+    return try self.parse_type(tokens);
+}
+
 fn new_var_type_from_token(self: *@This(), name: []const u8, token: *const Token) !*TypeNode {
+    const type_str = token.get_text(self.file.src);
     return try self.new_type_node(
         .{
             .variable = .{
-                .ref = try self.new_type_from_token(token),
+                .ref = try self.new_type(try tid_from_str(type_str)),
+                .name = name,
+            },
+        },
+    );
+}
+
+fn new_var_type_from_tokens(self: *@This(), name: []const u8, tokens: []*const Token) !*TypeNode {
+    return try self.new_type_node(
+        .{
+            .variable = .{
+                .ref = try self.new_type_from_tokens(tokens),
                 .name = name,
             },
         },
@@ -1180,12 +1224,49 @@ pub fn jsonPrint(value: anytype, file_path: []const u8) !void {
 
     _ = try file.writeAll(try out.toOwnedSlice());
 }
+pub fn parse_type(self: *Infer, tokens: []*const Token) !*TypeNode {
+    if (tokens.len == 1) {
+        const type_str = tokens[0].get_text(self.file.src);
+        return try self.new_type(try tid_from_str(type_str));
+    }
+
+    var args = std.ArrayList(*TypeNode).init(self.allocator);
+
+    var maybe_return_type: ?*TypeNode = null;
+
+    var i: usize = 0;
+
+    var in_return_type = false;
+
+    while (i < tokens.len) : (i += 1) {
+        var current_token = tokens[i];
+
+        if (current_token.type == .MINUS_ARROW) {
+            in_return_type = true;
+            continue;
+        }
+
+        const tid = try tid_from_str(current_token.get_text(self.file.src));
+
+        if (in_return_type) {
+            maybe_return_type = try self.new_type(tid);
+            break;
+        } else {
+            try args.append(try self.new_type(tid));
+        }
+    }
+
+    return try self.new_type_node(.{
+        .function = .{
+            .name = "?",
+            .args = try args.toOwnedSlice(),
+            .return_type = if (maybe_return_type) |return_type| return_type else try self.new_type(.void),
+        },
+    });
+}
 
 pub fn tid_from_str(str: []const u8) !TypeID {
-    // optimize this
-    if (std.mem.indexOf(u8, str, "->")) |_| {
-        return .func;
-    } else if (std.mem.eql(u8, str, "i32")) {
+    if (std.mem.eql(u8, str, "i32")) {
         return .i32;
     } else if (std.mem.eql(u8, str, "i64")) {
         return .i64;
@@ -1544,8 +1625,8 @@ const Env = struct {
                 }
 
                 if (!type_node.get_tid().is_terminal()) {
-                    std.debug.print("type node {}", .{type_node.get_tid()});
-                    return InferError.CannotResolveType;
+                    std.debug.print("cannot resolve type type node {}", .{type_node.get_tid()});
+                    // return InferError.CannotResolveType;
                 }
             }
         }

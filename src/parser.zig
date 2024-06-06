@@ -340,7 +340,7 @@ fn function(self: *Self) ParserError!*Expr {
         }
     }
 
-    return try self.const_init();
+    return try self.value_init();
 }
 
 fn argument(self: *Self) ParserError!Expr.Arg {
@@ -360,6 +360,96 @@ fn argument(self: *Self) ParserError!Expr.Arg {
         ),
         .type = type_decl,
     };
+}
+
+fn value_init(self: *Self) ParserError!*Expr {
+    const expr = try self.operation_assigment();
+
+    // must be before declared_type check !
+    const constant_decl = self.match(&.{.COLON_COLON});
+
+    if (constant_decl) {
+        return switch (expr.*) {
+            .Variable => |*var_expr| {
+                const name = var_expr.name;
+                return try self.create_expr(.{
+                    .ConstInit = .{
+                        .name = name,
+                        .initializer = try self.expression(),
+                        .type = null,
+                    },
+                });
+            },
+            else => ParserError.InvalidAssignmentTarget,
+        };
+    }
+
+    const var_decl = self.match(&.{.COLON_EQUAL});
+
+    if (var_decl) {
+        return switch (expr.*) {
+            .Variable => |*var_expr| {
+                const name = var_expr.name;
+                return try self.create_expr(.{
+                    .VarInit = .{
+                        .name = name,
+                        .initializer = try self.expression(),
+                        .type = null,
+                    },
+                });
+            },
+            else => ParserError.InvalidAssignmentTarget,
+        };
+    }
+
+    const var_or_constant_decl_with_type = self.check(.COLON) and
+        self.check_next(1, .IDENTIFIER);
+
+    if (var_or_constant_decl_with_type) {
+        // consume colon
+        _ = self.advance();
+        var type_declaration = std.ArrayList(*const Token).init(self.allocator);
+        // const equals = self.previous();
+        while (true) {
+            if (self.match(&.{.EQUAL})) {
+                // var
+                return switch (expr.*) {
+                    .Variable => |*var_expr| {
+                        const name = var_expr.name;
+                        return try self.create_expr(.{
+                            .VarInit = .{
+                                .name = name,
+                                .initializer = try self.expression(),
+                                .type = try type_declaration.toOwnedSlice(),
+                            },
+                        });
+                    },
+                    else => ParserError.InvalidAssignmentTarget,
+                };
+            }
+
+            if (self.match(&.{.COLON})) {
+                // const
+                return switch (expr.*) {
+                    .Variable => |*var_expr| {
+                        const name = var_expr.name;
+                        return try self.create_expr(.{
+                            .ConstInit = .{
+                                .name = name,
+                                .initializer = try self.expression(),
+                                .type = try type_declaration.toOwnedSlice(),
+                            },
+                        });
+                    },
+                    else => ParserError.InvalidAssignmentTarget,
+                };
+            }
+
+            try type_declaration.append(self.advance());
+        }
+    }
+
+    return expr;
 }
 
 fn const_init(self: *Self) ParserError!*Expr {
