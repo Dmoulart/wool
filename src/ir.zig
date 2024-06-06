@@ -230,7 +230,7 @@ pub const Inst = union(enum) {
     pub const Return = struct { value: ?*Inst };
 };
 
-const IrError = error{ NotImplemented, CannotFindLocalVariable };
+const IrError = error{ NotImplemented, CannotFindLocalVariable, InvalidType, InvalidOp };
 
 pub fn init(allocator: std.mem.Allocator, file: *const File) Ir {
     return .{
@@ -319,7 +319,7 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
                         .value = try self.eval(as_sem(const_init.initializer), bool, i32),
                     },
                 }),
-                .number, .i32 => try self.create_inst(.{
+                .i32 => try self.create_inst(.{
                     .global_i32 = .{
                         .name = name,
                         .value = try self.eval(as_sem(const_init.initializer), i32, i32),
@@ -331,7 +331,7 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
                         .value = try self.eval(as_sem(const_init.initializer), i64, i64),
                     },
                 }),
-                .float, .f32 => try self.create_inst(.{
+                .f32 => try self.create_inst(.{
                     .global_f32 = .{
                         .name = name,
                         .value = try self.eval(as_sem(const_init.initializer), f32, f32),
@@ -504,7 +504,7 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
                 .i64 => .{ .select_i64 = values },
                 .f32 => .{ .select_f32 = values },
                 .f64 => .{ .select_f64 = values },
-                else => unreachable,
+                else => return IrError.InvalidType,
             };
 
             return try self.create_inst(select_inst);
@@ -550,7 +550,7 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
                         .i64 => try self.create_inst(.{ .load_i64 = .{ .index = args[0] } }),
                         .f32 => try self.create_inst(.{ .load_f32 = .{ .index = args[0] } }),
                         .f64 => try self.create_inst(.{ .load_f64 = .{ .index = args[0] } }),
-                        else => unreachable,
+                        else => return IrError.InvalidType,
                     };
                 }
 
@@ -562,7 +562,7 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
                         .i64 => try self.create_inst(.{ .store_i64 = .{ .index = args[0], .value = args[1] } }),
                         .f32 => try self.create_inst(.{ .store_f32 = .{ .index = args[0], .value = args[1] } }),
                         .f64 => try self.create_inst(.{ .store_f64 = .{ .index = args[0], .value = args[1] } }),
-                        else => unreachable,
+                        else => return IrError.InvalidType,
                     };
                 }
             }
@@ -657,7 +657,7 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
                 .PLUS_EQUAL => .PLUS,
                 .STAR_EQUAL => .STAR,
                 .SLASH_EQUAL => .SLASH,
-                else => unreachable,
+                else => return IrError.InvalidOp,
             };
 
             const tid = get_sem_tid(as_sem(opassign.value));
@@ -708,13 +708,13 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
 fn literal(tid: Infer.TypeID, value: Expr.Literal.Value) !Inst {
     return switch (tid) {
         //temporary, Number should be narrowed in Infer phase or an error should be thrown
-        .number, .i32 => .{
+        .i32 => .{
             .value_i32 = try std.fmt.parseInt(i32, value.Number, 10),
         },
         .i64 => .{
             .value_i64 = try std.fmt.parseInt(i64, value.Number, 10),
         },
-        .float, .f32 => .{
+        .f32 => .{
             .value_f32 = try std.fmt.parseFloat(f32, value.Number),
         },
         .f64 => .{
@@ -730,7 +730,7 @@ fn literal(tid: Infer.TypeID, value: Expr.Literal.Value) !Inst {
 fn unary(self: *Ir, tid: Infer.TypeID, op: Token.Type, right: *Inst) !Inst {
     return switch (op) {
         .MINUS => switch (tid) {
-            .number, .i32 => .{
+            .i32 => .{
                 .mul_i32 = .{
                     .left = try self.create_inst(.{
                         .value_i32 = -1,
@@ -746,7 +746,7 @@ fn unary(self: *Ir, tid: Infer.TypeID, op: Token.Type, right: *Inst) !Inst {
                     .right = right,
                 },
             },
-            .float, .f32 => Inst{
+            .f32 => Inst{
                 .unary = .{
                     .op = .neg_f32,
                     .right = right,
@@ -758,11 +758,11 @@ fn unary(self: *Ir, tid: Infer.TypeID, op: Token.Type, right: *Inst) !Inst {
                     .right = right,
                 },
             },
-            else => unreachable,
+            else => return IrError.InvalidType,
         },
         else => {
             std.debug.print("\n Not implemented unary op {any}", .{op});
-            unreachable;
+            return IrError.InvalidType;
         },
     };
 }
@@ -780,160 +780,160 @@ fn binary(
 
     const inst: Ir.Inst = switch (op) {
         .PLUS => switch (tid) {
-            .number, .i32 => .{
+            .i32 => .{
                 .add_i32 = values,
             },
             .i64 => .{
                 .add_i64 = values,
             },
-            .float, .f32 => .{
+            .f32 => .{
                 .add_f32 = values,
             },
             .f64 => .{
                 .add_f64 = values,
             },
-            else => unreachable,
+            else => return IrError.InvalidType,
         },
         .MINUS => switch (tid) {
-            .number, .i32 => .{
+            .i32 => .{
                 .sub_i32 = values,
             },
             .i64 => .{
                 .sub_i64 = values,
             },
-            .float, .f32 => .{
+            .f32 => .{
                 .sub_f32 = values,
             },
             .f64 => .{
                 .sub_f64 = values,
             },
-            else => unreachable,
+            else => return IrError.InvalidType,
         },
         .STAR => switch (tid) {
-            .number, .i32 => .{
+            .i32 => .{
                 .mul_i32 = values,
             },
             .i64 => .{
                 .mul_i64 = values,
             },
-            .float, .f32 => .{
+            .f32 => .{
                 .mul_f32 = values,
             },
             .f64 => .{
                 .mul_f64 = values,
             },
-            else => unreachable,
+            else => return IrError.InvalidType,
         },
         .SLASH => switch (tid) {
-            .number, .i32 => .{
+            .i32 => .{
                 .div_i32 = values,
             },
             .i64 => .{
                 .div_i64 = values,
             },
-            .float, .f32 => .{
+            .f32 => .{
                 .div_f32 = values,
             },
             .f64 => .{
                 .div_f64 = values,
             },
-            else => unreachable,
+            else => return IrError.InvalidType,
         },
         .EQUAL_EQUAL => switch (tid) {
             .bool => .{
                 .eq_bool = values,
             },
-            .number, .i32 => .{
+            .i32 => .{
                 .eq_i32 = values,
             },
             .i64 => .{
                 .eq_i64 = values,
             },
-            .float, .f32 => .{
+            .f32 => .{
                 .eq_f32 = values,
             },
             .f64 => .{
                 .eq_f64 = values,
             },
-            else => unreachable,
+            else => return IrError.InvalidType,
         },
         .BANG_EQUAL => switch (tid) {
             .bool => .{
                 .neq_bool = values,
             },
-            .number, .i32 => .{
+            .i32 => .{
                 .neq_i32 = values,
             },
             .i64 => .{
                 .neq_i64 = values,
             },
-            .float, .f32 => .{
+            .f32 => .{
                 .neq_f32 = values,
             },
             .f64 => .{
                 .neq_f64 = values,
             },
-            else => unreachable,
+            else => return IrError.InvalidType,
         },
         .GREATER => switch (tid) {
-            .number, .i32 => .{
+            .i32 => .{
                 .gt_i32 = values,
             },
             .i64 => .{
                 .gt_i64 = values,
             },
-            .float, .f32 => .{
+            .f32 => .{
                 .gt_f32 = values,
             },
             .f64 => .{
                 .gt_f64 = values,
             },
-            else => unreachable,
+            else => return IrError.InvalidType,
         },
         .GREATER_EQUAL => switch (tid) {
-            .number, .i32 => .{
+            .i32 => .{
                 .ge_i32 = values,
             },
             .i64 => .{
                 .ge_i64 = values,
             },
-            .float, .f32 => .{
+            .f32 => .{
                 .ge_f32 = values,
             },
             .f64 => .{
                 .ge_f64 = values,
             },
-            else => unreachable,
+            else => return IrError.InvalidType,
         },
         .LESS => switch (tid) {
-            .number, .i32 => .{
+            .i32 => .{
                 .lt_i32 = values,
             },
             .i64 => .{
                 .lt_i64 = values,
             },
-            .float, .f32 => .{
+            .f32 => .{
                 .lt_f32 = values,
             },
             .f64 => .{
                 .lt_f64 = values,
             },
-            else => unreachable,
+            else => return IrError.InvalidType,
         },
         .LESS_EQUAL => switch (tid) {
-            .number, .i32 => .{
+            .i32 => .{
                 .le_i32 = values,
             },
             .i64 => .{
                 .le_i64 = values,
             },
-            .float, .f32 => .{
+            .f32 => .{
                 .le_f32 = values,
             },
             .f64 => .{
                 .le_f64 = values,
             },
-            else => unreachable,
+            else => return IrError.InvalidType,
         },
         else => return IrError.NotImplemented,
     };

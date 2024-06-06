@@ -669,7 +669,9 @@ pub fn constant(self: *Compiler, comptime tid: Infer.TypeID, value: anytype) c.B
 
 pub fn primitive(tid: Infer.TypeID) c.BinaryenType {
     return switch (tid) {
-        .i32, .bool, .number => c.BinaryenTypeInt32(),
+        .i32,
+        .bool,
+        => c.BinaryenTypeInt32(),
         .i64 => c.BinaryenTypeInt64(),
         .f32 => c.BinaryenTypeFloat32(),
         .f64 => c.BinaryenTypeFloat64(),

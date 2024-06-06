@@ -1625,7 +1625,7 @@ const Env = struct {
                 }
 
                 if (!type_node.get_tid().is_terminal()) {
-                    std.debug.print("cannot resolve type type node {}", .{type_node.get_tid()});
+                    // std.debug.print("cannot resolve type type node {}", .{type_node.get_tid()});
                     // return InferError.CannotResolveType;
                 }
             }
