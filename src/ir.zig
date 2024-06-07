@@ -135,6 +135,8 @@ pub const Inst = union(enum) {
 
     ret: Return,
 
+    noop: void,
+
     pub fn Global(comptime T: type) type {
         return struct {
             name: []const u8,
@@ -250,7 +252,13 @@ pub fn deinit(self: *Ir) void {
 
 pub fn convert_program(self: *Ir, sems: []*Infer.Sem) ![]*Inst {
     for (sems) |sem| {
-        try self.emit(try self.convert(sem));
+        const inst = try self.convert(sem);
+
+        if (meta.activeTag(inst.*) == .noop) {
+            continue;
+        }
+
+        try self.emit(inst);
     }
 
     return self.program.items;
@@ -344,12 +352,12 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
                     },
                 }),
                 .func => {
-                    const func_inst = try self.convert(as_sem(const_init.initializer));
-                    if (activeTag(func_inst.*) == .func) {
-                        func_inst.func.name = name; //@todo hack to get the name. Find a better way.
+                    // const func_inst = try self.convert(as_sem(const_init.initializer));
+                    // if (activeTag(func_inst.*) == .func) {
+                    //     func_inst.func.name = name; //@todo hack to get the name. Find a better way.
 
-                    }
-                    return func_inst;
+                    // }
+                    return try self.convert(as_sem(const_init.initializer));
                 },
                 .extern_func => {
                     //@todo wow this is really crazy
@@ -369,10 +377,16 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
         .Function => |*function| {
             self.function_locals.shrinkRetainingCapacity(0);
 
+            // generic functions cannot be trasnlated
+            if (function.type_node.function.is_generic()) {
+                return try self.create_inst(.{ .noop = {} });
+            }
+
             var args = try self.allocator.alloc(Infer.TypeID, function.type_node.function.args.len);
 
             for (function.type_node.function.args, 0..) |arg, i| {
                 const tid = arg.get_tid();
+
                 const name = function.orig_expr.Function.args.?[i].expr.Variable.name.get_text(self.file.src);
                 args[i] = tid;
                 // @todo this is fucking awful !!

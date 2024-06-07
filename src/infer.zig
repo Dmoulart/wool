@@ -296,6 +296,12 @@ pub fn infer_program(self: *@This()) anyerror![]*Sem {
 pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
     return switch (expr.*) {
         .ConstInit => |*const_init| {
+            // @todo hack to get function name find a better way
+            if (std.meta.activeTag(const_init.initializer.*) == .Function) {
+                const fun_expr: *Expr = @constCast(const_init.initializer);
+                fun_expr.Function.name = const_init.name;
+            }
+
             const typed_initializer = try self.infer(const_init.initializer);
             const initializer_type = sem_type(typed_initializer);
 
@@ -313,6 +319,11 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
 
             self.env.define(const_init.name, initializer_type) catch
                 return self.already_defined_indentifier_err(const_init.name, expr, "constant");
+
+            if (tag(const_init.initializer.*) == .Function) {
+                self.env.global.define_function(const_init.name.get_text(self.file.src), const_init.initializer) catch
+                    return self.already_defined_indentifier_err(const_init.name, expr, "constant");
+            }
 
             return try self.create_sem(
                 .{
@@ -627,12 +638,41 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
                 // @todo func.is_generic() and current context is concrete function
                 if (func.is_generic()) {
                     // return InferError.GenericFunctionNotImplemented;
+                    const func_expr = try self.env.global.get_function(function_name.get_text(self.file.src));
+                    // const func_expr = try self.env.get(func.name);
+                    const new_func = try self.instanciate_function(
+                        &callee.function,
+                        func_expr,
+                        call_expr.args,
+                    );
 
-                    // const func_expr = try self.env.get_function(func.name);
-                    // const new_func = try self.instanciate_function(callee, func_expr, call_expr.args);
-                    // const node = try self.call(&new_func.function, call_expr.args);
-                    // pretty_print(new_func);
-                    // return node;
+                    const function_sem = try self.create_sem(
+                        .{
+                            .Function = .{
+                                .type_node = new_func.type_node,
+                                .orig_expr = func_expr,
+                                .body = new_func.body,
+                            },
+                        },
+                    );
+
+                    try self.typed_ast.append(self.allocator, function_sem);
+
+                    const call_infos = try self.call(
+                        expr,
+                        &new_func.type_node.function,
+                        call_expr.args,
+                    );
+                    return try self.create_sem(
+                        .{
+                            .Call = .{
+                                .args = @alignCast(@ptrCast(call_infos.args)),
+                                .callee = callee,
+                                .type_node = call_infos.return_type,
+                                .orig_expr = expr,
+                            },
+                        },
+                    );
                 }
 
                 const call_infos = try self.call(expr, func, call_expr.args);
@@ -661,6 +701,8 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
                 null,
                 null,
             );
+
+            // try self.env.global.define_function(expr.Function.name.?.get_text(self.file.src), expr);
 
             return try self.create_sem(
                 .{
@@ -790,14 +832,14 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
 fn call(
     self: *@This(),
     call_expr: *const Expr,
-    func: *const FunType,
+    func_type: *const FunType,
     call_args: []*const Expr,
 ) anyerror!struct { args: []*Sem, return_type: *TypeNode } {
-    if (func.args.len != call_args.len) {
+    if (func_type.args.len != call_args.len) {
         const function_name = call_expr.Call.callee.Variable.name;
         return self.wrong_number_of_arguments_err(
             call_expr,
-            @intCast(func.args.len),
+            @intCast(func_type.args.len),
             @intCast(call_args.len),
             function_name.get_text(self.file.src),
         );
@@ -806,12 +848,12 @@ fn call(
     // @todo: just reuse one type scope. Or use another more generic object
     var type_scope: *TypeScope = try self.allocator.create(TypeScope);
     type_scope.* = TypeScope.init(self.allocator);
-    try type_scope.ensureTotalCapacity(@intCast(func.args.len));
+    try type_scope.ensureTotalCapacity(@intCast(func_type.args.len));
     defer type_scope.deinit();
 
     var args_sems = try self.allocator.alloc(*Sem, call_args.len);
 
-    for (call_args, func.args, 0..) |call_arg, func_arg_type, i| {
+    for (call_args, func_type.args, 0..) |call_arg, func_arg_type, i| {
         const typed_call_arg = try self.infer(call_arg);
 
         var call_arg_type = sem_type(typed_call_arg);
@@ -855,12 +897,12 @@ fn call(
 
     return .{
         .args = args_sems,
-        .return_type = try self.get_type_ref(func.return_type, type_scope),
+        .return_type = try self.get_type_ref(func_type.return_type, type_scope),
     };
 }
 
 // @todo: why anyerror
-fn function(self: *@This(), expr: *const Expr, maybe_args: ?[]*TypeNode, maybe_return_type: ?*TypeNode) anyerror!struct { body: *Sem, type_node: *TypeNode } {
+fn function(self: *@This(), expr: *const Expr, maybe_args: ?[]*TypeNode, maybe_return_type: ?*TypeNode) anyerror!FunctionInfos {
     const func_expr = expr.Function;
 
     // if (func_expr.name == null) {
@@ -1117,43 +1159,39 @@ fn new_var_type(self: *@This(), name: []const u8, type_node: *TypeNode) !*TypeNo
         },
     );
 }
+const FunctionInfos = struct { body: *Sem, type_node: *TypeNode };
 
 fn instanciate_function(
     self: *@This(),
-    func_node: *const TypeNode,
+    func_type: *const FunType,
     expr: *const Expr,
-    new_args: []*const Expr,
-) anyerror!*TypeNode {
-    const func_type = func_node.function;
-
-    if (func_type.args.len != new_args.len) {
+    call_args: []*const Expr,
+) anyerror!FunctionInfos {
+    if (func_type.args.len != call_args.len) {
         return InferError.WrongNumberOfArguments;
     }
 
-    // use the func.clone method ?
-    const return_type = try func_type.return_type.clone(self);
-    const args = try self.allocator.alloc(*TypeNode, func_type.args.len);
+    var typed_call_args = std.ArrayList(*TypeNode).init(self.allocator);
 
-    for (func_type.args, 0..) |arg, i| {
-        args[i] = try arg.clone(self);
+    for (call_args, func_type.args) |call_arg, base_arg| {
+        const typed_call_arg = try self.infer(call_arg);
+        const call_arg_type = sem_type(typed_call_arg);
+        // mutate cloned call_args args
+        try subsume(call_arg_type, base_arg);
+
+        try typed_call_args.append(call_arg_type);
     }
 
-    for (new_args, 0..) |expr_arg, i| {
-        const arg_node = try self.infer(expr_arg);
-        // mutate cloned function args
-        try unify(arg_node, args[i]);
-    }
-
-    const function_type: FunType = .{
+    const func_instance_type: FunType = .{
         .name = func_type.name,
-        .args = args,
-        .return_type = return_type,
+        .args = try typed_call_args.toOwnedSlice(),
+        .return_type = func_type.return_type,
     };
 
     return try self.function(
         expr,
-        function_type.args,
-        function_type.return_type,
+        func_instance_type.args,
+        func_instance_type.return_type,
     );
 }
 
@@ -1702,6 +1740,10 @@ const Scope = struct {
 
     pub fn get_function(self: *Scope, name: []const u8) InferError!*const Expr {
         return self.functions.get(name) orelse InferError.UnknownFunction;
+    }
+
+    pub fn define_function(self: *Scope, name: []const u8, expr: *const Expr) !void {
+        try self.functions.put(self.allocator, name, expr);
     }
 
     pub fn has(self: *Scope, name: []const u8) bool {

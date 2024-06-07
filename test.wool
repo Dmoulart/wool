@@ -3,16 +3,16 @@ sum : Number Number -> Number : a, b -> { a + b }
 
 
 main :: -> void {
-  float_a :f32 = 1
-  float_b :f32 = 1
+  float_a :f64 = 1
+  float_b :f64 = 1
 
   sum(float_a float_b)
-
+/*
   int_a :i32 = 1
   int_b :i32 = 1
 
   sum(int_a int_b)
-
+*/
   return 
 }
 
