@@ -10,7 +10,9 @@ typed_ast: std.ArrayListUnmanaged(*Sem),
 
 loop_scope: LoopScope,
 
-env: Env,
+env: *Env,
+
+environments: std.ArrayListUnmanaged(Env),
 
 err: Errors(InferError),
 
@@ -150,6 +152,7 @@ pub const FunType = struct {
     name: ?[]const u8,
     args: []*TypeNode,
     return_type: *TypeNode,
+    is_instance: bool,
 
     pub fn is_generic(self: *const FunType) bool {
         if (!self.return_type.get_tid().is_terminal()) {
@@ -268,17 +271,20 @@ pub const InferError = error{
 
 pub fn init(allocator: std.mem.Allocator, ast: []*Expr, file: *const File) @This() {
     const err = Errors(InferError).init(allocator, file);
-
+    var environments: std.ArrayListUnmanaged(Env) = .{};
+    const env = environments.addOne(allocator) catch unreachable;
+    env.* = Env.init(allocator, file, err);
     return .{
         .allocator = allocator,
         .ast = ast,
-        .env = Env.init(allocator, file, err),
+        .env = env,
         .type_nodes = .{},
         .sems = .{},
         .typed_ast = .{},
         .err = err,
         .file = file,
         .loop_scope = .{},
+        .environments = environments,
     };
 }
 
@@ -590,6 +596,7 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
                         .args = args,
                         .name = null,
                         .return_type = try self.new_type(.void),
+                        .is_instance = false,
                     },
                 },
             );
@@ -639,30 +646,37 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
                 if (func.is_generic()) {
                     // return InferError.GenericFunctionNotImplemented;
                     const func_expr = try self.env.global.get_function(function_name.get_text(self.file.src));
-                    // const func_expr = try self.env.get(func.name);
-                    const new_func = try self.instanciate_function(
+
+                    self.env.begin_local_scope();
+
+                    const new_func_infos = try self.instanciate_function(
                         &callee.function,
                         func_expr,
                         call_expr.args,
                     );
 
-                    const function_sem = try self.create_sem(
+                    try self.env.end_local_scope();
+
+                    const new_func = try self.create_sem(
                         .{
                             .Function = .{
-                                .type_node = new_func.type_node,
+                                .type_node = new_func_infos.type_node,
                                 .orig_expr = func_expr,
-                                .body = new_func.body,
+                                .body = new_func_infos.body,
                             },
                         },
                     );
+                    // var mutable_func_expr = @constCast(func_expr);
+                    // mutable_func_expr.Function.name = "ok";
 
-                    try self.typed_ast.append(self.allocator, function_sem);
+                    try self.typed_ast.append(self.allocator, new_func);
 
                     const call_infos = try self.call(
                         expr,
-                        &new_func.type_node.function,
+                        &new_func_infos.type_node.function,
                         call_expr.args,
                     );
+
                     return try self.create_sem(
                         .{
                             .Call = .{
@@ -696,11 +710,14 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
             // @todo function main type checkin', we need context, and function name, how ?
             // const func_name = expr.Function.name;
             // std.debug.print("func name {any}", .{func_name});
+            self.env.begin_local_scope();
             const function_infos = try self.function(
                 expr,
                 null,
                 null,
+                null,
             );
+            try self.env.end_local_scope();
 
             // try self.env.global.define_function(expr.Function.name.?.get_text(self.file.src), expr);
 
@@ -902,9 +919,9 @@ fn call(
 }
 
 // @todo: why anyerror
-fn function(self: *@This(), expr: *const Expr, maybe_args: ?[]*TypeNode, maybe_return_type: ?*TypeNode) anyerror!FunctionInfos {
+fn function(self: *@This(), expr: *const Expr, maybe_args: ?[]*TypeNode, maybe_return_type: ?*TypeNode, maybe_is_instance: ?bool) anyerror!FunctionInfos {
     const func_expr = expr.Function;
-
+    // std.debug.print("\n declare func:{s} \n", .{func_expr.name.?.get_text(self.file.src)});
     // if (func_expr.name == null) {
     //     return TypeError.AnonymousFunctionsNotImplemented;
     // }
@@ -915,7 +932,7 @@ fn function(self: *@This(), expr: *const Expr, maybe_args: ?[]*TypeNode, maybe_r
         }
     }
 
-    self.env.begin_local_scope();
+    // self.env.begin_local_scope();
 
     const func_decl_return_type = if (func_expr.type) |token_type|
         try self.new_var_type_from_token("T", token_type)
@@ -930,6 +947,7 @@ fn function(self: *@This(), expr: *const Expr, maybe_args: ?[]*TypeNode, maybe_r
         else
             &[_]*TypeNode{},
         .return_type = func_decl_return_type,
+        .is_instance = if (maybe_is_instance) |is_instance| is_instance else false,
     };
 
     if (func_expr.args) |args| {
@@ -939,7 +957,11 @@ fn function(self: *@This(), expr: *const Expr, maybe_args: ?[]*TypeNode, maybe_r
             else
                 try self.new_var_type("T", try self.new_type(.any));
 
-            self.env.define_local(arg.expr.Variable.name.get_text(self.file.src), arg_type) catch
+            const arg_name = arg.expr.Variable.name.get_text(self.file.src);
+
+            // std.debug.print("\n arg_name {s} \n", .{arg_name});
+
+            self.env.define_local(arg_name, arg_type) catch
                 return self.already_defined_indentifier_err(arg.expr.Variable.name, arg.expr, "argument");
 
             function_decl_type.args[i] = arg_type;
@@ -954,7 +976,10 @@ fn function(self: *@This(), expr: *const Expr, maybe_args: ?[]*TypeNode, maybe_r
 
     const body_type = sem_type(typed_body);
 
-    unify(func_decl_return_type, body_type) catch
+    subsume(
+        func_decl_return_type,
+        body_type,
+    ) catch
         return self.type_mismatch_err(
         func_decl_return_type,
         body_type,
@@ -962,16 +987,19 @@ fn function(self: *@This(), expr: *const Expr, maybe_args: ?[]*TypeNode, maybe_r
     );
 
     if (maybe_return_type) |optional_return_type| {
-        unify(optional_return_type, func_decl_return_type) catch
-            return self.type_mismatch_err(
-            optional_return_type,
+        subsume(
             func_decl_return_type,
+            optional_return_type,
+        ) catch
+            return self.type_mismatch_err(
+            func_decl_return_type,
+            optional_return_type,
             func_expr.body,
         );
     }
 
-    try self.env.end_local_scope();
-
+    // try self.env.end_local_scope();
+    // std.debug.print("\n end func:{s} \n", .{func_expr.name.?.get_text(self.file.src)});
     return .{
         .body = typed_body,
         .type_node = try self.new_type_node(.{ .function = function_decl_type }),
@@ -1162,7 +1190,7 @@ fn new_var_type(self: *@This(), name: []const u8, type_node: *TypeNode) !*TypeNo
 const FunctionInfos = struct { body: *Sem, type_node: *TypeNode };
 
 fn instanciate_function(
-    self: *@This(),
+    self: *Infer,
     func_type: *const FunType,
     expr: *const Expr,
     call_args: []*const Expr,
@@ -1182,17 +1210,30 @@ fn instanciate_function(
         try typed_call_args.append(call_arg_type);
     }
 
+    // create new symbol tables, isolate new scopes
+    const prev_env = self.env;
+    try self.use_new_env();
+    defer self.env = prev_env;
+
     const func_instance_type: FunType = .{
         .name = func_type.name,
         .args = try typed_call_args.toOwnedSlice(),
         .return_type = func_type.return_type,
+        .is_instance = true,
     };
 
     return try self.function(
         expr,
         func_instance_type.args,
         func_instance_type.return_type,
+        true,
     );
+}
+
+fn use_new_env(self: *Infer) !void {
+    const new_env = try self.environments.addOne(self.allocator);
+    new_env.* = Env.init(self.allocator, self.file, self.err);
+    self.env = new_env;
 }
 
 fn type_of(value: Expr.Literal.Value) TypeID {
@@ -1299,6 +1340,7 @@ pub fn parse_type(self: *Infer, tokens: []*const Token) !*TypeNode {
             .name = "?",
             .args = try args.toOwnedSlice(),
             .return_type = if (maybe_return_type) |return_type| return_type else try self.new_type(.void),
+            .is_instance = false,
         },
     });
 }
@@ -1488,6 +1530,7 @@ var load_type = TypeNode{
         .name = "load",
         .args = &load_arg,
         .return_type = &load_return_type,
+        .is_instance = false,
     },
 };
 
@@ -1504,6 +1547,7 @@ var store_type = TypeNode{
         .name = "store",
         .args = &store_args,
         .return_type = &store_return_type,
+        .is_instance = false,
     },
 };
 
@@ -1515,6 +1559,7 @@ const builtins_types = std.ComptimeStringMap(
                 .name = "+",
                 .args = &add_args,
                 .return_type = &add_return_type,
+                .is_instance = false,
             },
         },
         .{
@@ -1522,6 +1567,7 @@ const builtins_types = std.ComptimeStringMap(
                 .name = "-",
                 .args = &sub_args,
                 .return_type = &sub_return_type,
+                .is_instance = false,
             },
         },
         .{
@@ -1529,6 +1575,7 @@ const builtins_types = std.ComptimeStringMap(
                 .name = "*",
                 .args = &mul_args,
                 .return_type = &mul_return_type,
+                .is_instance = false,
             },
         },
         .{
@@ -1536,6 +1583,7 @@ const builtins_types = std.ComptimeStringMap(
                 .name = "/",
                 .args = &div_args,
                 .return_type = &div_return_type,
+                .is_instance = false,
             },
         },
         .{
@@ -1543,6 +1591,7 @@ const builtins_types = std.ComptimeStringMap(
                 .name = ">",
                 .args = &greater_args,
                 .return_type = &greater_return_type,
+                .is_instance = false,
             },
         },
         .{
@@ -1550,6 +1599,7 @@ const builtins_types = std.ComptimeStringMap(
                 .name = ">=",
                 .args = &greater_equal_args,
                 .return_type = &greater_equal_return_type,
+                .is_instance = false,
             },
         },
         .{
@@ -1557,6 +1607,7 @@ const builtins_types = std.ComptimeStringMap(
                 .name = "<",
                 .args = &less_args,
                 .return_type = &less_return_type,
+                .is_instance = false,
             },
         },
         .{
@@ -1564,6 +1615,7 @@ const builtins_types = std.ComptimeStringMap(
                 .name = "<=",
                 .args = &less_equal_args,
                 .return_type = &less_equal_return_type,
+                .is_instance = false,
             },
         },
         .{
@@ -1571,6 +1623,7 @@ const builtins_types = std.ComptimeStringMap(
                 .name = "==",
                 .args = &equal_equal_args,
                 .return_type = &equal_equal_return_type,
+                .is_instance = false,
             },
         },
         .{
@@ -1578,6 +1631,7 @@ const builtins_types = std.ComptimeStringMap(
                 .name = "!=",
                 .args = &bang_equal_args,
                 .return_type = &bang_equal_return_type,
+                .is_instance = false,
             },
         },
     },
@@ -1589,8 +1643,8 @@ pub fn write_sems_to_file2(self: *@This()) !void {
 
 const Env = struct {
     allocator: std.mem.Allocator,
-    local: Scope,
-    global: Scope,
+    local: SymbolTable,
+    global: SymbolTable,
     err: Errors(InferError),
     file: *const File,
 
@@ -1598,13 +1652,13 @@ const Env = struct {
     current_scope_start_index: usize = 0,
 
     pub fn init(allocator: std.mem.Allocator, file: *const File, err: Errors(InferError)) Env {
-        var global = Scope.init(allocator);
+        var global = SymbolTable.init(allocator);
         global.define("@load", &load_type) catch unreachable;
         global.define("@store", &store_type) catch unreachable;
         return .{
             .allocator = allocator,
             .global = global,
-            .local = Scope.init(allocator),
+            .local = SymbolTable.init(allocator),
             .err = err,
             .file = file,
         };
@@ -1645,6 +1699,7 @@ const Env = struct {
     pub fn begin_local_scope(self: *Env) void {
         self.current_depth += 1;
         self.current_scope_start_index = self.local.types.count();
+        std.debug.print("\nbegin local scope {d} {d}\n", .{ self.current_depth, self.current_scope_start_index });
     }
 
     pub fn end_local_scope(self: *Env) InferError!void {
@@ -1672,9 +1727,24 @@ const Env = struct {
         if (self.in_global_scope()) {
             self.local.clear(); // clear all local scope types, we don't need it anymore
         } else {
+            // std.debug.print("\n Before \n", .{});
+            // for (self.local.types.values()) |ty| {
+            //     std.debug.print("\nty {any}\n", .{ty});
+            // }
+
+            // std.debug.print("\n-- local rewind to {d}", .{self.current_scope_start_index});
+
             self.local.rewind_to(self.current_scope_start_index);
             self.current_scope_start_index = self.local.types.count();
+
+            // std.debug.print("\n After \n", .{});
+            // for (self.local.types.values()) |ty| {
+            //     std.debug.print("\nty {any}\n", .{ty});
+            // }
+
+            if (self.local.get("a")) |a| std.debug.print("\na {any}\n", .{a}) else |e| std.debug.print("\nnot a {any}\n", .{e});
         }
+        std.debug.print("\n end local scope {d} {d}\n", .{ self.current_depth, self.current_scope_start_index });
     }
 
     pub fn in_global_scope(self: *Env) bool {
@@ -1688,12 +1758,33 @@ const Env = struct {
 };
 
 const Scope = struct {
+    parent: ?*const Scope,
+    type: Scope.Type,
+    symbols: SymbolTable,
+
+    pub const Type = enum {
+        block,
+        function,
+    };
+
+    pub fn init(allocator: std.mem.Allocator, scope_type: Scope.Type, parent: ?*const Scope) Scope {
+        return .{
+            .type = scope_type,
+            .parent = parent,
+            .symbols = SymbolTable.init(allocator),
+        };
+    }
+};
+
+// const ScopesInfo = struct { stack: Stack(ScopeInfo) };
+
+const SymbolTable = struct {
     allocator: std.mem.Allocator,
     types: std.StringArrayHashMapUnmanaged(*TypeNode),
     functions: std.StringHashMapUnmanaged(*const Expr),
     unused: std.AutoHashMapUnmanaged(*TypeNode, void),
 
-    pub fn init(allocator: std.mem.Allocator) Scope {
+    pub fn init(allocator: std.mem.Allocator) SymbolTable {
         return .{
             .allocator = allocator,
             .types = .{},
@@ -1702,12 +1793,12 @@ const Scope = struct {
         };
     }
 
-    pub fn deinit(self: *Scope) void {
+    pub fn deinit(self: *SymbolTable) void {
         self.types.deinit(self.allocator);
         self.functions.deinit(self.allocator);
     }
 
-    pub fn define(self: *Scope, name: []const u8, node: *TypeNode) InferError!void {
+    pub fn define(self: *SymbolTable, name: []const u8, node: *TypeNode) InferError!void {
         const result = self.types.getOrPut(self.allocator, name) catch unreachable; // @todo general exception handling
 
         if (result.found_existing) {
@@ -1718,15 +1809,15 @@ const Scope = struct {
         self.unused.put(self.allocator, node, {}) catch unreachable; // @todo general exception handling
     }
 
-    pub fn clear(self: *Scope) void {
+    pub fn clear(self: *SymbolTable) void {
         self.types.clearAndFree(self.allocator);
     }
 
-    pub fn rewind_to(self: *Scope, size: usize) void {
+    pub fn rewind_to(self: *SymbolTable, size: usize) void {
         self.types.shrinkAndFree(self.allocator, size);
     }
 
-    pub fn get(self: *Scope, name: []const u8) InferError!*TypeNode {
+    pub fn get(self: *SymbolTable, name: []const u8) InferError!*TypeNode {
         if (self.types.get(name)) |value| {
             _ = self.unused.remove(
                 value,
@@ -1738,19 +1829,19 @@ const Scope = struct {
         }
     }
 
-    pub fn get_function(self: *Scope, name: []const u8) InferError!*const Expr {
+    pub fn get_function(self: *SymbolTable, name: []const u8) InferError!*const Expr {
         return self.functions.get(name) orelse InferError.UnknownFunction;
     }
 
-    pub fn define_function(self: *Scope, name: []const u8, expr: *const Expr) !void {
+    pub fn define_function(self: *SymbolTable, name: []const u8, expr: *const Expr) !void {
         try self.functions.put(self.allocator, name, expr);
     }
 
-    pub fn has(self: *Scope, name: []const u8) bool {
+    pub fn has(self: *SymbolTable, name: []const u8) bool {
         return self.types.contains(name);
     }
 
-    pub fn is_unused(self: *Scope, node: *TypeNode) bool {
+    pub fn is_unused(self: *SymbolTable, node: *TypeNode) bool {
         return self.unused.contains(node);
     }
 };

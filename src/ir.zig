@@ -377,34 +377,49 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
         .Function => |*function| {
             self.function_locals.shrinkRetainingCapacity(0);
 
+            const function_type = function.type_node.function;
+
             // generic functions cannot be trasnlated
-            if (function.type_node.function.is_generic()) {
+            if (function_type.is_generic()) {
                 return try self.create_inst(.{ .noop = {} });
             }
 
-            var args = try self.allocator.alloc(Infer.TypeID, function.type_node.function.args.len);
+            var args = try self.allocator.alloc(Infer.TypeID, function_type.args.len);
 
-            for (function.type_node.function.args, 0..) |arg, i| {
+            for (function_type.args, 0..) |arg, i| {
                 const tid = arg.get_tid();
 
+                // @todo this is fucking awful !!
                 const name = function.orig_expr.Function.args.?[i].expr.Variable.name.get_text(self.file.src);
                 args[i] = tid;
-                // @todo this is fucking awful !!
                 _ = try self.function_locals.put(self.allocator, name, .{
                     .ident = @intCast(self.function_locals.count()),
                     .tid = tid,
                 });
             }
 
-            const name = if (function.orig_expr.Function.name) |name|
-                name.get_text(self.file.src)
-            else
-                "anonymous";
+            // const name = if (function.orig_expr.Function.name) |name|
+            //     name.get_text(self.file.src)
+            // else
+            //     "anonymous";
+
+            //@todo mem
+            var name = String.init(std.heap.page_allocator);
+            if (function.orig_expr.Function.name) |func_name| {
+                try name.concat(func_name.get_text(self.file.src));
+            } else {
+                return IrError.NotImplemented;
+            }
+            // if (function_type.is_instance) {
+            for (function_type.args) |arg| {
+                try name.concat(arg.to_str());
+            }
+            // }
 
             return try self.create_inst(.{
                 .func = .{
-                    .name = name,
-                    .ret = function.type_node.function.return_type.get_tid(),
+                    .name = name.str(),
+                    .ret = function_type.return_type.get_tid(),
                     .args = args,
                     .body = try self.convert(as_sem(function.body)),
                 },
@@ -547,6 +562,12 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
             // @todo dynamic calls ??
             // @todo horror museum
             const function_name = call.orig_expr.Call.callee.Variable.name.get_text(self.file.src);
+            // const fun_type = sem_type(as_sem(call.callee));
+            // if (fun_type.as_function()) |f| {
+            //     std.debug.print("fff {any}", .{f});
+            // }
+            // std.debug.print("\n{any}\n", .{sem_type(as_sem(call.callee))});
+            // try jsonPrint(as_sem(call.callee), "call.json");
 
             const args = try self.allocator.alloc(*Inst, call.args.len);
 
@@ -580,10 +601,15 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
                     };
                 }
             }
-
+            var name = String.init(std.heap.page_allocator);
+            try name.concat(function_name);
+            // if (function_type.is_instance) {
+            for (call.args) |arg| {
+                try name.concat(sem_type(as_sem(arg)).to_str());
+            }
             return try self.create_inst(
                 .{
-                    .call = .{ .callee = function_name, .args = args },
+                    .call = .{ .callee = name.str(), .args = args },
                 },
             );
         },
@@ -995,6 +1021,27 @@ fn eval(self: *Ir, sem: *Infer.Sem, comptime InputType: type, comptime ReturnTyp
     };
 }
 
+pub fn sem_type(sem: *Infer.Sem) *Infer.TypeNode {
+    return switch (sem.*) {
+        inline else => |*any_sem| any_sem.type_node,
+    };
+}
+
+pub fn jsonPrint(value: anytype, file_path: []const u8) !void {
+    var out = std.ArrayList(u8).init(std.heap.page_allocator);
+    defer out.deinit();
+
+    try std.json.stringify(value, .{}, out.writer());
+
+    const file = try std.fs.cwd().createFile(
+        file_path,
+        .{ .read = true },
+    );
+    defer file.close();
+
+    _ = try file.writeAll(try out.toOwnedSlice());
+}
+
 const std = @import("std");
 const meta = std.meta;
 const activeTag = std.meta.activeTag;
@@ -1009,3 +1056,5 @@ const as_sems = @import("./infer.zig").as_sems;
 const get_sem_tid = @import("./infer.zig").get_sem_tid;
 
 const LoopScope = @import("./loop-scope.zig");
+
+const String = @import("string").String;
