@@ -588,14 +588,14 @@ pub fn infer(self: *@This(), expr: *const Expr) !*Sem {
         .Import => {
             //@todo free
             const args = try self.allocator.alloc(*TypeNode, 1);
-            args[0] = try self.new_type(.i32);
+            args[0] = try self.new_type(.any);
 
             const node = try self.new_type_node(
                 .{
                     .function = .{
                         .args = args,
                         .name = null,
-                        .return_type = try self.new_type(.void),
+                        .return_type = try self.new_type(.any),
                         .is_instance = false,
                     },
                 },
@@ -1110,7 +1110,8 @@ fn subsume(type_a: *TypeNode, type_b: *TypeNode) InferError!void {
 fn bind(from: *TypeNode, to: *TypeNode) !void {
     //@todo: not sure about this
     if (@intFromPtr(to) == @intFromPtr(from.variable.ref)) {
-        return InferError.CircularReference;
+        return;
+        // return InferError.CircularReference;
     }
 
     // we don't need a variable to point to a terminal type. it can become the terminal type because once we have hit a terminal type
@@ -1699,7 +1700,6 @@ const Env = struct {
     pub fn begin_local_scope(self: *Env) void {
         self.current_depth += 1;
         self.current_scope_start_index = self.local.types.count();
-        std.debug.print("\nbegin local scope {d} {d}\n", .{ self.current_depth, self.current_scope_start_index });
     }
 
     pub fn end_local_scope(self: *Env) InferError!void {
@@ -1742,9 +1742,7 @@ const Env = struct {
             //     std.debug.print("\nty {any}\n", .{ty});
             // }
 
-            if (self.local.get("a")) |a| std.debug.print("\na {any}\n", .{a}) else |e| std.debug.print("\nnot a {any}\n", .{e});
         }
-        std.debug.print("\n end local scope {d} {d}\n", .{ self.current_depth, self.current_scope_start_index });
     }
 
     pub fn in_global_scope(self: *Env) bool {

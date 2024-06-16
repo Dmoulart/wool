@@ -1,5 +1,22 @@
 
-sum :: a, b -> { a + b }
+sum :: a i32, b i32 -> i32 {
+  if a == 1 {
+    return 100
+  }
+  return a + b
+}
+
+main :: -> void {
+  sum(1 2)
+
+  return 
+}
+
+/*
+log : Any -> void : from console import log
+
+sum : Number Number -> Number : a, b -> { a + b }
+
 
 
 main :: -> void {
@@ -13,9 +30,14 @@ main :: -> void {
 
   sum(int_a int_b)
 
+  int64_a :i64 = 1
+  int64_b :i64 = 1
+
+  sum(int64_a int64_b)
+
   return 
 }
-
+*/
 
 
 

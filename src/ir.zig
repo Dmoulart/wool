@@ -183,6 +183,8 @@ pub const Inst = union(enum) {
     pub const ExternFunc = struct {
         namespace: []const u8,
         member: []const u8,
+        // args: []Infer.TypeID,
+        // ret: Infer.TypeID,
     };
 
     pub const If = struct {
@@ -360,11 +362,16 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
                     return try self.convert(as_sem(const_init.initializer));
                 },
                 .extern_func => {
-                    //@todo wow this is really crazy
-                    const namespace = as_sem(const_init.initializer).Import.orig_expr.Import.namespace.get_text(self.file.src);
-                    const member = as_sem(const_init.initializer).Import.orig_expr.Import.member.get_text(self.file.src);
+                    const import_expr = as_sem(const_init.initializer).Import.orig_expr.Import;
+                    // const import_type = as_sem(const_init.initializer).Import.type_node;
+
+                    const namespace = import_expr.namespace.get_text(self.file.src);
+                    const member = import_expr.member.get_text(self.file.src);
+
                     return try self.create_inst(.{
                         .extern_func = .{
+                            // .args = &.{},
+                            // .ret = import_type.get_tid(),
                             .namespace = namespace,
                             .member = member,
                         },
@@ -617,6 +624,7 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
             //@todo wow this is really crazy
             const namespace = as_sem(import).Import.orig_expr.Import.namespace.get_text(self.file.src);
             const member = as_sem(import).Import.orig_expr.Import.member.get_text(self.file.src);
+
             return try self.create_inst(.{
                 .extern_func = .{
                     .namespace = namespace,
@@ -747,7 +755,6 @@ pub fn convert(self: *Ir, sem: *Infer.Sem) anyerror!*Inst {
 
 fn literal(tid: Infer.TypeID, value: Expr.Literal.Value) !Inst {
     return switch (tid) {
-        //temporary, Number should be narrowed in Infer phase or an error should be thrown
         .i32 => .{
             .value_i32 = try std.fmt.parseInt(i32, value.Number, 10),
         },
